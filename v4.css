@@ -1164,3 +1164,103 @@ h1 {
     min-height: 38px;
   }
 }
+/* V4.1 - Premium upgrade cards */
+
+.upgrade-card,
+.shop-item,
+.card {
+  position: relative;
+  overflow: hidden;
+}
+
+.shop .item,
+.upgrade-row,
+.shop-card {
+  background:
+    linear-gradient(135deg, rgba(255, 213, 109, 0.08), transparent 38%),
+    linear-gradient(180deg, #18212a 0%, #111820 100%) !important;
+  border: 1px solid rgba(255, 213, 109, 0.18) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 10px 24px rgba(0, 0, 0, 0.18) !important;
+  border-radius: 12px !important;
+}
+
+.shop .item::before,
+.upgrade-row::before,
+.shop-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 4px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffd76d, #36d08c);
+  opacity: 0.9;
+}
+
+.shop h3,
+.shop .item h3,
+.upgrade-row h3,
+.shop-card h3 {
+  color: #ffffff !important;
+  font-weight: 900 !important;
+  text-shadow:
+    1px 2px 0 rgba(31, 58, 128, 0.7),
+    0 0 12px rgba(255, 213, 109, 0.22) !important;
+}
+
+.shop p,
+.shop .item p,
+.upgrade-row p,
+.shop-card p {
+  color: #d8e7ff !important;
+  font-weight: 700 !important;
+}
+
+.shop button,
+.upgrade-btn,
+.shop .item button {
+  border: 0 !important;
+  color: #07110d !important;
+  font-weight: 900 !important;
+  background:
+    linear-gradient(180deg, #56e39a 0%, #35c77c 100%) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 8px 0 #17834f,
+    0 14px 22px rgba(0, 0, 0, 0.28) !important;
+  border-radius: 11px !important;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.12s ease !important;
+}
+
+.shop button:active,
+.upgrade-btn:active,
+.shop .item button:active {
+  transform: translateY(5px) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 3px 0 #17834f,
+    0 8px 14px rgba(0, 0, 0, 0.24) !important;
+}
+
+.shop button:hover,
+.upgrade-btn:hover,
+.shop .item button:hover {
+  filter: brightness(1.06) !important;
+}
+
+@media (max-width: 520px) {
+  .shop .item,
+  .upgrade-row,
+  .shop-card {
+    border-radius: 10px !important;
+  }
+
+  .shop button,
+  .upgrade-btn,
+  .shop .item button {
+    border-radius: 10px !important;
+  }
+}
