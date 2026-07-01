@@ -1036,3 +1036,18 @@ h1 {
     font-size: 13px !important;
   }
 }
+/* v4 cleaner logo title */
+h1 {
+  color: #ffe28a !important;
+  background: linear-gradient(180deg, #ffffff 0%, #ffe28a 45%, #f4a93c 100%);
+  -webkit-background-clip: text;
+  color: transparent !important;
+  text-shadow:
+    0 4px 0 rgba(32, 62, 145, 0.55),
+    0 10px 22px rgba(255, 184, 58, 0.22) !important;
+}
+
+.header {
+  padding-top: 8px;
+  padding-bottom: 6px;
+}
