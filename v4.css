@@ -1422,3 +1422,26 @@ h1 {
     height: 136px !important;
   }
 }
+/* V4.1 - Compact main spacing */
+
+.tap-area {
+  margin-top: 22px !important;
+  margin-bottom: 18px !important;
+}
+
+.tap-button {
+  width: 170px !important;
+  height: 170px !important;
+}
+
+@media (max-width: 520px) {
+  .tap-area {
+    margin-top: 14px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .tap-button {
+    width: 136px !important;
+    height: 136px !important;
+  }
+}
