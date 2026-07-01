@@ -1071,3 +1071,19 @@ h1 {
     bottom: 34px !important;
   }
 }
+/* force city icons lower */
+.city .city-icon,
+.city .shop-icon,
+.city .bank-icon,
+.city .factory-icon {
+  bottom: 44px !important;
+}
+
+@media (max-width: 520px) {
+  .city .city-icon,
+  .city .shop-icon,
+  .city .bank-icon,
+  .city .factory-icon {
+    bottom: 28px !important;
+  }
+}
