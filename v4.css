@@ -1,36 +1,24 @@
 :root {
   color-scheme: dark;
-  --bg: #07090d;
-  --surface: rgba(18, 23, 31, 0.92);
-  --surface-2: rgba(27, 34, 44, 0.94);
-  --line: rgba(255, 213, 109, 0.2);
-  --text: #fff6e5;
-  --muted: #b9c0ca;
-  --gold: #ffd56d;
-  --green: #45d38e;
-  --red: #ff6f7d;
+  --bg: #11151a;
+  --surface: #1a2128;
+  --surface-2: #222c35;
+  --line: #344350;
+  --text: #f7f2e8;
+  --muted: #a9b4bf;
+  --gold: #f0b84b;
+  --green: #45c383;
+  --red: #e56b6b;
 }
 
 * {
   box-sizing: border-box;
 }
 
-html,
-body {
-  touch-action: manipulation;
-  overscroll-behavior: none;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-}
-
 body {
   margin: 0;
   min-height: 100vh;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(255, 213, 109, 0.2), transparent 28%),
-    radial-gradient(circle at 88% 26%, rgba(69, 211, 142, 0.1), transparent 24%),
-    linear-gradient(180deg, #07090d 0%, #10141d 48%, #050608 100%);
+  background: var(--bg);
   color: var(--text);
   font-family: Arial, Helvetica, sans-serif;
 }
@@ -40,7 +28,6 @@ button {
   color: inherit;
   font: inherit;
   cursor: pointer;
-  touch-action: manipulation;
 }
 
 .app {
@@ -48,10 +35,7 @@ button {
   min-height: 100vh;
   margin: 0 auto;
   padding: 18px 14px 24px;
-  background: linear-gradient(180deg, rgba(22, 26, 35, 0.97), rgba(8, 10, 15, 0.99));
-  border-left: 1px solid rgba(255, 213, 109, 0.12);
-  border-right: 1px solid rgba(255, 213, 109, 0.12);
-  box-shadow: 0 0 46px rgba(255, 213, 109, 0.08);
+  background: #151b21;
 }
 
 .header {
@@ -59,7 +43,14 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 4px 0 2px;
+}
+
+.label {
+  margin: 0 0 5px;
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 h1,
@@ -69,11 +60,8 @@ p {
 }
 
 h1 {
-  font-size: 38px;
+  font-size: 32px;
   line-height: 1;
-  letter-spacing: 0;
-  color: #ffd56d;
-  text-shadow: 0 0 12px rgba(255, 213, 109, 0.34), 0 0 34px rgba(255, 213, 109, 0.18);
 }
 
 .round-button {
@@ -83,7 +71,6 @@ h1 {
   border: 1px solid var(--line);
   background: var(--surface-2);
   font-size: 20px;
-  backdrop-filter: blur(14px);
 }
 
 .stats {
@@ -98,10 +85,7 @@ h1 {
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
-    var(--surface);
-  box-shadow: inset 0 3px 0 rgba(255, 213, 109, 0.5);
+  background: var(--surface);
 }
 
 .stat span {
@@ -115,8 +99,7 @@ h1 {
 .stat strong {
   display: block;
   margin-top: 8px;
-  color: #ffe7a3;
-  font-size: 20px;
+  font-size: 18px;
 }
 
 .stat strong span {
@@ -130,39 +113,15 @@ h1 {
   position: relative;
   height: 220px;
   overflow: hidden;
-  border: 1px solid rgba(255, 213, 109, 0.28);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background:
-    radial-gradient(circle at 78% 20%, rgba(255, 213, 109, 0.24), transparent 22%),
-    linear-gradient(180deg, #294f5d 0%, #14202b 100%);
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28), 0 0 28px rgba(255, 213, 109, 0.08);
-}
-
-.city::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 38px;
-  height: 86px;
-  background:
-    linear-gradient(to top, rgba(6, 9, 13, 0.38), transparent),
-    linear-gradient(90deg,
-      transparent 0 7%,
-      rgba(7, 12, 18, 0.34) 7% 13%,
-      transparent 13% 19%,
-      rgba(7, 12, 18, 0.38) 19% 27%,
-      transparent 27% 44%,
-      rgba(7, 12, 18, 0.34) 44% 53%,
-      transparent 53% 66%,
-      rgba(7, 12, 18, 0.36) 66% 74%,
-      transparent 74% 100%);
-  pointer-events: none;
+  background: #2b3944;
 }
 
 .sky {
   position: absolute;
   inset: 0 0 38px;
+  background: linear-gradient(#3b6272, #31424d);
 }
 
 .sun {
@@ -173,7 +132,6 @@ h1 {
   height: 50px;
   border-radius: 50%;
   background: var(--gold);
-  box-shadow: 0 0 28px rgba(255, 213, 109, 0.75);
 }
 
 .cloud {
@@ -181,8 +139,8 @@ h1 {
   width: 58px;
   height: 18px;
   border-radius: 999px;
-  background: #c6d8dc;
-  opacity: 0.9;
+  background: #d9edf0;
+  opacity: 0.75;
 }
 
 .cloud::before,
@@ -191,7 +149,7 @@ h1 {
   position: absolute;
   bottom: 4px;
   border-radius: 50%;
-  background: #c6d8dc;
+  background: #d9edf0;
 }
 
 .cloud::before {
@@ -220,87 +178,50 @@ h1 {
 .building {
   position: absolute;
   bottom: 38px;
-  border: 2px solid rgba(6, 7, 10, 0.95);
+  border: 2px solid #101418;
   border-bottom: 0;
-  border-radius: 7px 7px 0 0;
-  overflow: hidden;
-  transition: height 220ms ease, filter 220ms ease;
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
 }
 
-.building.upgraded {
-  filter: brightness(1.12);
-}
-
-.building span {
+.building span,
+.building::before,
+.building::after {
+  content: "";
   position: absolute;
-  left: 13px;
-  top: 12px;
+  left: 12px;
   width: 12px;
-  height: 14px;
-  border-radius: 2px;
-  background: #fff0a8;
-  box-shadow: 25px 0 #fff0a8, 0 30px #fff0a8, 25px 30px #fff0a8, 0 60px #fff0a8, 25px 60px #fff0a8;
-  filter: drop-shadow(0 0 6px rgba(255, 238, 170, 0.62));
+  height: 12px;
+  background: #ffe49a;
+  box-shadow: 24px 0 #ffe49a, 0 28px #ffe49a, 24px 28px #ffe49a;
 }
 
 .shop-building {
   left: 22px;
   width: 68px;
   height: 78px;
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.12), transparent 28%),
-    linear-gradient(180deg, #ee6d5c 0%, #c74940 55%, #7d292d 100%);
+  background: #cf5d51;
 }
 
 .bank-building {
   left: 118px;
   width: 74px;
   height: 116px;
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.14), transparent 28%),
-    linear-gradient(180deg, #f1c765 0%, #c99435 55%, #76501d 100%);
+  background: #d6aa55;
 }
 
 .factory-building {
   right: 26px;
   width: 96px;
   height: 96px;
-  overflow: visible;
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.15), transparent 30%),
-    linear-gradient(180deg, #c5ced5 0%, #8b98a2 52%, #535e67 100%);
+  background: #8d98a1;
 }
 
 .factory-building::after {
-  content: "";
-  position: absolute;
-  top: -38px;
-  left: 64px;
-  width: 18px;
-  height: 42px;
-  border: 2px solid rgba(6, 7, 10, 0.8);
-  border-radius: 4px 4px 0 0;
-  background: linear-gradient(180deg, #aeb8c1, #56616a);
-}
-
-.factory-building.active-smoke::before {
-  content: "";
-  position: absolute;
-  top: -52px;
+  top: -36px;
   left: 58px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: rgba(214, 229, 234, 0.58);
-  box-shadow: 14px -12px rgba(214, 229, 234, 0.38), 28px -24px rgba(214, 229, 234, 0.22);
-  animation: smoke 2.2s ease-in-out infinite;
-}
-
-@keyframes smoke {
-  0% { transform: translateY(0) scale(0.8); }
-  50% { transform: translateY(-8px) scale(1); }
-  100% { transform: translateY(-16px) scale(1.15); }
+  width: 20px;
+  height: 36px;
+  background: #5c6872;
+  box-shadow: none;
 }
 
 .street {
@@ -309,8 +230,8 @@ h1 {
   right: 0;
   bottom: 0;
   height: 38px;
-  background: linear-gradient(180deg, #111820, #07090d);
-  border-top: 3px solid rgba(255, 213, 109, 0.18);
+  background: #101418;
+  border-top: 3px solid #414d57;
 }
 
 .street::after {
@@ -319,7 +240,7 @@ h1 {
   left: 24px;
   right: 24px;
   top: 17px;
-  border-top: 3px dashed rgba(255, 242, 208, 0.86);
+  border-top: 3px dashed #f7f2e8;
 }
 
 .tap-area {
@@ -330,60 +251,45 @@ h1 {
 }
 
 .tap-button {
-  position: relative;
-  width: 148px;
-  height: 148px;
+  width: 156px;
+  height: 156px;
   border-radius: 50%;
-  border: 9px solid #5c360e;
-  background: radial-gradient(circle at 42% 30%, #fff5c8 0%, #ffd56d 28%, #e59a2e 62%, #9b5717 100%);
-  box-shadow: 0 12px 0 #2a1605, 0 0 0 7px rgba(255, 213, 109, 0.08), 0 0 46px rgba(255, 213, 109, 0.36);
+  border: 8px solid #4f3215;
+  background: radial-gradient(circle at 50% 35%, #ffdc7f, #d98d2d 72%);
+  box-shadow: 0 12px 0 #2b1b0c;
   color: #201408;
-  transition: transform 100ms ease, box-shadow 100ms ease, opacity 160ms ease;
-}
-
-.tap-button::before {
-  content: "";
-  position: absolute;
-  inset: 14px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  pointer-events: none;
+  transition: transform 100ms ease, box-shadow 100ms ease;
 }
 
 .tap-button:active {
-  transform: translateY(7px) scale(0.98);
-  box-shadow: 0 5px 0 #2a1605, 0 0 34px rgba(255, 213, 109, 0.28);
+  transform: translateY(8px) scale(0.98);
+  box-shadow: 0 4px 0 #2b1b0c;
 }
 
 .tap-button span {
   display: block;
-  font-size: 28px;
+  font-size: 25px;
   font-weight: 800;
 }
 
 .tap-button strong {
-  font-size: 24px;
-}
-
-.tap-button.no-energy {
-  filter: grayscale(0.55);
-  opacity: 0.72;
+  font-size: 22px;
 }
 
 .energy-bar {
   width: 100%;
   height: 12px;
   overflow: hidden;
-  border: 1px solid rgba(255, 213, 109, 0.18);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgba(0, 0, 0, 0.28);
+  background: #0f1419;
 }
 
 .energy-bar span {
   display: block;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, #31d78a, #94f2c2);
+  background: var(--green);
 }
 
 .tabs {
@@ -395,17 +301,16 @@ h1 {
 
 .tab {
   height: 42px;
-  border: 1px solid rgba(255, 213, 109, 0.16);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgba(16, 20, 28, 0.88);
+  background: var(--surface);
   color: var(--muted);
   font-weight: 700;
 }
 
 .tab.active {
-  background: linear-gradient(180deg, #ffe08a, #d99b30);
-  color: #181006;
-  box-shadow: 0 8px 22px rgba(255, 213, 109, 0.18);
+  background: var(--gold);
+  color: #201408;
 }
 
 .panel {
@@ -426,12 +331,9 @@ h1 {
   gap: 12px;
   min-height: 72px;
   padding: 12px;
-  border: 1px solid rgba(255, 213, 109, 0.17);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)),
-    rgba(16, 20, 28, 0.94);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  background: var(--surface);
 }
 
 .stack {
@@ -456,8 +358,8 @@ h1 {
   min-height: 42px;
   padding: 0 12px;
   border-radius: 8px;
-  background: linear-gradient(180deg, #63e6a8, #24a96a);
-  color: #05140d;
+  background: var(--green);
+  color: #07160f;
   font-weight: 800;
 }
 
@@ -476,8 +378,7 @@ h1 {
 }
 
 .task:disabled,
-.buy-button:disabled,
-.task.completed {
+.buy-button:disabled {
   cursor: default;
   opacity: 0.55;
 }
@@ -486,49 +387,6 @@ h1 {
   display: grid;
   min-width: 88px;
   place-items: center;
-}
-
-.earn-hero {
-  border-color: rgba(255, 213, 109, 0.35);
-  background: radial-gradient(circle at 90% 0%, rgba(255, 213, 109, 0.18), transparent 34%), rgba(18, 23, 31, 0.86);
-}
-
-.earn-task span {
-  display: grid;
-  gap: 3px;
-}
-
-.earn-task b {
-  font-size: 15px;
-}
-
-.earn-task small {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.boost-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.boost-button {
-  min-height: 68px;
-  padding: 8px;
-  border: 1px solid rgba(255, 213, 109, 0.18);
-  border-radius: 8px;
-  background: rgba(25, 31, 41, 0.9);
-  color: var(--text);
-  font-weight: 800;
-  line-height: 1.15;
-}
-
-.boost-button span {
-  display: block;
-  margin-top: 6px;
-  color: var(--gold);
-  font-size: 12px;
 }
 
 .rank {
@@ -550,7 +408,7 @@ h1 {
   width: min(92%, 420px);
   padding: 12px 14px;
   border-radius: 8px;
-  background: #fff6e5;
+  background: #f7f2e8;
   color: #11151a;
   font-weight: 800;
   opacity: 0;
@@ -573,8 +431,125 @@ h1 {
 }
 
 @keyframes float-up {
-  from { opacity: 1; transform: translateY(0) scale(1); }
-  to { opacity: 0; transform: translateY(-54px) scale(1.2); }
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-54px) scale(1.2);
+  }
+}
+
+@media (max-width: 390px) {
+  .app {
+    padding-inline: 10px;
+  }
+
+  .stat strong {
+    font-size: 16px;
+  }
+
+  .city {
+    height: 204px;
+  }
+
+  .bank-building {
+    left: 100px;
+  }
+
+  .factory-building {
+    right: 12px;
+  }
+
+  .buy-button {
+    min-width: 104px;
+  }
+}
+
+.building {
+  transition: height 220ms ease, transform 220ms ease, filter 220ms ease;
+  transform-origin: bottom center;
+}
+
+.building.upgraded {
+  filter: brightness(1.12);
+}
+
+.factory-building span::after {
+  content: "";
+  position: absolute;
+  top: -54px;
+  left: 54px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #c8d5da;
+  opacity: 0;
+  box-shadow: 14px -12px #c8d5da, 28px -24px #c8d5da;
+  animation: smoke 2.2s ease-in-out infinite;
+}
+
+.factory-building.active-smoke span::after {
+  opacity: 0.55;
+}
+
+@keyframes smoke {
+  0% {
+    transform: translateY(0) scale(0.8);
+  }
+
+  50% {
+    transform: translateY(-8px) scale(1);
+  }
+
+  100% {
+    transform: translateY(-16px) scale(1.15);
+  }
+}
+
+.task.completed {
+  opacity: 0.55;
+}
+
+.task.completed strong {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.boost-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.boost-button {
+  min-height: 68px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.boost-button span {
+  display: block;
+  margin-top: 6px;
+  color: var(--gold);
+  font-size: 12px;
+}
+
+@media (max-width: 390px) {
+  .tab {
+    font-size: 13px;
+  }
+
+  .boost-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 520px) {
@@ -584,9 +559,12 @@ h1 {
 
   .app {
     height: 100dvh;
-    min-height: 100dvh;
     overflow: hidden;
     padding: 4px 7px;
+  }
+
+  .label {
+    display: none;
   }
 
   h1 {
@@ -610,73 +588,21 @@ h1 {
   }
 
   .stat span {
-    min-height: 10px;
     font-size: 9px;
+    min-height: 10px;
   }
 
   .stat strong {
-    margin-top: 2px;
     font-size: 13px;
+    margin-top: 2px;
   }
 
   .city {
     height: 96px;
   }
 
-  .city::before {
-    bottom: 22px;
-    height: 56px;
-  }
-
   .sky {
     inset: 0 0 22px;
-  }
-
-  .sun {
-    top: 10px;
-    right: 24px;
-    width: 26px;
-    height: 26px;
-  }
-
-  .cloud {
-    transform: scale(0.55);
-  }
-
-  .shop-building {
-    left: 18px;
-    bottom: 22px;
-    width: 44px;
-    height: 36px !important;
-  }
-
-  .bank-building {
-    left: 84px;
-    bottom: 22px;
-    width: 48px;
-    height: 44px !important;
-  }
-
-  .factory-building {
-    right: 16px;
-    bottom: 22px;
-    width: 60px;
-    height: 42px !important;
-  }
-
-  .factory-building::after {
-    top: -26px;
-    left: 42px;
-    width: 14px;
-    height: 30px;
-  }
-
-  .building span {
-    left: 9px;
-    top: 10px;
-    width: 8px;
-    height: 9px;
-    box-shadow: 17px 0 #fff0a8, 0 18px #fff0a8, 17px 18px #fff0a8, 0 36px #fff0a8, 17px 36px #fff0a8;
   }
 
   .street {
@@ -687,23 +613,54 @@ h1 {
     top: 9px;
   }
 
+  .sun {
+    width: 26px;
+    height: 26px;
+    top: 10px;
+    right: 24px;
+  }
+
+  .cloud {
+    transform: scale(0.55);
+  }
+
+  .shop-building {
+    width: 44px;
+    height: 36px !important;
+    left: 18px;
+    bottom: 22px;
+  }
+
+  .bank-building {
+    width: 48px;
+    height: 44px !important;
+    left: 84px;
+    bottom: 22px;
+  }
+
+  .factory-building {
+    width: 60px;
+    height: 42px !important;
+    right: 16px;
+    bottom: 22px;
+  }
+
   .tap-area {
-    gap: 4px;
     padding: 5px 0 4px;
+    gap: 4px;
   }
 
   .tap-button {
     width: 68px;
     height: 68px;
     border-width: 5px;
-    box-shadow: 0 4px 0 #2a1605, 0 0 28px rgba(255, 213, 109, 0.24);
+    box-shadow: 0 4px 0 #2b1b0c;
   }
 
-  .tap-button::before {
-    inset: 8px;
+  .tap-button span {
+    font-size: 14px;
   }
 
-  .tap-button span,
   .tap-button strong {
     font-size: 14px;
   }
@@ -728,22 +685,51 @@ h1 {
     min-height: 44px;
     padding: 7px;
   }
+}
 
-  .boost-grid {
-    grid-template-columns: 1fr;
-  }
+html,
+body {
+  touch-action: manipulation;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
-/* hide factory chimney */
-.factory-building::after {
-  display: none !important;
+
+button,
+.tap-button,
+.tab,
+.card,
+.task {
+  touch-action: manipulation;
 }
-/* remove all factory top attachments */
-.factory-building::before,
-.factory-building::after,
-.factory-building span::before,
-.factory-building span::after,
-.factory-building.active-smoke::before,
-.factory-building.active-smoke::after {
-  display: none !important;
-  content: none !important;
+
+.tap-button.no-energy {
+  filter: grayscale(0.55);
+  opacity: 0.72;
+  background: radial-gradient(circle at 50% 35%, #d9d0bd, #8a8174 72%);
+}
+
+.tap-button.no-energy span,
+.tap-button.no-energy strong {
+  color: #2b261f;
+}
+
+.earn-hero {
+  border-color: rgba(240, 184, 75, 0.55);
+  background: linear-gradient(135deg, rgba(240, 184, 75, 0.14), var(--surface) 62%);
+}
+
+.earn-task span {
+  display: grid;
+  gap: 3px;
+}
+
+.earn-task b {
+  font-size: 15px;
+}
+
+.earn-task small {
+  color: var(--muted);
+  font-size: 12px;
 }
