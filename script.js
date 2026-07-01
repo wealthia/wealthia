@@ -37,7 +37,8 @@ const els = {
   cityValue: document.getElementById("cityValue"),
   energyBar: document.getElementById("energyBar"),
   tapPower: document.getElementById("tapPower"),
-  tapButton: document.getElementById("tapButton"),
+tapLabel: document.getElementById("tapLabel"),
+tapButton: document.getElementById("tapButton"),,
   shopLevel: document.getElementById("shopLevel"),
   bankLevel: document.getElementById("bankLevel"),
   factoryLevel: document.getElementById("factoryLevel"),
@@ -155,6 +156,8 @@ function render() {
   els.energyBar.style.width = `${state.energy}%`;
   els.energyBar.style.background = state.energy < 20 ? "var(--red)" : "var(--green)";
   els.tapPower.textContent = tapPower();
+  els.tapLabel.textContent = state.energy < 1 ? "No Energy" : "Tap";
+els.tapButton.classList.toggle("no-energy", state.energy < 1);
 
   els.shopLevel.textContent = state.buildings.shop;
   els.bankLevel.textContent = state.buildings.bank;
@@ -418,27 +421,3 @@ window.setInterval(() => {
   saveState();
   render();
 }, 1000);
-
-let lastTouchEnd = 0;
-
-document.addEventListener(
-  "touchend",
-  (event) => {
-    const now = Date.now();
-
-    if (now - lastTouchEnd <= 300) {
-      event.preventDefault();
-    }
-
-    lastTouchEnd = now;
-  },
-  { passive: false }
-);
-
-document.addEventListener(
-  "gesturestart",
-  (event) => {
-    event.preventDefault();
-  },
-  { passive: false }
-);

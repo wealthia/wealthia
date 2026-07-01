@@ -703,3 +703,33 @@ button,
 .task {
   touch-action: manipulation;
 }
+
+.tap-button.no-energy {
+  filter: grayscale(0.55);
+  opacity: 0.72;
+  background: radial-gradient(circle at 50% 35%, #d9d0bd, #8a8174 72%);
+}
+
+.tap-button.no-energy span,
+.tap-button.no-energy strong {
+  color: #2b261f;
+}
+
+.earn-hero {
+  border-color: rgba(240, 184, 75, 0.55);
+  background: linear-gradient(135deg, rgba(240, 184, 75, 0.14), var(--surface) 62%);
+}
+
+.earn-task span {
+  display: grid;
+  gap: 3px;
+}
+
+.earn-task b {
+  font-size: 15px;
+}
+
+.earn-task small {
+  color: var(--muted);
+  font-size: 12px;
+}
