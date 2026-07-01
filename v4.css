@@ -733,3 +733,7 @@ h1 {
     grid-template-columns: 1fr;
   }
 }
+/* hide factory chimney */
+.factory-building::after {
+  display: none !important;
+}
