@@ -239,25 +239,25 @@ function coinPop(x, y, amount) {
 }
 
 function handleTap(event) {
-  event.preventDefault();
+  if (event.cancelable) {
+    event.preventDefault();
+  }
 
   if (state.energy < 1) {
     showToast("Energy is empty. Wait a little.");
     return;
   }
 
-  const touch = event.touches ? event.touches[0] : event;
   const amount = tapPower();
 
   state.energy = Math.max(0, state.energy - 1);
   state.taps += 1;
 
   addCoins(amount);
-  coinPop(touch.clientX, touch.clientY, amount);
+  coinPop(event.clientX || window.innerWidth / 2, event.clientY || window.innerHeight / 2, amount);
 }
 
-els.tapButton.addEventListener("touchstart", handleTap, { passive: false });
-els.tapButton.addEventListener("mousedown", handleTap);
+els.tapButton.addEventListener("pointerdown", handleTap);
 
 document.querySelectorAll("[data-upgrade]").forEach((button) => {
   button.addEventListener("click", () => {
