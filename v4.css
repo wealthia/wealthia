@@ -1575,3 +1575,31 @@ h1 {
 .boost-button:active {
   transform: translateY(3px) scale(0.98);
 }
+/* V4.1 - Fix boosts spacing */
+
+#earnPanel,
+.panel.active {
+  padding-bottom: 24px !important;
+}
+
+.boosts,
+.boost-panel {
+  padding-bottom: 16px !important;
+  overflow: visible !important;
+}
+
+.boost-button {
+  margin-bottom: 10px !important;
+}
+
+@media (max-width: 520px) {
+  #earnPanel,
+  .panel.active {
+    padding-bottom: 34px !important;
+  }
+
+  .boosts,
+  .boost-panel {
+    padding-bottom: 22px !important;
+  }
+}
