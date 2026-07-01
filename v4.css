@@ -912,3 +912,13 @@ button,
     0 60px #fff1a8,
     25px 60px #fff1a8 !important;
 }
+/* lift city icons above road */
+.city-icon {
+  bottom: 50px !important;
+}
+
+@media (max-width: 520px) {
+  .city-icon {
+    bottom: 34px !important;
+  }
+}
