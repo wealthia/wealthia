@@ -736,3 +736,96 @@ button,
 
   }
 }
+/* v4 restore 3D city buildings */
+.building {
+  border: 2px solid rgba(6, 7, 10, 0.95) !important;
+  border-bottom: 0 !important;
+  border-radius: 8px 8px 0 0 !important;
+  overflow: hidden !important;
+  box-shadow:
+    inset 8px 0 16px rgba(255,255,255,0.10),
+    inset -10px 0 18px rgba(0,0,0,0.18),
+    0 12px 22px rgba(0,0,0,0.26) !important;
+}
+
+.shop-building {
+  background:
+    linear-gradient(90deg, rgba(255,255,255,0.16), transparent 28%),
+    linear-gradient(180deg, #ff7767 0%, #d84d42 55%, #8a2b31 100%) !important;
+}
+
+.bank-building {
+  background:
+    linear-gradient(90deg, rgba(255,255,255,0.18), transparent 30%),
+    linear-gradient(180deg, #ffe08a 0%, #d09b39 55%, #7d551f 100%) !important;
+}
+
+.factory-building {
+  background:
+    linear-gradient(90deg, rgba(255,255,255,0.2), transparent 30%),
+    linear-gradient(180deg, #d4dde5 0%, #909da8 52%, #55606b 100%) !important;
+}
+
+.building span {
+  z-index: 5;
+  background: #fff1a8 !important;
+  box-shadow:
+    25px 0 #fff1a8,
+    0 30px #fff1a8,
+    25px 30px #fff1a8,
+    0 60px #fff1a8,
+    25px 60px #fff1a8 !important;
+  filter:
+    drop-shadow(0 0 5px rgba(255, 238, 170, 0.75))
+    drop-shadow(0 0 12px rgba(255, 213, 109, 0.25));
+}
+
+.shop-building::before,
+.bank-building::before,
+.factory-building::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 45%;
+  background: linear-gradient(90deg, rgba(255,255,255,0.16), transparent);
+  pointer-events: none;
+}
+
+.shop-building::after,
+.bank-building::after,
+.factory-building::after,
+.factory-building span::before,
+.factory-building span::after,
+.factory-building.active-smoke::before,
+.factory-building.active-smoke::after {
+  display: none !important;
+  content: none !important;
+}
+
+.city::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 38px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255,213,109,0.45), transparent);
+  pointer-events: none;
+}
+
+@media (max-width: 520px) {
+  .building span {
+    box-shadow:
+      17px 0 #fff1a8,
+      0 18px #fff1a8,
+      17px 18px #fff1a8,
+      0 36px #fff1a8,
+      17px 36px #fff1a8 !important;
+  }
+
+  .city::after {
+    bottom: 22px;
+  }
+}
