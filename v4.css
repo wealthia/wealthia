@@ -1754,3 +1754,60 @@ h1 {
   border-color: rgba(255, 213, 109, 0.32);
   box-shadow: 0 0 18px rgba(255, 213, 109, 0.12);
 }
+/* V4.1 - Leaderboard polish */
+
+#rankPanel li {
+  position: relative;
+  min-height: 72px;
+  padding-left: 58px !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#rankPanel li::before {
+  position: absolute;
+  left: 16px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  font-weight: 900;
+  color: #06120d;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+#rankPanel li:nth-child(1)::before {
+  content: "★";
+  background: linear-gradient(180deg, #ffd76d, #f2aa2f);
+}
+
+#rankPanel li:nth-child(2)::before {
+  content: "2";
+  background: linear-gradient(180deg, #e9f1ff, #9aa8b8);
+}
+
+#rankPanel li:nth-child(3)::before {
+  content: "3";
+  background: linear-gradient(180deg, #ffbd78, #b96b2b);
+}
+
+#rankPanel li:nth-child(4)::before {
+  content: "4";
+  background: linear-gradient(180deg, #263544, #18212a);
+  color: #d8e7ff;
+  border: 1px solid rgba(180, 215, 255, 0.16);
+}
+
+#rankPanel li:first-child {
+  background:
+    linear-gradient(135deg, rgba(255, 213, 109, 0.14), transparent 48%),
+    linear-gradient(180deg, #1c2833, #111922) !important;
+}
+
+#rankPanel li:first-child strong,
+#rankPanel li:first-child span {
+  color: #ffd76d !important;
+}
