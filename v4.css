@@ -1445,3 +1445,36 @@ h1 {
     height: 136px !important;
   }
 }
+/* V4.1 - Fix task readability */
+
+.task {
+  opacity: 1 !important;
+}
+
+.task:disabled {
+  opacity: 1 !important;
+  filter: none !important;
+  background:
+    linear-gradient(180deg, #18212a, #111922) !important;
+  border-color: rgba(180, 215, 255, 0.14) !important;
+}
+
+.task:disabled span:first-child {
+  color: #b9c8d9 !important;
+  text-shadow: none !important;
+}
+
+.task:disabled span:last-child {
+  color: #7f91a5 !important;
+  background: rgba(110, 130, 150, 0.12) !important;
+  box-shadow: none !important;
+  border: 1px solid rgba(180, 215, 255, 0.08);
+}
+
+.task:not(:disabled) span:first-child {
+  color: #ffffff !important;
+}
+
+.task:not(:disabled) span:last-child {
+  color: #06120d !important;
+}
