@@ -424,10 +424,32 @@ h1 {
 
 .coin-pop {
   position: fixed;
-  color: var(--gold);
-  font-weight: 900;
+  z-index: 9999;
   pointer-events: none;
-  animation: float-up 700ms ease forwards;
+  color: #ffd76d;
+  font-size: 28px;
+  font-weight: 900;
+  text-shadow:
+    0 3px 0 rgba(31, 58, 128, 0.7),
+    0 0 14px rgba(255, 213, 109, 0.5);
+  animation: coinPopUp 720ms ease-out forwards;
+}
+
+@keyframes coinPopUp {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -20%) scale(0.75);
+  }
+
+  18% {
+    opacity: 1;
+    transform: translate(-50%, -55%) scale(1.08);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -150%) scale(0.95);
+  }
 }
 
 @keyframes float-up {
