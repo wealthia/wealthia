@@ -1201,3 +1201,133 @@ body {
 .header h1 {
   color: red !important;
 }
+/* v4 building final polish */
+.shop-building,
+.bank-building,
+.factory-building {
+  border: 2px solid rgba(6, 7, 10, 0.95) !important;
+  border-bottom: 0 !important;
+  overflow: visible !important;
+}
+
+.shop-building {
+  border-radius: 10px 10px 0 0 !important;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,0.16), transparent 26%),
+    linear-gradient(180deg, #ff816d 0%, #d94f43 52%, #8d2e30 100%) !important;
+}
+
+.shop-building::after {
+  content: "";
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  top: -15px;
+  height: 18px;
+  background:
+    linear-gradient(90deg, #ffe697, #f2b748, #ffe697);
+  border: 2px solid rgba(6, 7, 10, 0.85);
+  border-radius: 8px 8px 3px 3px;
+  box-shadow: 0 6px 12px rgba(0,0,0,0.25) !important;
+}
+
+.bank-building {
+  border-radius: 12px 12px 0 0 !important;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,0.18), transparent 28%),
+    linear-gradient(180deg, #ffe18a 0%, #d5a03d 54%, #80551e 100%) !important;
+}
+
+.bank-building::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -24px;
+  width: 70px;
+  height: 28px;
+  transform: translateX(-50%);
+  background:
+    linear-gradient(180deg, #fff2bf, #c9952f);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  filter: drop-shadow(0 5px 5px rgba(0,0,0,0.28));
+  box-shadow: none !important;
+}
+
+.factory-building {
+  border-radius: 10px 10px 0 0 !important;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,0.18), transparent 30%),
+    linear-gradient(180deg, #d2dce4 0%, #94a1ab 48%, #596570 100%) !important;
+}
+
+.factory-building::after {
+  content: "";
+  position: absolute;
+  top: -48px;
+  left: 58px;
+  width: 24px;
+  height: 52px;
+  background:
+    linear-gradient(180deg, #9aa8b4, #4f5a64);
+  border: 2px solid rgba(6, 7, 10, 0.8);
+  border-radius: 5px 5px 0 0;
+  box-shadow: 0 0 18px rgba(255, 213, 109, 0.12) !important;
+}
+
+.building span {
+  z-index: 3;
+  background: #fff0a8 !important;
+  box-shadow:
+    25px 0 #fff0a8,
+    0 30px #fff0a8,
+    25px 30px #fff0a8,
+    0 60px #fff0a8,
+    25px 60px #fff0a8 !important;
+  filter:
+    drop-shadow(0 0 4px rgba(255, 238, 170, 0.75))
+    drop-shadow(0 0 10px rgba(255, 213, 109, 0.28));
+}
+
+.city::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 38px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255,213,109,0.45), transparent);
+  pointer-events: none;
+}
+
+@media (max-width: 520px) {
+  .shop-building::after {
+    top: -10px;
+    height: 12px;
+  }
+
+  .bank-building::after {
+    top: -16px;
+    width: 46px;
+    height: 18px;
+  }
+
+  .factory-building::after {
+    top: -30px;
+    left: 40px;
+    width: 16px;
+    height: 34px;
+  }
+
+  .building span {
+    box-shadow:
+      17px 0 #fff0a8,
+      0 18px #fff0a8,
+      17px 18px #fff0a8,
+      0 36px #fff0a8,
+      17px 36px #fff0a8 !important;
+  }
+
+  .city::after {
+    bottom: 22px;
+  }
+}
