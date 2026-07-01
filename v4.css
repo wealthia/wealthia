@@ -914,11 +914,11 @@ button,
 }
 /* lift city icons above road */
 .city-icon {
-  bottom: 50px !important;
+  bottom: 62px !important;
 }
 
 @media (max-width: 520px) {
-  .city-icon {
-    bottom: 34px !important;
-  }
+ .city-icon {
+  bottom: 42px !important;
+}
 }
