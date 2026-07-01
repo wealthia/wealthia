@@ -156,8 +156,13 @@ function render() {
   els.energyBar.style.width = `${state.energy}%`;
   els.energyBar.style.background = state.energy < 20 ? "var(--red)" : "var(--green)";
   els.tapPower.textContent = tapPower();
+  if (els.tapLabel) {
   els.tapLabel.textContent = state.energy < 1 ? "No Energy" : "Tap";
-els.tapButton.classList.toggle("no-energy", state.energy < 1);
+}
+
+if (els.tapButton) {
+  els.tapButton.classList.toggle("no-energy", state.energy < 1);
+}
 
   els.shopLevel.textContent = state.buildings.shop;
   els.bankLevel.textContent = state.buildings.bank;
