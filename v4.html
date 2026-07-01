@@ -120,51 +120,42 @@
         </button>
       </section>
     <section class="panel" id="earnPanel">
-  <article class="case-hero">
-    <div>
-      <span class="case-badge">FREE CASE</span>
-      <h2>Wealth Box</h2>
-      <p>Open daily rewards and grow your city faster.</p>
-    </div>
-    <button class="case-button" type="button" id="sponsorTask">Open Free</button>
+  <article class="card stack earn-hero">
+    <h2>Earn Center</h2>
+    <p>Complete partner campaigns, watch ads, and use boosts to grow your city faster.</p>
   </article>
 
-  <div class="reward-row">
-    <button class="reward-card" type="button" id="adTask">
-      <span class="reward-icon">AD</span>
-      <b>Rewarded Ad</b>
-      <small>+300</small>
-    </button>
+  <button class="task earn-task" type="button" id="sponsorTask">
+    <span><b>Partner Bot</b><small>Open a sponsor bot</small></span>
+    <strong>+750</strong>
+  </button>
 
-    <button class="reward-card" type="button" id="channelTask">
-      <span class="reward-icon">TG</span>
-      <b>Channel</b>
-      <small>+500</small>
-    </button>
+  <button class="task earn-task" type="button" id="adTask">
+    <span><b>Rewarded Ad</b><small>Watch a short ad</small></span>
+    <strong>+300</strong>
+  </button>
 
-    <button class="reward-card" type="button" id="fullEnergyBoost">
-      <span class="reward-icon">EN</span>
-      <b>Energy</b>
-      <small>Cost 100</small>
-    </button>
-  </div>
+  <button class="task earn-task" type="button" id="channelTask">
+    <span><b>Partner Channel</b><small>Join a Telegram channel</small></span>
+    <strong>+500</strong>
+  </button>
 
-  <div class="spin-strip">
-    <button class="spin-option" type="button" id="tapBoost">2x Tap · Cost 150</button>
-    <button class="spin-option" type="button" id="incomeBoost">2x Income · Cost 200</button>
-  </div>
+  <article class="card stack">
+    <h2>Boosts</h2>
+    <div class="boost-grid">
+      <button class="boost-button" type="button" id="fullEnergyBoost">
+        Full Energy<br><span>Cost 100</span>
+      </button>
 
-  <div class="promo-grid">
-    <button class="promo-card subscribe-card" type="button">
-      <b>Subscribe</b>
-      <span>Get bonus drops</span>
-    </button>
+      <button class="boost-button" type="button" id="tapBoost">
+        2x Tap<br><span>Cost 150</span>
+      </button>
 
-    <button class="promo-card referral-card" type="button" id="inviteButton">
-      <b>Referrals</b>
-      <span>Invite friends</span>
-    </button>
-  </div>
+      <button class="boost-button" type="button" id="incomeBoost">
+        2x Income<br><span>Cost 200</span>
+      </button>
+    </div>
+  </article>
 </section>
       <section class="panel" id="friendsPanel">
         <div class="card stack">
