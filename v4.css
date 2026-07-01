@@ -894,3 +894,11 @@ button,
     right: 18px;
   }
 }
+/* remove yellow window glow */
+.building span {
+  filter: none !important;
+}
+
+.city-icon {
+  filter: none !important;
+}
