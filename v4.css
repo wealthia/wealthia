@@ -1530,3 +1530,48 @@ h1 {
 #earnPanel .task::before {
   background: linear-gradient(180deg, #4adf98, #ffd76d);
 }
+/* V4.1 - Boost buttons */
+
+.boosts,
+.boost-panel {
+  border-radius: 14px !important;
+}
+
+.boost-button {
+  position: relative;
+  overflow: hidden;
+  min-height: 84px;
+  border-radius: 13px !important;
+  background:
+    linear-gradient(135deg, rgba(255, 213, 109, 0.16), transparent 46%),
+    linear-gradient(180deg, #1c2833, #111922) !important;
+  border: 1px solid rgba(255, 213, 109, 0.2) !important;
+  color: #ffffff !important;
+  font-weight: 900 !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 8px 18px rgba(0, 0, 0, 0.18) !important;
+}
+
+.boost-button::after {
+  content: "";
+  position: absolute;
+  right: -20px;
+  top: -22px;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 213, 109, 0.28), transparent 66%);
+}
+
+.boost-button span {
+  display: inline-block;
+  margin-top: 6px;
+  color: #ffd76d !important;
+  font-size: 13px;
+  font-weight: 900 !important;
+}
+
+.boost-button:active {
+  transform: translateY(3px) scale(0.98);
+}
