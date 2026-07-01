@@ -902,3 +902,13 @@ button,
 .city-icon {
   filter: none !important;
 }
+.building span,
+.building span::before,
+.building span::after {
+  box-shadow:
+    25px 0 #fff1a8,
+    0 30px #fff1a8,
+    25px 30px #fff1a8,
+    0 60px #fff1a8,
+    25px 60px #fff1a8 !important;
+}
