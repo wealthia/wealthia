@@ -1024,3 +1024,177 @@ body {
     font-size: 14px;
   }
 }
+
+/* v4 premium buildings and skyline */
+.city::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 38px;
+  height: 92px;
+  background:
+    linear-gradient(to top, rgba(6, 9, 13, 0.42), transparent),
+    linear-gradient(90deg,
+      transparent 0 5%,
+      rgba(7, 12, 18, 0.38) 5% 11%,
+      transparent 11% 16%,
+      rgba(7, 12, 18, 0.42) 16% 24%,
+      transparent 24% 31%,
+      rgba(7, 12, 18, 0.34) 31% 36%,
+      transparent 36% 46%,
+      rgba(7, 12, 18, 0.42) 46% 55%,
+      transparent 55% 64%,
+      rgba(7, 12, 18, 0.36) 64% 72%,
+      transparent 72% 100%);
+  pointer-events: none;
+}
+
+.building {
+  border: 2px solid rgba(7, 8, 10, 0.85) !important;
+  border-bottom: 0 !important;
+  overflow: hidden;
+}
+
+.building::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.18), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent 42%);
+  box-shadow: none !important;
+  pointer-events: none;
+}
+
+.building span {
+  position: absolute;
+  left: 13px;
+  top: 14px;
+  width: 12px;
+  height: 14px;
+  background: #fff0a8;
+  border-radius: 2px;
+  box-shadow:
+    25px 0 #fff0a8,
+    0 30px #fff0a8,
+    25px 30px #fff0a8,
+    0 60px #fff0a8,
+    25px 60px #fff0a8 !important;
+  filter: drop-shadow(0 0 6px rgba(255, 235, 164, 0.45));
+}
+
+.shop-building {
+  border-radius: 8px 8px 0 0;
+  background:
+    linear-gradient(180deg, #ff8d73 0%, #d95449 48%, #8f2d30 100%) !important;
+}
+
+.shop-building::after {
+  content: "";
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  top: 0;
+  height: 16px;
+  background: linear-gradient(90deg, #ffe08a, #ffbe4d, #ffe08a);
+  box-shadow: none !important;
+}
+
+.bank-building {
+  border-radius: 10px 10px 0 0;
+  background:
+    linear-gradient(180deg, #ffe08a 0%, #d7a240 48%, #8b5f1f 100%) !important;
+}
+
+.bank-building::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -14px;
+  width: 54px;
+  height: 24px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, #fff1b6, #c99735);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  box-shadow: none !important;
+}
+
+.factory-building {
+  border-radius: 8px 8px 0 0;
+  background:
+    linear-gradient(180deg, #cfd8df 0%, #8e9ba6 45%, #56616c 100%) !important;
+}
+
+.factory-building::after {
+  content: "";
+  position: absolute;
+  top: -44px;
+  left: 58px;
+  width: 24px;
+  height: 48px;
+  background:
+    linear-gradient(180deg, #8896a3, #4b5661);
+  border: 2px solid rgba(7, 8, 10, 0.75);
+  box-shadow:
+    0 0 16px rgba(255, 213, 109, 0.12) !important;
+}
+
+.factory-building span::before {
+  content: "";
+  position: absolute;
+  left: 42px;
+  top: -58px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(214, 229, 234, 0.8);
+  box-shadow:
+    14px -14px rgba(214, 229, 234, 0.55),
+    28px -28px rgba(214, 229, 234, 0.32);
+}
+
+.street {
+  border-top: 3px solid rgba(255, 213, 109, 0.18) !important;
+}
+
+.street::after {
+  border-top-color: rgba(255, 242, 208, 0.86) !important;
+}
+
+@media (max-width: 520px) {
+  .city::before {
+    bottom: 22px;
+    height: 56px;
+  }
+
+  .building span {
+    left: 9px;
+    top: 10px;
+    width: 8px;
+    height: 9px;
+    box-shadow:
+      17px 0 #fff0a8,
+      0 18px #fff0a8,
+      17px 18px #fff0a8,
+      0 36px #fff0a8,
+      17px 36px #fff0a8 !important;
+  }
+
+  .shop-building::after {
+    height: 10px;
+  }
+
+  .bank-building::after {
+    top: -10px;
+    width: 38px;
+    height: 16px;
+  }
+
+  .factory-building::after {
+    top: -28px;
+    left: 40px;
+    width: 16px;
+    height: 32px;
+  }
+}
