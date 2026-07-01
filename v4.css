@@ -1118,3 +1118,49 @@ h1 {
     font-size: 15px !important;
   }
 }
+/* v4 upgrade cards polish */
+#cityPanel .card {
+  min-height: 82px;
+  padding-left: 18px;
+}
+
+#cityPanel .card h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#cityPanel .card:nth-child(1) h2::before {
+  content: "🏪";
+}
+
+#cityPanel .card:nth-child(2) h2::before {
+  content: "🏦";
+}
+
+#cityPanel .card:nth-child(3) h2::before {
+  content: "🏢";
+}
+
+#cityPanel .card p {
+  margin-top: 6px;
+  color: #c8d6ff;
+}
+
+#cityPanel .buy-button {
+  min-width: 150px;
+  min-height: 46px;
+  border-radius: 16px;
+}
+
+@media (max-width: 520px) {
+  #cityPanel .card {
+    min-height: 58px;
+    padding-left: 10px;
+  }
+
+  #cityPanel .buy-button {
+    min-width: 112px;
+    min-height: 38px;
+  }
+}
