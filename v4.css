@@ -1051,3 +1051,23 @@ h1 {
   padding-top: 8px;
   padding-bottom: 6px;
 }
+/* v4 fix energy number and city icon position */
+.stat strong span {
+  display: inline !important;
+  min-height: 0 !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  color: inherit !important;
+  line-height: inherit !important;
+  text-shadow: inherit !important;
+}
+
+.city-icon {
+  bottom: 50px !important;
+}
+
+@media (max-width: 520px) {
+  .city-icon {
+    bottom: 34px !important;
+  }
+}
