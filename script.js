@@ -244,10 +244,6 @@ function coinPop(x, y, amount) {
 }
 
 function handleTap(event) {
-  if (event.cancelable) {
-    event.preventDefault();
-  }
-
   if (state.energy < 1) {
     showToast("Energy is empty. Wait a little.");
     return;
@@ -260,6 +256,10 @@ function handleTap(event) {
 
   addCoins(amount);
   coinPop(event.clientX || window.innerWidth / 2, event.clientY || window.innerHeight / 2, amount);
+}
+
+if (els.tapButton) {
+  els.tapButton.addEventListener("click", handleTap);
 }
 
 els.tapButton.addEventListener("pointerdown", handleTap);
