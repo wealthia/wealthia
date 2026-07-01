@@ -1087,3 +1087,34 @@ h1 {
     bottom: 28px !important;
   }
 }
+/* v4 fix title readability and energy number */
+h1 {
+  color: #ffffff !important;
+  background: none !important;
+  -webkit-background-clip: initial !important;
+  text-shadow:
+    0 3px 0 rgba(31, 58, 128, 0.7),
+    0 8px 18px rgba(255, 213, 109, 0.22) !important;
+}
+
+.stat strong,
+.stat strong span,
+#energy {
+  display: inline !important;
+  min-height: 0 !important;
+  font-size: 25px !important;
+  font-weight: 900 !important;
+  color: #ffffff !important;
+  line-height: 1 !important;
+  text-shadow:
+    1px 2px 0 rgba(32, 62, 145, 0.75),
+    0 0 14px rgba(255, 213, 109, 0.28) !important;
+}
+
+@media (max-width: 520px) {
+  .stat strong,
+  .stat strong span,
+  #energy {
+    font-size: 15px !important;
+  }
+}
