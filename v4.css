@@ -1696,3 +1696,61 @@ h1 {
     0 3px 0 #17834f,
     0 8px 14px rgba(0, 0, 0, 0.22) !important;
 }
+/* V4.1 - Premium rank section */
+
+#rankPanel .panel-card,
+.rank-card,
+.leaderboard-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px !important;
+  background:
+    linear-gradient(135deg, rgba(255, 213, 109, 0.12), transparent 42%),
+    linear-gradient(180deg, #18212a, #111922) !important;
+  border: 1px solid rgba(255, 213, 109, 0.2) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 10px 24px rgba(0, 0, 0, 0.18) !important;
+}
+
+#rankPanel .panel-card::before,
+.rank-card::before,
+.leaderboard-card::before {
+  content: "";
+  position: absolute;
+  right: -30px;
+  top: -30px;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 213, 109, 0.28), transparent 66%);
+}
+
+#rankPanel h2,
+#rankPanel h3 {
+  color: #ffffff !important;
+  font-weight: 900 !important;
+  text-shadow:
+    1px 2px 0 rgba(31, 58, 128, 0.75),
+    0 0 14px rgba(255, 213, 109, 0.24);
+}
+
+#rankPanel p,
+#rankPanel li {
+  color: #d8e7ff !important;
+  font-weight: 700 !important;
+}
+
+#rankPanel li {
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.015));
+  border: 1px solid rgba(180, 215, 255, 0.1);
+}
+
+#rankPanel li:first-child {
+  border-color: rgba(255, 213, 109, 0.32);
+  box-shadow: 0 0 18px rgba(255, 213, 109, 0.12);
+}
