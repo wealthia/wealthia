@@ -1324,3 +1324,26 @@ h1 {
     transform: translate(-50%, -150%) scale(0.95);
   }
 }
+/* V4.1 - Tap button feedback */
+
+.tap-button {
+  transition:
+    transform 0.08s ease,
+    box-shadow 0.08s ease,
+    filter 0.12s ease !important;
+  will-change: transform;
+}
+
+.tap-button:active {
+  transform: translateY(7px) scale(0.96) !important;
+  filter: brightness(1.08) !important;
+}
+
+.tap-button::after {
+  content: "";
+  position: absolute;
+  inset: 12%;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  pointer-events: none;
+}
