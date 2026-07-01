@@ -38,7 +38,7 @@ const els = {
   energyBar: document.getElementById("energyBar"),
   tapPower: document.getElementById("tapPower"),
 tapLabel: document.getElementById("tapLabel"),
-tapButton: document.getElementById("tapButton"),,
+tapButton: document.getElementById("tapButton"),
   shopLevel: document.getElementById("shopLevel"),
   bankLevel: document.getElementById("bankLevel"),
   factoryLevel: document.getElementById("factoryLevel"),
