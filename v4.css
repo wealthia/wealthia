@@ -922,3 +922,117 @@ button,
   bottom: 42px !important;
 }
 }
+/* v4 typography polish */
+body {
+  font-family: "Trebuchet MS", Arial, Helvetica, sans-serif !important;
+}
+
+h1 {
+  font-size: 42px !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.5px !important;
+  color: #ffffff !important;
+  text-shadow:
+    2px 3px 0 rgba(23, 50, 110, 0.95),
+    0 0 18px rgba(255, 213, 109, 0.35) !important;
+}
+
+.stat span {
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  color: #d8e6ff !important;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+}
+
+.stat strong {
+  font-size: 25px !important;
+  font-weight: 900 !important;
+  color: #ffffff !important;
+  text-shadow:
+    1px 2px 0 rgba(32, 62, 145, 0.75),
+    0 0 14px rgba(255, 213, 109, 0.28) !important;
+}
+
+.tap-button span {
+  font-size: 30px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0 !important;
+  text-shadow: 1px 2px 0 rgba(255, 255, 255, 0.28);
+}
+
+.tap-button strong {
+  font-size: 27px !important;
+  font-weight: 900 !important;
+}
+
+.tab {
+  font-size: 17px !important;
+  font-weight: 900 !important;
+  text-shadow: 0 2px 5px rgba(0,0,0,0.22);
+}
+
+.tab.active {
+  text-shadow: 0 1px 0 rgba(255,255,255,0.45);
+}
+
+.card h2 {
+  font-size: 19px !important;
+  font-weight: 900 !important;
+  color: #ffffff !important;
+  text-shadow: 1px 2px 0 rgba(23, 50, 110, 0.8);
+}
+
+.card p {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  color: #d8e6ff !important;
+}
+
+.buy-button,
+.wide-button,
+.task strong,
+.boost-button,
+.spin-option,
+.case-button {
+  font-size: 16px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0 !important;
+}
+
+@media (max-width: 520px) {
+  h1 {
+    font-size: 26px !important;
+  }
+
+  .stat span {
+    font-size: 9px !important;
+  }
+
+  .stat strong {
+    font-size: 15px !important;
+  }
+
+  .tap-button span,
+  .tap-button strong {
+    font-size: 15px !important;
+  }
+
+  .tab {
+    font-size: 11px !important;
+  }
+
+  .card h2 {
+    font-size: 15px !important;
+  }
+
+  .card p {
+    font-size: 12px !important;
+  }
+
+  .buy-button,
+  .wide-button,
+  .task strong,
+  .boost-button {
+    font-size: 13px !important;
+  }
+}
