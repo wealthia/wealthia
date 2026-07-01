@@ -737,3 +737,13 @@ h1 {
 .factory-building::after {
   display: none !important;
 }
+/* remove all factory top attachments */
+.factory-building::before,
+.factory-building::after,
+.factory-building span::before,
+.factory-building span::after,
+.factory-building.active-smoke::before,
+.factory-building.active-smoke::after {
+  display: none !important;
+  content: none !important;
+}
