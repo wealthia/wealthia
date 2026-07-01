@@ -1198,3 +1198,6 @@ body {
     height: 32px;
   }
 }
+.header h1 {
+  color: red !important;
+}
