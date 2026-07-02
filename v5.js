@@ -140,10 +140,19 @@ function render() {
   els.factoryCost.textContent = format(upgradeCost("factory"));
   els.rankYou.textContent = format(cityValue());
 
-  els.dailyText.textContent = `Daily reward - Day ${Math.min(state.dailyStreak + 1, 7)}`;
-  els.dailyAmount.textContent = `+${format(dailyRewardAmount())}`;
+  const dailyClaimedToday = state.dailyDate === today();
+const nextDailyDay = Math.min(state.dailyStreak + 1, 7);
 
-  setDisabled("dailyReward", state.dailyDate === today());
+els.dailyText.textContent = dailyClaimedToday
+  ? `Daily reward claimed - Next Day ${nextDailyDay}`
+  : `Daily reward - Day ${nextDailyDay}`;
+
+els.dailyAmount.textContent = dailyClaimedToday
+  ? "Claimed"
+  : `+${format(dailyRewardAmount())}`;
+
+setDisabled("dailyReward", dailyClaimedToday);
+markTask("dailyReward", dailyClaimedToday);
   setDisabled("tapTask", state.tasks.tap100 || state.taps < 100);
   setDisabled("earnTask", state.tasks.earn500 || cityValue() < 500);
   setDisabled("shopTask", state.tasks.shopUpgrade || state.buildings.shop < 2);
