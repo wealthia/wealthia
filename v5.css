@@ -2127,3 +2127,106 @@ button.completed {
   background: rgba(255, 255, 255, 0.12);
   color: #cbd5e1;
 }
+/* Wealthia V5 Tasks clean design */
+#tasksPanel,
+#tasks,
+.panel {
+  width: 100%;
+}
+
+#tasksPanel .stack,
+#tasks .stack {
+  display: grid;
+  gap: 12px;
+}
+
+.task-item {
+  width: 100%;
+  min-height: 86px;
+  padding: 16px 18px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #18232d, #141e27);
+  border: 1px solid #304457;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.task-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.task-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 196, 77, 0.12);
+  border: 1px solid rgba(255, 196, 77, 0.25);
+  font-size: 21px;
+  flex: 0 0 auto;
+}
+
+.task-title {
+  color: #ffffff;
+  font-size: 19px;
+  font-weight: 900;
+  line-height: 1.15;
+  text-shadow: 0 2px 0 #234a93;
+}
+
+.task-status {
+  margin-top: 5px;
+  color: #aebfd1;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.reward-button {
+  min-width: 108px;
+  height: 54px;
+  border-radius: 10px;
+  border: 0;
+  background: #45c889;
+  color: #06120c;
+  font-size: 19px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.reward-button:disabled {
+  background: #202d38;
+  color: #93a5b7;
+  cursor: default;
+}
+
+.task-item.completed {
+  opacity: 0.72;
+}
+
+.task-item.completed .reward-button {
+  background: #202d38;
+  color: #93a5b7;
+}
+
+@media (max-width: 430px) {
+  .task-item {
+    padding: 14px;
+  }
+
+  .task-title {
+    font-size: 17px;
+  }
+
+  .reward-button {
+    min-width: 94px;
+    height: 48px;
+    font-size: 16px;
+  }
+}
