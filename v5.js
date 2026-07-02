@@ -145,62 +145,74 @@ function renderDailyTasks() {
     const button = document.getElementById(buttonId);
     if (!button) return;
 
-    const task = tasks[index];
     const row = button.closest(".task-row") || button.closest(".item") || button.parentElement;
+    if (!row) return;
+
+    const task = tasks[index];
+
+    row.style.display = "";
+    row.classList.remove("completed");
+    button.classList.remove("completed");
 
     if (!task) {
-      if (row) row.style.display = "none";
-      return;
-    }
-
-    if (row) row.style.display = "";
-
-    button.dataset.taskId = task.id;
-
-    if (buttonId === "dailyReward" && els.dailyText && els.dailyAmount) {
-      els.dailyText.textContent = task.title;
-    } else if (row) {
       const title =
         row.querySelector(".task-title") ||
         row.querySelector("strong") ||
-        row.querySelector("span");
+        row.querySelector("span") ||
+        row.firstElementChild;
 
       if (title && title !== button) {
-        title.textContent = task.title;
+        title.textContent = "Task loading...";
       }
+
+      button.textContent = "...";
+      button.disabled = true;
+      return;
+    }
+
+    button.dataset.taskId = task.id;
+
+    const title =
+      row.querySelector(".task-title") ||
+      row.querySelector("strong") ||
+      row.querySelector("span") ||
+      row.firstElementChild;
+
+    if (buttonId === "dailyReward") {
+      if (els.dailyText) els.dailyText.textContent = task.title;
+    } else if (title && title !== button) {
+      title.textContent = task.title;
     }
 
     if (task.claimed) {
-  button.textContent = "Claimed";
-  button.disabled = true;
-  button.classList.add("completed");
+      row.classList.add("completed");
+      button.classList.add("completed");
+      button.textContent = "Claimed";
+      button.disabled = true;
 
-  if (row) {
-    row.style.display = "";
-    row.classList.add("completed");
-  }
+      if (buttonId === "dailyReward" && els.dailyAmount) {
+        els.dailyAmount.textContent = "Claimed";
+      }
 
-  if (buttonId === "dailyReward" && els.dailyAmount) {
-    els.dailyAmount.textContent = "Claimed";
-  }
-
-  return;
-}
-
-    button.classList.remove("completed");
+      return;
+    }
 
     if (task.ready) {
       button.textContent = `Claim +${format(task.reward)}`;
       button.disabled = false;
+
       if (buttonId === "dailyReward" && els.dailyAmount) {
         els.dailyAmount.textContent = `Claim +${format(task.reward)}`;
       }
-    } else {
-      button.textContent = `${format(task.progress)} / ${format(task.target)}`;
-      button.disabled = true;
-      if (buttonId === "dailyReward" && els.dailyAmount) {
-        els.dailyAmount.textContent = `${format(task.progress)} / ${format(task.target)}`;
-      }
+
+      return;
+    }
+
+    button.textContent = `${format(task.progress)} / ${format(task.target)}`;
+    button.disabled = true;
+
+    if (buttonId === "dailyReward" && els.dailyAmount) {
+      els.dailyAmount.textContent = `${format(task.progress)} / ${format(task.target)}`;
     }
   });
 }
