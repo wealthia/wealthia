@@ -138,14 +138,21 @@ function taskReady(row, task) {
 
 function refreshDailyTasks(row) {
   const date = todayKey();
+  const currentTasks = safeJson(row.daily_tasks_json, []);
 
-  if (row.daily_tasks_date === date && Array.isArray(safeJson(row.daily_tasks_json, [])) && safeJson(row.daily_tasks_json, []).length > 0) {
+  const mustCreateTasks =
+    row.daily_tasks_date !== date ||
+    !Array.isArray(currentTasks) ||
+    currentTasks.length === 0;
+
+  if (!mustCreateTasks) {
     return row;
   }
 
   row.daily_tasks_date = date;
   row.daily_tasks_json = buildDailyTasks(row);
   row.daily_tasks_claimed_json = [];
+
   return row;
 }
 
