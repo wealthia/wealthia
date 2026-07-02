@@ -63,10 +63,7 @@ render();
 
 function loadState() {
   const saved = localStorage.getItem(storageKey);
-
-  if (!saved) {
-    return structuredClone(defaultState);
-  }
+  if (!saved) return structuredClone(defaultState);
 
   try {
     const parsed = JSON.parse(saved);
@@ -105,26 +102,8 @@ function format(number) {
   return Math.floor(Number(number || 0)).toLocaleString("en-US");
 }
 
-function isTapBoostActive() {
-  return Date.now() < state.boosts.tapUntil;
-}
-
-function isIncomeBoostActive() {
-  return Date.now() < state.boosts.incomeUntil;
-}
-
 function tapPower() {
-  return state.buildings.shop * (isTapBoostActive() ? 2 : 1);
-}
-
-function hourlyIncome() {
-  const bank = state.buildings.bank;
-  const baseIncome = bank * 20 * Math.max(1, bank);
-  return baseIncome * (isIncomeBoostActive() ? 2 : 1);
-}
-
-function energyRecovery() {
-  return 1 + state.buildings.factory;
+  return state.buildings.shop;
 }
 
 function cityValue() {
@@ -169,6 +148,7 @@ function render() {
   setDisabled("earnTask", state.tasks.earn500 || cityValue() < 500);
   setDisabled("shopTask", state.tasks.shopUpgrade || state.buildings.shop < 2);
   setDisabled("bankTask", state.tasks.bankOpen || state.buildings.bank < 1);
+
   setDisabled("sponsorTask", state.tasks.sponsor);
   setDisabled("adTask", state.tasks.ad);
   setDisabled("channelTask", state.tasks.channel);
@@ -204,7 +184,6 @@ function updateCityVisuals() {
   els.shopBuilding.classList.toggle("upgraded", state.buildings.shop > 1);
   els.bankBuilding.classList.toggle("upgraded", state.buildings.bank > 0);
   els.factoryBuilding.classList.toggle("upgraded", state.buildings.factory > 0);
-  els.factoryBuilding.classList.toggle("active-smoke", state.buildings.factory > 0);
 }
 
 function showToast(message) {
@@ -220,12 +199,10 @@ function showToast(message) {
 
 function coinPop(x, y, amount) {
   const pop = document.createElement("div");
-
   pop.className = "coin-pop";
   pop.textContent = `+${amount}`;
   pop.style.left = `${x - 14}px`;
   pop.style.top = `${y - 18}px`;
-
   document.body.appendChild(pop);
   window.setTimeout(() => pop.remove(), 720);
 }
@@ -237,6 +214,15 @@ function syncFromBackend(user) {
   state.energy = Number(user.game.energy || 0);
   state.taps = Number(user.game.taps || 0);
   state.spent = Number(user.game.spent || 0);
+  state.dailyDate = user.game.dailyDate || "";
+  state.dailyStreak = Number(user.game.dailyStreak || 0);
+
+  if (user.game.tasks) {
+    state.tasks = {
+      ...state.tasks,
+      ...user.game.tasks
+    };
+  }
 
   if (user.game.buildings) {
     state.buildings = {
@@ -282,9 +268,7 @@ async function connectBackend() {
 
     const user = await response.json();
 
-    if (!response.ok) {
-      throw new Error("Session failed");
-    }
+    if (!response.ok) throw new Error("Session failed");
 
     backendUserId = user.userId;
     syncFromBackend(user);
@@ -367,6 +351,59 @@ async function backendUpgrade(name) {
   }
 }
 
+async function claimBackendTask(task) {
+  if (!backendReady) {
+    showToast("Backend offline.");
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/api/claim-task`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: backendUserId,
+        task
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      showToast("Task locked or already claimed.");
+      return;
+    }
+
+    syncFromBackend(result.user);
+    saveState();
+    render();
+    showToast(`Reward claimed: +${format(result.reward)}`);
+  } catch {
+    showToast("Task error.");
+  }
+}
+
+async function refreshBackendState() {
+  if (!backendReady) return;
+
+  try {
+    const response = await fetch(`${API_URL}/api/session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramUser: getTelegramUser() })
+    });
+
+    const user = await response.json();
+    if (!response.ok) return;
+
+    syncFromBackend(user);
+    saveState();
+    render();
+  } catch {
+    // silent refresh fail
+  }
+}
+
 els.tapButton.addEventListener("pointerdown", backendTap);
 
 document.querySelectorAll("[data-upgrade]").forEach((button) => {
@@ -386,27 +423,27 @@ document.querySelectorAll(".tab").forEach((tab) => {
 });
 
 document.getElementById("dailyReward").addEventListener("click", () => {
-  showToast("Tasks will connect to backend next.");
+  claimBackendTask("daily");
 });
 
 document.getElementById("tapTask").addEventListener("click", () => {
-  showToast("Tasks will connect to backend next.");
+  claimBackendTask("tap100");
 });
 
 document.getElementById("earnTask").addEventListener("click", () => {
-  showToast("Tasks will connect to backend next.");
+  claimBackendTask("earn500");
 });
 
 document.getElementById("shopTask").addEventListener("click", () => {
-  showToast("Tasks will connect to backend next.");
+  claimBackendTask("shopUpgrade");
 });
 
 document.getElementById("bankTask").addEventListener("click", () => {
-  showToast("Tasks will connect to backend next.");
+  claimBackendTask("bankOpen");
 });
 
 document.getElementById("sponsorTask").addEventListener("click", () => {
-  showToast("Earn tasks will connect next.");
+  showToast("Sponsor tasks will connect next.");
 });
 
 document.getElementById("adTask").addEventListener("click", () => {
@@ -430,7 +467,7 @@ document.getElementById("incomeBoost").addEventListener("click", () => {
 });
 
 document.getElementById("inviteButton").addEventListener("click", async () => {
-  const link = "https://t.me/WealthiaGameBot?start=ref_demo";
+  const link = `https://t.me/WealthiaGameBot?start=ref_${backendUserId}`;
 
   try {
     await navigator.clipboard.writeText(link);
@@ -443,26 +480,5 @@ document.getElementById("inviteButton").addEventListener("click", async () => {
 document.getElementById("resetButton").addEventListener("click", () => {
   showToast("Reset disabled on backend version.");
 });
-async function refreshBackendState() {
-  if (!backendReady) return;
-
-  try {
-    const response = await fetch(`${API_URL}/api/session`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ telegramUser: getTelegramUser() })
-    });
-
-    const user = await response.json();
-
-    if (!response.ok) return;
-
-    syncFromBackend(user);
-    saveState();
-    render();
-  } catch {
-    // silent refresh fail
-  }
-}
 
 window.setInterval(refreshBackendState, 10000);
