@@ -507,3 +507,26 @@ async function backendTap(event) {
     showToast("Backend error.");
   }
 }
+function getTelegramUser() {
+  const tg = window.Telegram?.WebApp;
+  const user = tg?.initDataUnsafe?.user;
+
+  if (tg) {
+    tg.ready();
+    tg.expand();
+  }
+
+  if (user?.id) {
+    return {
+      id: user.id,
+      first_name: user.first_name || "Player",
+      username: user.username || ""
+    };
+  }
+
+  return {
+    id: "web_demo",
+    first_name: "Web Demo",
+    username: ""
+  };
+}
