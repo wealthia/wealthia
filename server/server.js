@@ -315,10 +315,15 @@ app.post("/api/session", async (req, res) => {
     const row = await getOrCreatePlayer(req.body.telegramUser);
     res.json(toClientUser(row));
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("SESSION_ERROR:", error);
+    res.status(500).json({
+      error: error.message,
+      details: error.details || "",
+      hint: error.hint || "",
+      code: error.code || ""
+    });
   }
 });
-
 app.post("/api/tap", async (req, res) => {
   try {
     const userId = String(req.body.userId || "");
