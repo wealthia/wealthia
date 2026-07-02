@@ -58,9 +58,9 @@ tapButton: document.getElementById("tapButton"),
   factoryBuilding: document.getElementById("factoryBuilding"),
 };
 
+connectBackend();
 applyOfflineIncome();
 render();
-
 function loadState() {
   const saved = localStorage.getItem(storageKey);
   if (!saved) return structuredClone(defaultState);
