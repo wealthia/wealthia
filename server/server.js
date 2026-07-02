@@ -4,6 +4,8 @@ const port = process.env.PORT || 3000;
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
+const maxEnergy = 100;
+
 const defaultGame = {
   coins: 0,
   energy: 100,
@@ -43,7 +45,8 @@ const server = http.createServer(async (req, res) => {
       send(res, 200, {
         ok: true,
         app: "Wealthia API",
-        database: Boolean(supabaseUrl && supabaseKey)
+        database: Boolean(supabaseUrl && supabaseKey),
+        version: "energy-upgrade-v1"
       });
       return;
     }
@@ -66,6 +69,8 @@ const server = http.createServer(async (req, res) => {
         game = await createGame(userId);
       }
 
+      game = await applyPassiveProgress(userId, game);
+
       send(res, 200, toClientUser(userId, tg.first_name || "Player", tg.username || "", game));
       return;
     }
@@ -73,14 +78,16 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/api/tap") {
       const body = await readBody(req);
       const userId = String(body.userId || "");
-      const game = await getGame(userId);
+      let game = await getGame(userId);
 
       if (!game) {
         send(res, 404, { error: "USER_NOT_FOUND" });
         return;
       }
 
-      if (Number(game.energy) <= 0) {
+      game = await applyPassiveProgress(userId, game);
+
+      if (Number(game.energy) < 1) {
         send(res, 400, {
           error: "NO_ENERGY",
           user: toClientUser(userId, "Player", "", game)
@@ -88,10 +95,10 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      const amount = Number(game.shop_level || 1);
+      const amount = tapPower(game);
       const nextGame = {
         ...game,
-        energy: Number(game.energy) - 1,
+        energy: Math.max(0, Number(game.energy) - 1),
         coins: Number(game.coins) + amount,
         city_value: Number(game.city_value || 0) + amount,
         taps: Number(game.taps || 0) + 1,
@@ -111,12 +118,14 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       const userId = String(body.userId || "");
       const building = String(body.building || "");
-      const game = await getGame(userId);
+      let game = await getGame(userId);
 
       if (!game) {
         send(res, 404, { error: "USER_NOT_FOUND" });
         return;
       }
+
+      game = await applyPassiveProgress(userId, game);
 
       if (!["shop", "bank", "factory"].includes(building)) {
         send(res, 400, { error: "BAD_BUILDING" });
@@ -226,6 +235,31 @@ async function createGame(userId) {
   return rows[0];
 }
 
+async function applyPassiveProgress(userId, game) {
+  const now = Date.now();
+  const updatedAt = game.updated_at ? new Date(game.updated_at).getTime() : now;
+  const secondsAway = Math.max(0, Math.floor((now - updatedAt) / 1000));
+
+  if (secondsAway <= 0) {
+    return game;
+  }
+
+  const recoveredEnergy = secondsAway * energyRecovery(game);
+  const cappedSeconds = Math.min(secondsAway, 8 * 60 * 60);
+  const earnedOffline = Math.floor((hourlyIncome(game) / 3600) * cappedSeconds);
+
+  const nextGame = {
+    ...game,
+    energy: Math.min(maxEnergy, Number(game.energy || 0) + recoveredEnergy),
+    coins: Number(game.coins || 0) + earnedOffline,
+    city_value: Number(game.city_value || 0) + earnedOffline,
+    updated_at: new Date().toISOString()
+  };
+
+  await updateGame(userId, nextGame);
+  return nextGame;
+}
+
 async function updateGame(userId, game) {
   await patch(`game_states?user_id=eq.${encodeURIComponent(userId)}`, {
     coins: game.coins,
@@ -252,6 +286,22 @@ async function updateGame(userId, game) {
   });
 }
 
+function tapPower(game) {
+  const active = Date.now() < Number(game.tap_boost_until || 0);
+  return Number(game.shop_level || 1) * (active ? 2 : 1);
+}
+
+function hourlyIncome(game) {
+  const bank = Number(game.bank_level || 0);
+  const active = Date.now() < Number(game.income_boost_until || 0);
+  const baseIncome = bank * 20 * Math.max(1, bank);
+  return baseIncome * (active ? 2 : 1);
+}
+
+function energyRecovery(game) {
+  return 1 + Number(game.factory_level || 0);
+}
+
 function upgradeCost(game, building) {
   const base = {
     shop: 50,
@@ -276,6 +326,9 @@ function toClientUser(userId, name, username, game) {
       taps: Number(game.taps || 0),
       spent: Number(game.spent || 0),
       cityValue: Number(game.city_value || 0),
+      tapPower: tapPower(game),
+      hourlyIncome: hourlyIncome(game),
+      energyRecovery: energyRecovery(game),
       buildings: {
         shop: Number(game.shop_level || 1),
         bank: Number(game.bank_level || 0),
