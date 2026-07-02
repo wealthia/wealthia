@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:3000";
+const API_URL = "https://wealthia-backend.onrender.com";
 let backendUserId = "123";
 let backendReady = false;
 
