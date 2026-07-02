@@ -97,6 +97,10 @@ function parseReferrerId(value) {
   return raw;
 }
 
+function number(value) {
+  return Number(value || 0);
+}
+
 function upgradeCost(building, level) {
   const base = { shop: 50, bank: 120, factory: 200 }[building];
   return Math.floor(base * Math.pow(1.75, Math.max(0, level - 1)));
