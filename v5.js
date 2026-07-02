@@ -443,15 +443,15 @@ document.getElementById("bankTask").addEventListener("click", () => {
 });
 
 document.getElementById("sponsorTask").addEventListener("click", () => {
-  showToast("Sponsor tasks will connect next.");
+  claimBackendTask("sponsor");
 });
 
 document.getElementById("adTask").addEventListener("click", () => {
-  showToast("Ads will connect next.");
+  claimBackendTask("ad");
 });
 
 document.getElementById("channelTask").addEventListener("click", () => {
-  showToast("Channels will connect next.");
+  claimBackendTask("channel");
 });
 
 document.getElementById("fullEnergyBoost").addEventListener("click", () => {
