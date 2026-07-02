@@ -7,7 +7,7 @@ const storageKey = "wealthiaMvpState";
 const defaultState = {
   coins: 0,
   energy: 100,
-  taps: 0,const API_URL = "https://wealthia-backend.onrender.com";
+  taps: 0,
   spent: 0,
   lastSeen: Date.now(),
   dailyDate: "",
