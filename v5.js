@@ -443,3 +443,26 @@ document.getElementById("inviteButton").addEventListener("click", async () => {
 document.getElementById("resetButton").addEventListener("click", () => {
   showToast("Reset disabled on backend version.");
 });
+async function refreshBackendState() {
+  if (!backendReady) return;
+
+  try {
+    const response = await fetch(`${API_URL}/api/session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramUser: getTelegramUser() })
+    });
+
+    const user = await response.json();
+
+    if (!response.ok) return;
+
+    syncFromBackend(user);
+    saveState();
+    render();
+  } catch {
+    // silent refresh fail
+  }
+}
+
+window.setInterval(refreshBackendState, 10000);
