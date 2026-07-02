@@ -19,10 +19,18 @@ Do these steps **before** launching paid tournaments. Order matters.
 
 ## 1. Bot profile (BotFather)
 
-### Profile photo
+### Profile photo (round icon)
 1. Open **@BotFather**
 2. `/mybots` → select your bot → **Edit Bot** → **Edit Botpic**
-3. Upload: `marketing/assets/wealthia-bot-avatar.png` from this repo
+3. Upload: `marketing/assets/wealthia-bot-avatar.png` (square)
+
+### Description picture (640×360 banner)
+BotFather → **Edit Description Picture**
+
+Upload: `marketing/assets/wealthia-bot-description-640x360.png`  
+Direct link: https://github.com/wealthia/wealthia/raw/main/marketing/assets/wealthia-bot-description-640x360.png
+
+Must be exactly **640×360** pixels — other sizes are rejected.
 
 ### Description (shown before user presses Start)
 ```
