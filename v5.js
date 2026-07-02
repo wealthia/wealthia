@@ -13,6 +13,7 @@ const defaultState = {
   dailyDate: "",
   dailyStreak: 0,
   dailyTasks: [],
+  dailyTasksNextRefresh: "",
   tasks: {
     tap100: false,
     earn500: false,
@@ -139,6 +140,32 @@ function render() {
   updateCityVisuals();
 }
 
+function getTaskRefreshLabel() {
+  const next = Date.parse(state.dailyTasksNextRefresh || "");
+  if (!next || Number.isNaN(next)) {
+    return "Tasks refresh every 12 hours based on your level";
+  }
+
+  const diff = Math.max(0, next - Date.now());
+  const hours = Math.floor(diff / 3600000);
+  const minutes = Math.floor((diff % 3600000) / 60000);
+
+  if (diff <= 0) {
+    return "New tasks loading soon...";
+  }
+
+  if (hours > 0) {
+    return `New level-based tasks in ${hours}h ${minutes}m`;
+  }
+
+  return `New level-based tasks in ${minutes}m`;
+}
+
+function updateTaskRefreshLabel() {
+  const note = document.getElementById("taskRefreshNote");
+  if (note) note.textContent = getTaskRefreshLabel();
+}
+
 function renderDailyTasks() {
   const panel = document.getElementById("tasksPanel");
   const tasks = Array.isArray(state.dailyTasks) ? state.dailyTasks : [];
@@ -149,7 +176,7 @@ function renderDailyTasks() {
     panel.innerHTML = `
       <div class="panel-head">
         <h2>Daily Missions</h2>
-        <p>Complete tasks and claim premium rewards</p>
+        <p id="taskRefreshNote">${getTaskRefreshLabel()}</p>
       </div>
       <button class="task" type="button" disabled>
         <span><b>&#127873; Daily tasks preparing</b><small>Tasks will appear soon.</small></span>
@@ -162,7 +189,7 @@ function renderDailyTasks() {
   panel.innerHTML = `
     <div class="panel-head">
       <h2>Daily Missions</h2>
-      <p>Complete tasks and claim premium rewards</p>
+      <p id="taskRefreshNote">${getTaskRefreshLabel()}</p>
     </div>
     ${tasks.map((task) => {
     const title = task.title || "Daily Task";
@@ -237,6 +264,7 @@ function syncFromBackend(user) {
   state.dailyDate = user.game.dailyDate || user.game.daily_date || "";
   state.dailyStreak = Number(user.game.dailyStreak || user.game.daily_streak || 0);
   state.dailyTasks = Array.isArray(user.game.dailyTasks) ? user.game.dailyTasks : [];
+  state.dailyTasksNextRefresh = user.game.dailyTasksNextRefresh || "";
 
   if (user.game.tasks) {
     state.tasks = {
@@ -547,6 +575,15 @@ if (resetButton) {
 }
 
 window.setInterval(refreshBackendState, 10000);
+
+window.setInterval(() => {
+  updateTaskRefreshLabel();
+
+  const next = Date.parse(state.dailyTasksNextRefresh || "");
+  if (next && Date.now() >= next) {
+    refreshBackendState();
+  }
+}, 60000);
 
 setInterval(() => {
   if (state.energy >= 100) return;
