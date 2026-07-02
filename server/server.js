@@ -23,6 +23,21 @@ const ENERGY_RECOVERY_PER_MINUTE = 2;
 const OFFLINE_INCOME_PER_BANK_LEVEL_PER_MINUTE = 3;
 const TASK_REFRESH_MS = 12 * 60 * 60 * 1000;
 const TASKS_PER_CYCLE = 4;
+const BOOST_DURATION_MS = 30 * 60 * 1000;
+const REFERRAL_BONUS = 500;
+const NEW_PLAYER_BONUS = 100;
+
+const EARN_TASKS = {
+  sponsor: { reward: 750, field: "sponsor_done" },
+  ad: { reward: 300, field: "ad_done" },
+  channel: { reward: 500, field: "channel_done" }
+};
+
+const BOOST_OPTIONS = {
+  fullEnergy: { cost: 100, type: "energy" },
+  tapBoost: { cost: 150, type: "tap" },
+  incomeBoost: { cost: 200, type: "income" }
+};
 
 function nowMs() {
   return Date.now();
@@ -41,8 +56,45 @@ function nextTaskRefreshMs(ms = nowMs()) {
   return (cycle + 1) * TASK_REFRESH_MS;
 }
 
-function number(value) {
-  return Number(value || 0);
+function yesterdayKey() {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() - 1);
+  return date.toISOString().slice(0, 10);
+}
+
+function dailyRewardAmount(row) {
+  const streak = nextDailyStreak(row);
+  return 100 + Math.max(0, streak - 1) * 50;
+}
+
+function nextDailyStreak(row) {
+  const today = todayKey();
+  const yesterday = yesterdayKey();
+
+  if (row.daily_date === today) {
+    return Math.max(1, number(row.daily_streak));
+  }
+
+  if (row.daily_date === yesterday) {
+    return Math.max(1, number(row.daily_streak)) + 1;
+  }
+
+  return 1;
+}
+
+function dailyRewardClaimedToday(row) {
+  return row.daily_date === todayKey();
+}
+
+function parseReferrerId(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  if (raw.startsWith("ref_")) {
+    return raw.slice(4);
+  }
+
+  return raw;
 }
 
 function upgradeCost(building, level) {
@@ -227,6 +279,17 @@ function toClientUser(row) {
       dailyStreak: number(row.daily_streak),
       dailyTasksDate: row.daily_tasks_date || "",
       dailyTasksNextRefresh: new Date(nextTaskRefreshMs()).toISOString(),
+      dailyReward: {
+        streak: number(row.daily_streak),
+        claimedToday: dailyRewardClaimedToday(row),
+        nextAmount: dailyRewardAmount(row)
+      },
+      boosts: {
+        tapActive: number(row.tap_boost_until) > nowMs(),
+        incomeActive: number(row.income_boost_until) > nowMs(),
+        tapUntil: number(row.tap_boost_until),
+        incomeUntil: number(row.income_boost_until)
+      },
       dailyTasks: tasks.map((task) => ({
         ...task,
         progress: taskProgress(row, task),
@@ -252,10 +315,38 @@ function toClientUser(row) {
   };
 }
 
-async function getOrCreatePlayer(telegramUser) {
+async function creditReferrer(referrerId, newUserId) {
+  const referrer = String(referrerId || "");
+  const newbie = String(newUserId || "");
+
+  if (!referrer || !newbie || referrer === newbie) return;
+
+  const { data: refRow } = await supabase
+    .from("game_states")
+    .select("*")
+    .eq("user_id", referrer)
+    .maybeSingle();
+
+  if (!refRow) return;
+
+  const bonus = REFERRAL_BONUS;
+
+  await supabase
+    .from("game_states")
+    .update({
+      coins: number(refRow.coins) + bonus,
+      city_value: number(refRow.coins) + bonus + number(refRow.spent),
+      invite_done: true,
+      updated_at: new Date().toISOString()
+    })
+    .eq("user_id", referrer);
+}
+
+async function getOrCreatePlayer(telegramUser, referrerId = "") {
   const telegramId = String(telegramUser?.id || "web_demo");
   const name = telegramUser?.first_name || "Player";
   const username = telegramUser?.username || "";
+  const referrer = parseReferrerId(referrerId);
 
   await supabase.from("users").upsert({
     id: telegramId,
@@ -296,11 +387,11 @@ async function getOrCreatePlayer(telegramUser) {
 
   const fresh = refreshDailyTasks({
     user_id: telegramId,
-    coins: 0,
+    coins: NEW_PLAYER_BONUS,
     energy: 100,
     taps: 0,
     spent: 0,
-    city_value: 0,
+    city_value: NEW_PLAYER_BONUS,
     shop_level: 1,
     bank_level: 0,
     factory_level: 0,
@@ -315,6 +406,11 @@ async function getOrCreatePlayer(telegramUser) {
     .single();
 
   if (error) throw error;
+
+  if (referrer) {
+    await creditReferrer(referrer, telegramId);
+  }
+
   return data;
 }
 
@@ -350,16 +446,17 @@ async function loadGame(userId) {
 }
 
 app.get("/", (_req, res) => {
-  res.json({ ok: true, app: "Wealthia API", database: true, version: "daily-tasks-12h-v5" });
+  res.json({ ok: true, app: "Wealthia API", database: true, version: "full-v6" });
 });
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, app: "Wealthia API", database: true, version: "daily-tasks-12h-v5" });
+  res.json({ ok: true, app: "Wealthia API", database: true, version: "full-v6" });
 });
 
 app.post("/api/session", async (req, res) => {
   try {
-    const row = await getOrCreatePlayer(req.body.telegramUser);
+    const referrerId = parseReferrerId(req.body.referrerId || req.body.referralId);
+    const row = await getOrCreatePlayer(req.body.telegramUser, referrerId);
     res.json(toClientUser(row));
   } catch (error) {
     console.error("SESSION_ERROR:", error);
@@ -496,8 +593,190 @@ app.post("/api/claim-task", async (req, res) => {
   }
 });
 
-app.post("/api/leaderboard", async (_req, res) => {
+app.post("/api/claim-daily", async (req, res) => {
   try {
+    const userId = String(req.body.userId || "");
+    const row = await loadGame(userId);
+
+    if (dailyRewardClaimedToday(row)) {
+      res.status(400).json({ error: "ALREADY_CLAIMED" });
+      return;
+    }
+
+    const streak = nextDailyStreak(row);
+    const reward = dailyRewardAmount(row);
+
+    const { data, error } = await supabase
+      .from("game_states")
+      .update({
+        coins: number(row.coins) + reward,
+        city_value: number(row.coins) + reward + number(row.spent),
+        daily_date: todayKey(),
+        daily_streak: streak,
+        updated_at: new Date().toISOString()
+      })
+      .eq("user_id", userId)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    res.json({ ok: true, reward, streak, user: toClientUser(data) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/claim-earn", async (req, res) => {
+  try {
+    const userId = String(req.body.userId || "");
+    const type = String(req.body.type || "");
+    const earnTask = EARN_TASKS[type];
+
+    if (!earnTask) {
+      res.status(400).json({ error: "BAD_EARN_TYPE" });
+      return;
+    }
+
+    const row = await loadGame(userId);
+
+    if (Boolean(row[earnTask.field])) {
+      res.status(400).json({ error: "ALREADY_CLAIMED" });
+      return;
+    }
+
+    const reward = earnTask.reward;
+
+    const { data, error } = await supabase
+      .from("game_states")
+      .update({
+        coins: number(row.coins) + reward,
+        city_value: number(row.coins) + reward + number(row.spent),
+        [earnTask.field]: true,
+        updated_at: new Date().toISOString()
+      })
+      .eq("user_id", userId)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    res.json({ ok: true, reward, user: toClientUser(data) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/buy-boost", async (req, res) => {
+  try {
+    const userId = String(req.body.userId || "");
+    const boost = String(req.body.boost || "");
+    const option = BOOST_OPTIONS[boost];
+
+    if (!option) {
+      res.status(400).json({ error: "BAD_BOOST" });
+      return;
+    }
+
+    const row = await loadGame(userId);
+
+    if (number(row.coins) < option.cost) {
+      res.status(400).json({ error: "NOT_ENOUGH_COINS" });
+      return;
+    }
+
+    const updated = {
+      coins: number(row.coins) - option.cost,
+      city_value: number(row.coins) - option.cost + number(row.spent),
+      updated_at: new Date().toISOString()
+    };
+
+    if (option.type === "energy") {
+      updated.energy = MAX_ENERGY;
+    }
+
+    if (option.type === "tap") {
+      updated.tap_boost_until = nowMs() + BOOST_DURATION_MS;
+    }
+
+    if (option.type === "income") {
+      updated.income_boost_until = nowMs() + BOOST_DURATION_MS;
+    }
+
+    const { data, error } = await supabase
+      .from("game_states")
+      .update(updated)
+      .eq("user_id", userId)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    res.json({ ok: true, boost, user: toClientUser(data) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/reset", async (req, res) => {
+  try {
+    const userId = String(req.body.userId || "");
+
+    const { data, error } = await supabase
+      .from("game_states")
+      .update({
+        coins: NEW_PLAYER_BONUS,
+        energy: MAX_ENERGY,
+        taps: 0,
+        spent: 0,
+        city_value: NEW_PLAYER_BONUS,
+        shop_level: 1,
+        bank_level: 0,
+        factory_level: 0,
+        daily_date: "",
+        daily_streak: 0,
+        daily_tasks_date: "",
+        daily_tasks_json: [],
+        daily_tasks_claimed_json: [],
+        sponsor_done: false,
+        ad_done: false,
+        channel_done: false,
+        tap_boost_until: 0,
+        income_boost_until: 0,
+        updated_at: new Date().toISOString()
+      })
+      .eq("user_id", userId)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    let row = refreshDailyTasks(applyPassive(data));
+
+    const { data: saved, error: saveError } = await supabase
+      .from("game_states")
+      .update({
+        daily_tasks_date: row.daily_tasks_date,
+        daily_tasks_json: row.daily_tasks_json,
+        daily_tasks_claimed_json: row.daily_tasks_claimed_json,
+        updated_at: new Date().toISOString()
+      })
+      .eq("user_id", userId)
+      .select("*")
+      .single();
+
+    if (saveError) throw saveError;
+
+    res.json({ ok: true, user: toClientUser(saved) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/leaderboard", async (req, res) => {
+  try {
+    const userId = String(req.body.userId || "");
+
     const { data, error } = await supabase
       .from("game_states")
       .select("user_id, city_value")
@@ -506,11 +785,25 @@ app.post("/api/leaderboard", async (_req, res) => {
 
     if (error) throw error;
 
+    const ids = data.map((row) => row.user_id);
+    const { data: users } = await supabase
+      .from("users")
+      .select("id, first_name, username")
+      .in("id", ids);
+
+    const userMap = new Map((users || []).map((user) => [user.id, user]));
+
     res.json({
-      rows: data.map((row) => ({
-        userId: row.user_id,
-        cityValue: number(row.city_value)
-      }))
+      rows: data.map((row, index) => {
+        const profile = userMap.get(row.user_id) || {};
+        return {
+          rank: index + 1,
+          userId: row.user_id,
+          name: profile.first_name || profile.username || `Player ${String(row.user_id).slice(-4)}`,
+          cityValue: number(row.city_value),
+          isYou: row.user_id === userId
+        };
+      })
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

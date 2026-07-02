@@ -1,6 +1,7 @@
 const API_URL = "https://wealthia-backend.onrender.com";
 let backendUserId = "web_demo";
 let backendReady = false;
+let leaderboardRows = [];
 
 const storageKey = "wealthiaV5State";
 
@@ -14,17 +15,19 @@ const defaultState = {
   dailyStreak: 0,
   dailyTasks: [],
   dailyTasksNextRefresh: "",
+  dailyReward: {
+    streak: 0,
+    claimedToday: false,
+    nextAmount: 100
+  },
   tasks: {
-    tap100: false,
-    earn500: false,
-    shopUpgrade: false,
-    bankOpen: false,
-    invite: false,
     sponsor: false,
     ad: false,
     channel: false
   },
   boosts: {
+    tapActive: false,
+    incomeActive: false,
     tapUntil: 0,
     incomeUntil: 0
   },
@@ -51,11 +54,13 @@ const els = {
   shopCost: document.getElementById("shopCost"),
   bankCost: document.getElementById("bankCost"),
   factoryCost: document.getElementById("factoryCost"),
-  rankYou: document.getElementById("rankYou"),
   toast: document.getElementById("toast"),
   shopBuilding: document.getElementById("shopBuilding"),
   bankBuilding: document.getElementById("bankBuilding"),
-  factoryBuilding: document.getElementById("factoryBuilding")
+  factoryBuilding: document.getElementById("factoryBuilding"),
+  tasksPanel: document.getElementById("tasksPanel"),
+  earnPanel: document.getElementById("earnPanel"),
+  rankPanel: document.getElementById("rankPanel")
 };
 
 connectBackend();
@@ -72,16 +77,20 @@ function loadState() {
       ...structuredClone(defaultState),
       ...parsed,
       dailyTasks: Array.isArray(parsed.dailyTasks) ? parsed.dailyTasks : [],
+      dailyReward: {
+        ...defaultState.dailyReward,
+        ...(parsed.dailyReward || {})
+      },
       tasks: {
-        ...structuredClone(defaultState).tasks,
+        ...defaultState.tasks,
         ...(parsed.tasks || {})
       },
       boosts: {
-        ...structuredClone(defaultState).boosts,
+        ...defaultState.boosts,
         ...(parsed.boosts || {})
       },
       buildings: {
-        ...structuredClone(defaultState).buildings,
+        ...defaultState.buildings,
         ...(parsed.buildings || {})
       }
     };
@@ -95,12 +104,13 @@ function saveState() {
   localStorage.setItem(storageKey, JSON.stringify(state));
 }
 
-function format(number) {
-  return Math.floor(Number(number || 0)).toLocaleString("en-US");
+function format(value) {
+  return Math.floor(Number(value || 0)).toLocaleString("en-US");
 }
 
 function tapPower() {
-  return Math.max(1, Number(state.buildings.shop || 1));
+  const base = Math.max(1, Number(state.buildings.shop || 1));
+  return state.boosts.tapActive ? base * 2 : base;
 }
 
 function cityValue() {
@@ -124,7 +134,9 @@ function render() {
   }
 
   if (els.tapPower) els.tapPower.textContent = tapPower();
-  if (els.tapLabel) els.tapLabel.textContent = state.energy < 1 ? "No Energy" : "Tap";
+  if (els.tapLabel) {
+    els.tapLabel.textContent = state.energy < 1 ? "No Energy" : state.boosts.tapActive ? "2x Tap" : "Tap";
+  }
   if (els.tapButton) els.tapButton.classList.toggle("no-energy", state.energy < 1);
 
   if (els.shopLevel) els.shopLevel.textContent = state.buildings.shop;
@@ -134,9 +146,10 @@ function render() {
   if (els.shopCost) els.shopCost.textContent = format(upgradeCost("shop"));
   if (els.bankCost) els.bankCost.textContent = format(upgradeCost("bank"));
   if (els.factoryCost) els.factoryCost.textContent = format(upgradeCost("factory"));
-  if (els.rankYou) els.rankYou.textContent = format(cityValue());
 
   renderDailyTasks();
+  renderEarnPanel();
+  renderRankPanel();
   updateCityVisuals();
 }
 
@@ -150,14 +163,8 @@ function getTaskRefreshLabel() {
   const hours = Math.floor(diff / 3600000);
   const minutes = Math.floor((diff % 3600000) / 60000);
 
-  if (diff <= 0) {
-    return "New tasks loading soon...";
-  }
-
-  if (hours > 0) {
-    return `New level-based tasks in ${hours}h ${minutes}m`;
-  }
-
+  if (diff <= 0) return "New tasks loading soon...";
+  if (hours > 0) return `New level-based tasks in ${hours}h ${minutes}m`;
   return `New level-based tasks in ${minutes}m`;
 }
 
@@ -167,10 +174,21 @@ function updateTaskRefreshLabel() {
 }
 
 function renderDailyTasks() {
-  const panel = document.getElementById("tasksPanel");
+  const panel = els.tasksPanel;
   const tasks = Array.isArray(state.dailyTasks) ? state.dailyTasks : [];
+  const daily = state.dailyReward || defaultState.dailyReward;
+  const dailyClaimed = Boolean(daily.claimedToday);
+  const dailyAmount = format(daily.nextAmount || 100);
+  const streak = Math.max(1, Number(daily.streak || 1));
 
   if (!panel) return;
+
+  const dailyButton = `
+    <button class="task ${dailyClaimed ? "completed" : ""}" type="button" id="dailyReward" ${dailyClaimed ? "disabled" : ""}>
+      <span><b>&#127775; Daily Streak</b><small>Day ${streak} reward</small></span>
+      <strong class="${dailyClaimed ? "completed" : ""}">${dailyClaimed ? "Claimed" : `+${dailyAmount}`}</strong>
+    </button>
+  `;
 
   if (tasks.length === 0) {
     panel.innerHTML = `
@@ -178,11 +196,13 @@ function renderDailyTasks() {
         <h2>Daily Missions</h2>
         <p id="taskRefreshNote">${getTaskRefreshLabel()}</p>
       </div>
+      ${dailyButton}
       <button class="task" type="button" disabled>
-        <span><b>&#127873; Daily tasks preparing</b><small>Tasks will appear soon.</small></span>
+        <span><b>&#127873; Daily tasks preparing</b><small>Connect to backend for missions.</small></span>
         <strong>Soon</strong>
       </button>
     `;
+    bindDailyRewardButton();
     return;
   }
 
@@ -191,23 +211,108 @@ function renderDailyTasks() {
       <h2>Daily Missions</h2>
       <p id="taskRefreshNote">${getTaskRefreshLabel()}</p>
     </div>
+    ${dailyButton}
     ${tasks.map((task) => {
-    const title = task.title || "Daily Task";
-    const reward = format(task.reward || 0);
-    const progress = Number(task.progress || 0);
-    const target = Number(task.target || 1);
-    const claimed = Boolean(task.claimed);
-    const ready = !claimed && (task.ready || progress >= target);
-    const buttonText = claimed ? "Claimed" : ready ? `+${reward}` : `${format(progress)} / ${format(target)}`;
-    const statusText = claimed ? "Reward collected" : ready ? "Ready to claim" : "Progress";
+      const title = task.title || "Daily Task";
+      const reward = format(task.reward || 0);
+      const progress = Number(task.progress || 0);
+      const target = Number(task.target || 1);
+      const claimed = Boolean(task.claimed);
+      const ready = !claimed && (task.ready || progress >= target);
+      const buttonText = claimed ? "Claimed" : ready ? `+${reward}` : `${format(progress)} / ${format(target)}`;
+      const statusText = claimed ? "Reward collected" : ready ? "Ready to claim" : "Progress";
 
-    return `
-      <button class="task ${claimed ? "completed" : ""}" type="button" data-daily-task="${task.id || ""}" ${claimed || !ready ? "disabled" : ""}>
-        <span><b>&#127873; ${title}</b><small>${statusText}</small></span>
-        <strong class="${claimed ? "completed" : ""}">${buttonText}</strong>
-      </button>
-    `;
-  }).join("")}
+      return `
+        <button class="task ${claimed ? "completed" : ""}" type="button" data-daily-task="${task.id || ""}" ${claimed || !ready ? "disabled" : ""}>
+          <span><b>&#127873; ${title}</b><small>${statusText}</small></span>
+          <strong class="${claimed ? "completed" : ""}">${buttonText}</strong>
+        </button>
+      `;
+    }).join("")}
+  `;
+
+  bindDailyRewardButton();
+}
+
+function bindDailyRewardButton() {
+  const button = document.getElementById("dailyReward");
+  if (!button || button.disabled) return;
+  button.addEventListener("click", () => claimDailyReward());
+}
+
+function renderEarnPanel() {
+  const panel = els.earnPanel;
+  if (!panel) return;
+
+  const earnRow = (id, title, subtitle, reward, done) => `
+    <button class="task earn-task ${done ? "completed" : ""}" type="button" data-earn="${id}" ${done ? "disabled" : ""}>
+      <span><b>${title}</b><small>${done ? "Reward collected" : subtitle}</small></span>
+      <strong class="${done ? "completed" : ""}">${done ? "Claimed" : `+${reward}`}</strong>
+    </button>
+  `;
+
+  const boostButton = (id, icon, title, cost, active) => `
+    <button class="boost-button ${active ? "completed" : ""}" type="button" data-boost="${id}" ${active ? "disabled" : ""}>
+      <span class="boost-button__icon">${icon}</span>
+      ${title}
+      <span>${active ? "Active" : `Cost ${cost}`}</span>
+    </button>
+  `;
+
+  panel.innerHTML = `
+    <article class="card stack earn-hero">
+      <div class="earn-hero__badge">VIP Earn Center</div>
+      <h2>Multiply Your Fortune</h2>
+      <p>Complete partner tasks and buy power boosts to grow faster.</p>
+    </article>
+    ${earnRow("sponsor", "Partner Bot", "Open sponsor bot", 750, state.tasks.sponsor)}
+    ${earnRow("ad", "Rewarded Ad", "Watch a short ad", 300, state.tasks.ad)}
+    ${earnRow("channel", "Partner Channel", "Join Telegram channel", 500, state.tasks.channel)}
+    <article class="card stack">
+      <h2>Power Boosts</h2>
+      <div class="boost-grid">
+        ${boostButton("fullEnergy", "&#x26A1;", "Full Energy", 100, false)}
+        ${boostButton("tapBoost", "&#x1F4AA;", "2x Tap", 150, state.boosts.tapActive)}
+        ${boostButton("incomeBoost", "&#x1F4C8;", "2x Income", 200, state.boosts.incomeActive)}
+      </div>
+    </article>
+  `;
+}
+
+function medalForRank(rank) {
+  if (rank === 1) return "&#x1F947;";
+  if (rank === 2) return "&#x1F948;";
+  if (rank === 3) return "&#x1F949;";
+  return "&#x1F3C5;";
+}
+
+function renderRankPanel() {
+  const panel = els.rankPanel;
+  if (!panel) return;
+
+  const rows = leaderboardRows.length
+    ? leaderboardRows
+    : [{
+      rank: 1,
+      name: "You",
+      cityValue: cityValue(),
+      isYou: true
+    }];
+
+  panel.innerHTML = `
+    <div class="panel-head">
+      <h2>Global Leaderboard</h2>
+      <p>Top empire builders by city value</p>
+    </div>
+    <ol class="rank">
+      ${rows.map((row) => `
+        <li class="${row.isYou ? "rank__you" : ""}">
+          <span class="rank__medal">${medalForRank(row.rank)}</span>
+          <span>${row.isYou ? "You" : row.name}</span>
+          <strong>${format(row.cityValue)}</strong>
+        </li>
+      `).join("")}
+    </ol>
   `;
 }
 
@@ -257,27 +362,47 @@ function coinPop(x, y, amount) {
 function syncFromBackend(user) {
   if (!user || !user.game) return;
 
-  state.coins = Number(user.game.coins || 0);
-  state.energy = Number(user.game.energy || 0);
-  state.taps = Number(user.game.taps || 0);
-  state.spent = Number(user.game.spent || 0);
-  state.dailyDate = user.game.dailyDate || user.game.daily_date || "";
-  state.dailyStreak = Number(user.game.dailyStreak || user.game.daily_streak || 0);
-  state.dailyTasks = Array.isArray(user.game.dailyTasks) ? user.game.dailyTasks : [];
-  state.dailyTasksNextRefresh = user.game.dailyTasksNextRefresh || "";
+  const game = user.game;
 
-  if (user.game.tasks) {
-    state.tasks = {
-      ...state.tasks,
-      ...user.game.tasks
+  state.coins = Number(game.coins || 0);
+  state.energy = Number(game.energy || 0);
+  state.taps = Number(game.taps || 0);
+  state.spent = Number(game.spent || 0);
+  state.dailyDate = game.dailyDate || "";
+  state.dailyStreak = Number(game.dailyStreak || 0);
+  state.dailyTasks = Array.isArray(game.dailyTasks) ? game.dailyTasks : [];
+  state.dailyTasksNextRefresh = game.dailyTasksNextRefresh || "";
+
+  if (game.dailyReward) {
+    state.dailyReward = {
+      streak: Number(game.dailyReward.streak || 0),
+      claimedToday: Boolean(game.dailyReward.claimedToday),
+      nextAmount: Number(game.dailyReward.nextAmount || 100)
     };
   }
 
-  if (user.game.buildings) {
+  if (game.boosts) {
+    state.boosts = {
+      tapActive: Boolean(game.boosts.tapActive),
+      incomeActive: Boolean(game.boosts.incomeActive),
+      tapUntil: Number(game.boosts.tapUntil || 0),
+      incomeUntil: Number(game.boosts.incomeUntil || 0)
+    };
+  }
+
+  if (game.tasks) {
+    state.tasks = {
+      sponsor: Boolean(game.tasks.sponsor),
+      ad: Boolean(game.tasks.ad),
+      channel: Boolean(game.tasks.channel)
+    };
+  }
+
+  if (game.buildings) {
     state.buildings = {
-      shop: Number(user.game.buildings.shop || 1),
-      bank: Number(user.game.buildings.bank || 0),
-      factory: Number(user.game.buildings.factory || 0)
+      shop: Number(game.buildings.shop || 1),
+      bank: Number(game.buildings.bank || 0),
+      factory: Number(game.buildings.factory || 0)
     };
   }
 }
@@ -307,29 +432,71 @@ function getTelegramUser() {
   };
 }
 
-async function connectBackend() {
+function getReferrerId() {
+  const tg = window.Telegram && window.Telegram.WebApp;
+  const startParam = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param;
+  if (!startParam) return "";
+
+  if (String(startParam).startsWith("ref_")) {
+    return String(startParam).slice(4);
+  }
+
+  return String(startParam);
+}
+
+async function apiPost(path, body) {
   try {
-    const response = await fetch(`${API_URL}/api/session`, {
+    const response = await fetch(`${API_URL}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ telegramUser: getTelegramUser() })
+      body: JSON.stringify(body)
     });
 
-    const user = await response.json();
-
-    if (!response.ok) throw new Error("Session failed");
-
-    backendUserId = user.userId;
-    syncFromBackend(user);
-
-    backendReady = true;
-    saveState();
-    render();
-    showToast("Backend connected.");
+    const result = await response.json();
+    return { ok: response.ok, status: response.status, result };
   } catch {
-    backendReady = false;
-    showToast("Backend offline.");
+    return { ok: false, status: 0, result: null };
   }
+}
+
+async function applyBackendUser(user, message) {
+  if (!user) return false;
+
+  syncFromBackend(user);
+  backendReady = true;
+  saveState();
+  render();
+  await loadLeaderboard();
+
+  if (message) showToast(message);
+  return true;
+}
+
+async function connectBackend() {
+  const { ok, result } = await apiPost("/api/session", {
+    telegramUser: getTelegramUser(),
+    referrerId: getReferrerId()
+  });
+
+  if (!ok || !result) {
+    backendReady = false;
+    showToast("Backend offline. Local mode.");
+    render();
+    return;
+  }
+
+  backendUserId = result.userId;
+  await applyBackendUser(result, "Backend connected.");
+}
+
+async function loadLeaderboard() {
+  if (!backendReady) return;
+
+  const { ok, result } = await apiPost("/api/leaderboard", { userId: backendUserId });
+  if (!ok || !result || !Array.isArray(result.rows)) return;
+
+  leaderboardRows = result.rows;
+  renderRankPanel();
 }
 
 function tapLocal(event) {
@@ -359,25 +526,14 @@ function tapLocal(event) {
 async function backendTap(event) {
   if (event.cancelable) event.preventDefault();
   if (!tapLocal(event)) return;
-
   if (!backendReady) return;
 
-  try {
-    const response = await fetch(`${API_URL}/api/tap`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: backendUserId })
-    });
+  const { ok, result } = await apiPost("/api/tap", { userId: backendUserId });
+  if (!ok || !result) return;
 
-    const result = await response.json();
-    if (!response.ok) return;
-
-    syncFromBackend(result.user);
-    saveState();
-    render();
-  } catch {
-    backendReady = false;
-  }
+  syncFromBackend(result.user);
+  saveState();
+  render();
 }
 
 function upgradeLocal(name) {
@@ -402,25 +558,16 @@ async function backendUpgrade(name) {
   if (!upgradeLocal(name)) return;
   if (!backendReady) return;
 
-  try {
-    const response = await fetch(`${API_URL}/api/upgrade`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId: backendUserId,
-        building: name
-      })
-    });
+  const { ok, result } = await apiPost("/api/upgrade", {
+    userId: backendUserId,
+    building: name
+  });
 
-    const result = await response.json();
-    if (!response.ok) return;
+  if (!ok || !result) return;
 
-    syncFromBackend(result.user);
-    saveState();
-    render();
-  } catch {
-    backendReady = false;
-  }
+  syncFromBackend(result.user);
+  saveState();
+  render();
 }
 
 async function claimBackendTask(taskId) {
@@ -429,53 +576,119 @@ async function claimBackendTask(taskId) {
     return;
   }
 
-  try {
-    const response = await fetch(`${API_URL}/api/claim-task`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId: backendUserId,
-        task: taskId
-      })
-    });
+  const { ok, result } = await apiPost("/api/claim-task", {
+    userId: backendUserId,
+    task: taskId
+  });
 
-    const result = await response.json();
-
-    if (!response.ok) {
-      if (result.error === "TASK_NOT_READY") showToast("Task is not ready yet.");
-      else if (result.error === "TASK_ALREADY_CLAIMED") showToast("Task already claimed.");
-      else showToast("Task locked.");
-      return;
-    }
-
-    syncFromBackend(result.user);
-    saveState();
-    render();
-    showToast(`Reward claimed: +${format(result.reward)}`);
-  } catch {
-    showToast("Task error.");
+  if (!ok) {
+    const error = result && result.error;
+    if (error === "TASK_NOT_READY") showToast("Task is not ready yet.");
+    else if (error === "TASK_ALREADY_CLAIMED") showToast("Task already claimed.");
+    else showToast("Task locked.");
+    return;
   }
+
+  await applyBackendUser(result.user, `Reward claimed: +${format(result.reward)}`);
+}
+
+async function claimDailyReward() {
+  if (!backendReady) {
+    showToast("Backend offline.");
+    return;
+  }
+
+  const { ok, result } = await apiPost("/api/claim-daily", { userId: backendUserId });
+
+  if (!ok) {
+    if (result && result.error === "ALREADY_CLAIMED") showToast("Daily reward already claimed.");
+    else showToast("Daily reward unavailable.");
+    return;
+  }
+
+  await applyBackendUser(result.user, `Daily reward: +${format(result.reward)}`);
+}
+
+async function claimEarnTask(type) {
+  if (!backendReady) {
+    showToast("Backend offline.");
+    return;
+  }
+
+  const { ok, result } = await apiPost("/api/claim-earn", {
+    userId: backendUserId,
+    type
+  });
+
+  if (!ok) {
+    if (result && result.error === "ALREADY_CLAIMED") showToast("Already claimed.");
+    else showToast("Task unavailable.");
+    return;
+  }
+
+  await applyBackendUser(result.user, `Reward: +${format(result.reward)}`);
+}
+
+async function buyBoost(boost) {
+  if (!backendReady) {
+    showToast("Backend offline.");
+    return;
+  }
+
+  const { ok, result } = await apiPost("/api/buy-boost", {
+    userId: backendUserId,
+    boost
+  });
+
+  if (!ok) {
+    if (result && result.error === "NOT_ENOUGH_COINS") showToast("Not enough coins.");
+    else showToast("Boost unavailable.");
+    return;
+  }
+
+  const labels = {
+    fullEnergy: "Energy filled.",
+    tapBoost: "2x Tap activated for 30 min.",
+    incomeBoost: "2x Income activated for 30 min."
+  };
+
+  await applyBackendUser(result.user, labels[boost] || "Boost activated.");
+}
+
+async function resetGame() {
+  if (!backendReady) {
+    showToast("Backend offline.");
+    return;
+  }
+
+  if (!window.confirm("Reset your empire progress?")) return;
+
+  const { ok, result } = await apiPost("/api/reset", { userId: backendUserId });
+
+  if (!ok || !result) {
+    showToast("Reset failed.");
+    return;
+  }
+
+  localStorage.removeItem(storageKey);
+  state = structuredClone(defaultState);
+  await applyBackendUser(result.user, "Game reset.");
 }
 
 async function refreshBackendState() {
   if (!backendReady) return;
 
-  try {
-    const response = await fetch(`${API_URL}/api/session`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ telegramUser: getTelegramUser() })
-    });
+  const { ok, result } = await apiPost("/api/session", {
+    telegramUser: getTelegramUser(),
+    referrerId: getReferrerId()
+  });
 
-    const user = await response.json();
-    if (!response.ok) return;
+  if (!ok || !result) return;
 
-    syncFromBackend(user);
-    saveState();
-    render();
-  } catch {
-    // Silent refresh fail.
-  }
+  syncFromBackend(result);
+  saveState();
+  render();
+  await loadLeaderboard();
 }
 
 if (els.tapButton) {
@@ -483,9 +696,7 @@ if (els.tapButton) {
 }
 
 document.querySelectorAll("[data-upgrade]").forEach((button) => {
-  button.addEventListener("click", () => {
-    backendUpgrade(button.dataset.upgrade);
-  });
+  button.addEventListener("click", () => backendUpgrade(button.dataset.upgrade));
 });
 
 document.querySelectorAll(".tab").forEach((tab) => {
@@ -494,13 +705,17 @@ document.querySelectorAll(".tab").forEach((tab) => {
     document.querySelectorAll(".panel").forEach((panel) => panel.classList.remove("active"));
 
     tab.classList.add("active");
-    document.getElementById(tab.dataset.tab).classList.add("active");
+    const panel = document.getElementById(tab.dataset.tab);
+    if (panel) panel.classList.add("active");
+
+    if (tab.dataset.tab === "rankPanel") {
+      loadLeaderboard();
+    }
   });
 });
 
-const tasksPanel = document.getElementById("tasksPanel");
-if (tasksPanel) {
-  tasksPanel.addEventListener("click", (event) => {
+if (els.tasksPanel) {
+  els.tasksPanel.addEventListener("click", (event) => {
     const button = event.target.closest("[data-daily-task]");
     if (!button || button.disabled) return;
 
@@ -511,45 +726,18 @@ if (tasksPanel) {
   });
 }
 
-const sponsorTask = document.getElementById("sponsorTask");
-if (sponsorTask) {
-  sponsorTask.addEventListener("click", () => {
-    showToast("Sponsor task coming soon.");
-  });
-}
+if (els.earnPanel) {
+  els.earnPanel.addEventListener("click", (event) => {
+    const earnButton = event.target.closest("[data-earn]");
+    if (earnButton && !earnButton.disabled) {
+      claimEarnTask(earnButton.dataset.earn);
+      return;
+    }
 
-const adTask = document.getElementById("adTask");
-if (adTask) {
-  adTask.addEventListener("click", () => {
-    showToast("Rewarded ads coming soon.");
-  });
-}
-
-const channelTask = document.getElementById("channelTask");
-if (channelTask) {
-  channelTask.addEventListener("click", () => {
-    showToast("Partner channel coming soon.");
-  });
-}
-
-const fullEnergyBoost = document.getElementById("fullEnergyBoost");
-if (fullEnergyBoost) {
-  fullEnergyBoost.addEventListener("click", () => {
-    showToast("Boosts coming soon.");
-  });
-}
-
-const tapBoost = document.getElementById("tapBoost");
-if (tapBoost) {
-  tapBoost.addEventListener("click", () => {
-    showToast("Boosts coming soon.");
-  });
-}
-
-const incomeBoost = document.getElementById("incomeBoost");
-if (incomeBoost) {
-  incomeBoost.addEventListener("click", () => {
-    showToast("Boosts coming soon.");
+    const boostButton = event.target.closest("[data-boost]");
+    if (boostButton && !boostButton.disabled) {
+      buyBoost(boostButton.dataset.boost);
+    }
   });
 }
 
@@ -560,7 +748,7 @@ if (inviteButton) {
 
     try {
       await navigator.clipboard.writeText(link);
-      showToast("Invite link copied.");
+      showToast("Invite link copied. Friend joins = +500 coins.");
     } catch {
       showToast(link);
     }
@@ -569,15 +757,21 @@ if (inviteButton) {
 
 const resetButton = document.getElementById("resetButton");
 if (resetButton) {
-  resetButton.addEventListener("click", () => {
-    showToast("Reset disabled on backend version.");
-  });
+  resetButton.addEventListener("click", resetGame);
 }
 
 window.setInterval(refreshBackendState, 10000);
 
 window.setInterval(() => {
   updateTaskRefreshLabel();
+
+  const now = Date.now();
+  if (state.boosts.tapUntil && state.boosts.tapUntil <= now) {
+    state.boosts.tapActive = false;
+  }
+  if (state.boosts.incomeUntil && state.boosts.incomeUntil <= now) {
+    state.boosts.incomeActive = false;
+  }
 
   const next = Date.parse(state.dailyTasksNextRefresh || "");
   if (next && Date.now() >= next) {

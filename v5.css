@@ -930,6 +930,15 @@ button.completed strong {
   border-color: var(--line-bright);
 }
 
+.boost-button.completed {
+  opacity: 0.6;
+  filter: grayscale(0.2);
+}
+
+.boost-button.completed span:last-child {
+  color: var(--green);
+}
+
 /* Friends */
 .friends-card {
   display: grid;
