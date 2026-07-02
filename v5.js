@@ -171,12 +171,21 @@ function renderDailyTasks() {
     }
 
     if (task.claimed) {
-      button.textContent = "Claimed";
-      button.disabled = true;
-      button.classList.add("completed");
-      if (buttonId === "dailyReward" && els.dailyAmount) els.dailyAmount.textContent = "Claimed";
-      return;
-    }
+  button.textContent = "Claimed";
+  button.disabled = true;
+  button.classList.add("completed");
+
+  if (row) {
+    row.style.display = "";
+    row.classList.add("completed");
+  }
+
+  if (buttonId === "dailyReward" && els.dailyAmount) {
+    els.dailyAmount.textContent = "Claimed";
+  }
+
+  return;
+}
 
     button.classList.remove("completed");
 
