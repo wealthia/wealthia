@@ -223,8 +223,8 @@ function syncFromBackend(user) {
   state.energy = Number(user.game.energy || 0);
   state.taps = Number(user.game.taps || 0);
   state.spent = Number(user.game.spent || 0);
-  state.dailyDate = user.game.dailyDate || "";
-  state.dailyStreak = Number(user.game.dailyStreak || 0);
+  state.dailyDate = user.game.dailyDate || user.game.daily_date || "";
+state.dailyStreak = Number(user.game.dailyStreak || user.game.daily_streak || 0);
 
   if (user.game.tasks) {
     state.tasks = {
