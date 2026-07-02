@@ -927,6 +927,11 @@ app.post("/api/leaderboard", async (req, res) => {
   }
 });
 
+app.get("/api/admin/ping", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  res.json({ ok: true });
+});
+
 app.get("/api/admin/summary", async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
@@ -984,9 +989,11 @@ app.get("/api/admin/dashboard", async (req, res) => {
       { coins: 0, taps: 0, cityValue: 0 }
     );
 
-    const { data: metrics } = await supabase
+    const { data: metrics, error: metricsError } = await supabase
       .from("admin_metrics")
       .select("metric_type, amount");
+
+    if (metricsError && metricsError.code !== "PGRST205") throw metricsError;
 
     const revenue = (metrics || []).reduce(
       (acc, row) => {
@@ -1000,11 +1007,18 @@ app.get("/api/admin/dashboard", async (req, res) => {
       { total: 0, tournamentFees: 0, adRevenue: 0, sponsor: 0 }
     );
 
-    const { count: tournamentEntries } = await supabase
+    const { count: tournamentEntries, error: entriesError } = await supabase
       .from("tournament_entries")
       .select("*", { count: "exact", head: true });
 
-    const activeTournament = await getActiveTournament();
+    if (entriesError && entriesError.code !== "PGRST205") throw entriesError;
+
+    let activeTournament = null;
+    try {
+      activeTournament = await getActiveTournament();
+    } catch {
+      activeTournament = null;
+    }
 
     res.json({
       players: {

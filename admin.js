@@ -55,13 +55,17 @@ async function api(path, options = {}) {
     ...(options.headers || {})
   };
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers
-  });
+  try {
+    const response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers
+    });
 
-  const result = await response.json().catch(() => ({}));
-  return { ok: response.ok, status: response.status, result };
+    const result = await response.json().catch(() => ({}));
+    return { ok: response.ok, status: response.status, result };
+  } catch {
+    return { ok: false, status: 0, result: { error: "NETWORK_ERROR" } };
+  }
 }
 
 function showLogin(error = "") {
@@ -80,16 +84,35 @@ function showApp() {
   els.adminApp.hidden = false;
 }
 
+function loginErrorMessage(status, result) {
+  const code = result && result.error;
+
+  if (status === 0 || code === "NETWORK_ERROR") {
+    return "Cannot reach backend. Check your internet or try again.";
+  }
+  if (status === 503 || code === "ADMIN_NOT_CONFIGURED") {
+    return "Backend has no ADMIN_SECRET yet. Add it in Render → Environment → Manual Deploy.";
+  }
+  if (status === 401 || code === "UNAUTHORIZED") {
+    return "Wrong admin secret. It must match ADMIN_SECRET in Render exactly.";
+  }
+  if (status >= 500) {
+    return `Server error: ${code || "unknown"}. Run Supabase SQL migration if you have not yet.`;
+  }
+  return "Sign in failed. Check secret and backend deploy.";
+}
+
 async function verifySecret(secret) {
   const previous = adminSecret;
   adminSecret = secret;
-  const { ok, result } = await api("/api/admin/dashboard");
+
+  const { ok, status, result } = await api("/api/admin/ping");
   if (!ok) {
     adminSecret = previous;
-    return false;
+    return { valid: false, message: loginErrorMessage(status, result) };
   }
-  dashboardData = result;
-  return true;
+
+  return { valid: true, message: "" };
 }
 
 async function handleLogin(event) {
@@ -97,9 +120,21 @@ async function handleLogin(event) {
   const secret = els.adminSecret.value.trim();
   if (!secret) return;
 
-  const valid = await verifySecret(secret);
-  if (!valid) {
-    showLogin("Invalid admin secret or backend not configured.");
+  const submitButton = els.loginForm.querySelector('button[type="submit"]');
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.textContent = "Signing in...";
+  }
+
+  const check = await verifySecret(secret);
+
+  if (submitButton) {
+    submitButton.disabled = false;
+    submitButton.textContent = "Sign in";
+  }
+
+  if (!check.valid) {
+    showLogin(check.message);
     return;
   }
 
@@ -459,10 +494,10 @@ if (els.logRevenueForm) {
     return;
   }
 
-  const valid = await verifySecret(adminSecret);
-  if (!valid) {
+  const check = await verifySecret(adminSecret);
+  if (!check.valid) {
     localStorage.removeItem(SECRET_KEY);
-    showLogin("Session expired. Sign in again.");
+    showLogin(check.message || "Session expired. Sign in again.");
     return;
   }
 
