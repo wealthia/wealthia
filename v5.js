@@ -440,7 +440,30 @@ async function connectBackend() {
         "Content-Type": "application/json"
       },
      body: JSON.stringify({
-  telegramUser: getTelegramUser()
+ function getTelegramUser() {
+  const tg = window.Telegram && window.Telegram.WebApp;
+
+  if (tg) {
+    tg.ready();
+    tg.expand();
+  }
+
+  const user = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+
+  if (user && user.id) {
+    return {
+      id: user.id,
+      first_name: user.first_name || "Player",
+      username: user.username || ""
+    };
+  }
+
+  return {
+    id: "web_demo",
+    first_name: "Web Demo",
+    username: ""
+  };
+}
 })
     });
 
