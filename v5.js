@@ -161,24 +161,23 @@ tasks.map((task) => {
   const claimed = Boolean(task.claimed);
   const ready = !claimed && (task.ready || Number(task.progress || 0) >= Number(task.target || 1));
   const buttonText = claimed ? "Claimed" : ready ? `+${task.reward}` : `${task.progress || 0}/${task.target || 1}`;
-
-  return `
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;padding:16px;border:1px solid #304457;border-radius:10px;background:#16212a;">
-      <div style="display:flex;align-items:center;gap:10px;min-width:0;">
-        <span style="font-size:22px;">&#127873;</span>
-        <div>
-          <div style="font-size:18px;font-weight:900;color:#fff;">${task.title}</div>
-          <div style="font-size:14px;font-weight:800;color:#9fb0c2;">
-            ${claimed ? "Reward collected" : ready ? "Ready to claim" : "Progress"}
-          </div>
+return `
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;padding:16px;border:1px solid #304457;border-radius:10px;background:#16212a;">
+    <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+      <span style="font-size:22px;">&#127873;</span>
+      <div>
+        <div style="font-size:18px;font-weight:900;color:#fff;">${task.title}</div>
+        <div style="font-size:14px;font-weight:800;color:#9fb0c2;">
+          ${claimed ? "Reward collected" : ready ? "Ready to claim" : "Progress"}
         </div>
       </div>
-
-      <button data-task-claim="${task.id}" ${claimed || !ready ? "disabled" : ""} style="min-width:96px;height:46px;border:0;border-radius:9px;background:${ready ? "#45c889" : "#202d38"};color:${ready ? "#06120c" : "#9fb0c2"};font-size:16px;font-weight:900;">
-        ${buttonText}
-      </button>
     </div>
-  `;
+
+    <button data-task-claim="${task.id}" ${claimed || !ready ? "disabled" : ""} style="min-width:96px;height:46px;border:0;border-radius:9px;background:${ready ? "#45c889" : "#202d38"};color:${ready ? "#06120c" : "#9fb0c2"};font-size:16px;font-weight:900;">
+      ${buttonText}
+    </button>
+  </div>
+`;
 }).join("")
 function updateCityVisuals() {
   if (!els.shopBuilding || !els.bankBuilding || !els.factoryBuilding) return;
