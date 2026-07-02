@@ -106,18 +106,14 @@ async function verifySecret(secret) {
   const previous = adminSecret;
   adminSecret = secret;
 
-  let { ok, status, result } = await api("/api/admin/ping");
-
-  if (status === 404) {
-    ({ ok, status, result } = await api("/api/admin/dashboard"));
-    if (ok) dashboardData = result;
-  }
+  const { ok, status, result } = await api("/api/admin/dashboard");
 
   if (!ok) {
     adminSecret = previous;
     return { valid: false, message: loginErrorMessage(status, result) };
   }
 
+  dashboardData = result;
   return { valid: true, message: "" };
 }
 
@@ -146,7 +142,8 @@ async function handleLogin(event) {
 
   localStorage.setItem(SECRET_KEY, secret);
   showApp();
-  await loadCurrentView();
+  showToast("Signed in.");
+  loadCurrentView().catch(() => showToast("Could not load dashboard."));
 }
 
 function handleLogout() {
@@ -224,7 +221,11 @@ function renderActiveTournament(tournament) {
 async function loadDashboard() {
   const { ok, result } = await api("/api/admin/dashboard");
   if (!ok) {
-    showLogin("Session expired.");
+    if (els.adminApp.hidden) {
+      showLogin("Session expired.");
+    } else {
+      showToast("Could not refresh dashboard.");
+    }
     return;
   }
 
