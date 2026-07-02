@@ -1,6 +1,8 @@
 // Wealthia config — edit these values for your project
 window.WEALTHIA_CONFIG = {
+  API_URL: "https://wealthia-backend.onrender.com",
   GAME_URL: "https://wealthia.github.io/wealthia/v5.html",
+  ADMIN_URL: "https://wealthia.github.io/wealthia/admin.html",
   BOT_USERNAME: "WealthiaGameBot",
 
   // AdsGram: get block ID from https://partner.adsgram.ai

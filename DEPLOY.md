@@ -22,16 +22,26 @@ Backend code is fixed on GitHub. The **live server** on Render may still run an 
 1. **New +** → **Blueprint**
 2. Select repo: `wealthia/wealthia`
 3. `render.yaml` will load automatically
-4. Enter `SUPABASE_URL` and `SUPABASE_SERVICE_KEY`
+4. Enter `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, and `ADMIN_SECRET`
 5. Click **Apply**
 
-### Step 3 — Supabase keys
+### Step 3 — Supabase
 
-Supabase.com → your project → **Settings** → **API**:
+**Keys** (Settings → API):
 - `SUPABASE_URL` = Project URL
 - `SUPABASE_SERVICE_KEY` = `service_role` key (keep secret)
 
-### Step 4 — Verify
+**New tables** (SQL Editor → run once):
+- Open `supabase/migration-admin-tournaments.sql` from the repo and execute it
+
+### Step 4 — Admin secret
+
+Generate a long random string for `ADMIN_SECRET` (e.g. `openssl rand -hex 32`).
+Add it to Render env vars for `wealthia-backend`.
+
+Admin panel: https://wealthia.github.io/wealthia/admin.html
+
+### Step 5 — Verify
 
 Open in browser:
 ```

@@ -26,6 +26,7 @@ const TASKS_PER_CYCLE = 4;
 const BOOST_DURATION_MS = 30 * 60 * 1000;
 const REFERRAL_BONUS = 500;
 const NEW_PLAYER_BONUS = 100;
+const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
 
 const EARN_TASKS = {
   sponsor: { reward: 750, field: "sponsor_done" },
@@ -129,6 +130,116 @@ function safeJson(value, fallback) {
   } catch {
     return fallback;
   }
+}
+
+function adminSecretFromRequest(req) {
+  return String(
+    req.headers["x-admin-secret"] ||
+    req.query.secret ||
+    req.body.adminSecret ||
+    ""
+  ).trim();
+}
+
+function requireAdmin(req, res) {
+  if (!ADMIN_SECRET) {
+    res.status(503).json({ error: "ADMIN_NOT_CONFIGURED" });
+    return false;
+  }
+
+  if (adminSecretFromRequest(req) !== ADMIN_SECRET) {
+    res.status(401).json({ error: "UNAUTHORIZED" });
+    return false;
+  }
+
+  return true;
+}
+
+function tournamentIsLive(row, ms = nowMs()) {
+  if (!row || row.status !== "active") return false;
+  const starts = new Date(row.starts_at).getTime();
+  const ends = new Date(row.ends_at).getTime();
+  return ms >= starts && ms < ends;
+}
+
+async function getActiveTournament() {
+  const { data, error } = await supabase
+    .from("tournaments")
+    .select("*")
+    .eq("status", "active")
+    .order("starts_at", { ascending: false })
+    .limit(5);
+
+  if (error) throw error;
+
+  const live = (data || []).find((row) => tournamentIsLive(row));
+  return live || null;
+}
+
+async function getTournamentEntry(tournamentId, userId) {
+  const { data, error } = await supabase
+    .from("tournament_entries")
+    .select("*")
+    .eq("tournament_id", tournamentId)
+    .eq("user_id", String(userId))
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+async function incrementTournamentScore(userId, amount = 1) {
+  const tournament = await getActiveTournament();
+  if (!tournament) return;
+
+  const entry = await getTournamentEntry(tournament.id, userId);
+  if (!entry) return;
+
+  await supabase
+    .from("tournament_entries")
+    .update({
+      tap_score: number(entry.tap_score) + number(amount)
+    })
+    .eq("id", entry.id);
+}
+
+async function logMetric(metricType, amount, notes = "", extra = {}) {
+  await supabase.from("admin_metrics").insert({
+    metric_type: metricType,
+    amount: number(amount),
+    notes: String(notes || ""),
+    user_id: extra.userId || null,
+    tournament_id: extra.tournamentId || null
+  });
+}
+
+function toClientTournament(row, entry = null) {
+  if (!row) return null;
+
+  const ms = nowMs();
+  const starts = new Date(row.starts_at).getTime();
+  const ends = new Date(row.ends_at).getTime();
+
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description || "",
+    entryFee: number(row.entry_fee),
+    prizePool: number(row.prize_pool),
+    prizes: {
+      winner: number(row.prize_winner),
+      runnerUp: number(row.prize_runner_up),
+      third: number(row.prize_third)
+    },
+    status: row.status,
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
+    isLive: tournamentIsLive(row, ms),
+    hasStarted: ms >= starts,
+    hasEnded: ms >= ends,
+    joined: Boolean(entry),
+    myScore: entry ? number(entry.tap_score) : 0
+  };
 }
 
 function buildDailyTasks(row) {
@@ -450,11 +561,11 @@ async function loadGame(userId) {
 }
 
 app.get("/", (_req, res) => {
-  res.json({ ok: true, app: "Wealthia API", database: true, version: "full-v6-fix1" });
+  res.json({ ok: true, app: "Wealthia API", database: true, version: "admin-tournaments-v1" });
 });
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, app: "Wealthia API", database: true, version: "full-v6-fix1" });
+  res.json({ ok: true, app: "Wealthia API", database: true, version: "admin-tournaments-v1" });
 });
 
 app.post("/api/session", async (req, res) => {
@@ -499,6 +610,8 @@ app.post("/api/tap", async (req, res) => {
       .single();
 
     if (error) throw error;
+
+    await incrementTournamentScore(userId, 1);
 
     res.json({ amount, user: toClientUser(data) });
   } catch (error) {
@@ -814,7 +927,9 @@ app.post("/api/leaderboard", async (req, res) => {
   }
 });
 
-app.get("/api/admin/summary", async (_req, res) => {
+app.get("/api/admin/summary", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
   try {
     const { count: users } = await supabase
       .from("users")
@@ -835,6 +950,515 @@ app.get("/api/admin/summary", async (_req, res) => {
     );
 
     res.json({ users: users || 0, totals });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/admin/dashboard", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const { count: totalPlayers } = await supabase
+      .from("users")
+      .select("*", { count: "exact", head: true });
+
+    const dayAgo = new Date(nowMs() - 24 * 60 * 60 * 1000).toISOString();
+
+    const { count: activeToday } = await supabase
+      .from("users")
+      .select("*", { count: "exact", head: true })
+      .gte("last_seen_at", dayAgo);
+
+    const { data: gameRows } = await supabase
+      .from("game_states")
+      .select("coins, taps, city_value");
+
+    const totals = (gameRows || []).reduce(
+      (acc, row) => {
+        acc.coins += number(row.coins);
+        acc.taps += number(row.taps);
+        acc.cityValue += number(row.city_value);
+        return acc;
+      },
+      { coins: 0, taps: 0, cityValue: 0 }
+    );
+
+    const { data: metrics } = await supabase
+      .from("admin_metrics")
+      .select("metric_type, amount");
+
+    const revenue = (metrics || []).reduce(
+      (acc, row) => {
+        const value = number(row.amount);
+        acc.total += value;
+        if (row.metric_type === "tournament_fee") acc.tournamentFees += value;
+        if (row.metric_type === "ad_revenue") acc.adRevenue += value;
+        if (row.metric_type === "sponsor") acc.sponsor += value;
+        return acc;
+      },
+      { total: 0, tournamentFees: 0, adRevenue: 0, sponsor: 0 }
+    );
+
+    const { count: tournamentEntries } = await supabase
+      .from("tournament_entries")
+      .select("*", { count: "exact", head: true });
+
+    const activeTournament = await getActiveTournament();
+
+    res.json({
+      players: {
+        total: totalPlayers || 0,
+        activeToday: activeToday || 0
+      },
+      totals,
+      revenue,
+      tournaments: {
+        active: activeTournament ? toClientTournament(activeTournament) : null,
+        totalEntries: tournamentEntries || 0
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/admin/players", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const limit = Math.min(100, Math.max(1, number(req.query.limit) || 50));
+    const offset = Math.max(0, number(req.query.offset) || 0);
+    const search = String(req.query.search || "").trim().toLowerCase();
+
+    const { data: users, error } = await supabase
+      .from("users")
+      .select("id, first_name, username, last_seen_at")
+      .order("last_seen_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) throw error;
+
+    const ids = (users || []).map((user) => user.id);
+    const { data: games } = ids.length
+      ? await supabase
+        .from("game_states")
+        .select("user_id, coins, taps, city_value, shop_level, bank_level, factory_level")
+        .in("user_id", ids)
+      : { data: [] };
+
+    const gameMap = new Map((games || []).map((row) => [row.user_id, row]));
+
+    let rows = (users || []).map((user) => {
+      const game = gameMap.get(user.id) || {};
+      return {
+        userId: user.id,
+        name: user.first_name || user.username || `Player ${String(user.id).slice(-4)}`,
+        username: user.username || "",
+        lastSeenAt: user.last_seen_at,
+        coins: number(game.coins),
+        taps: number(game.taps),
+        cityValue: number(game.city_value),
+        level: number(game.shop_level) + number(game.bank_level) + number(game.factory_level)
+      };
+    });
+
+    if (search) {
+      rows = rows.filter((row) =>
+        row.name.toLowerCase().includes(search) ||
+        row.username.toLowerCase().includes(search) ||
+        row.userId.includes(search)
+      );
+    }
+
+    res.json({ rows, limit, offset });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/admin/grant-coins", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const userId = String(req.body.userId || "");
+    const amount = number(req.body.amount);
+
+    if (!userId || amount <= 0) {
+      res.status(400).json({ error: "BAD_REQUEST" });
+      return;
+    }
+
+    const row = await loadGame(userId);
+
+    const { data, error } = await supabase
+      .from("game_states")
+      .update({
+        coins: number(row.coins) + amount,
+        city_value: number(row.coins) + amount + number(row.spent),
+        updated_at: new Date().toISOString()
+      })
+      .eq("user_id", userId)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    await logMetric("manual_grant", amount, "Admin coin grant", { userId });
+
+    res.json({ ok: true, amount, user: toClientUser(data) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/admin/tournaments", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const { data, error } = await supabase
+      .from("tournaments")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+
+    const ids = (data || []).map((row) => row.id);
+    const { data: counts } = ids.length
+      ? await supabase
+        .from("tournament_entries")
+        .select("tournament_id")
+        .in("tournament_id", ids)
+      : { data: [] };
+
+    const entryCounts = (counts || []).reduce((acc, row) => {
+      acc[row.tournament_id] = (acc[row.tournament_id] || 0) + 1;
+      return acc;
+    }, {});
+
+    res.json({
+      rows: (data || []).map((row) => ({
+        ...toClientTournament(row),
+        entries: entryCounts[row.id] || 0
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/admin/tournaments", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const title = String(req.body.title || "").trim();
+    const description = String(req.body.description || "").trim();
+    const entryFee = Math.max(0, number(req.body.entryFee));
+    const prizeWinner = Math.max(0, number(req.body.prizeWinner));
+    const prizeRunnerUp = Math.max(0, number(req.body.prizeRunnerUp));
+    const prizeThird = Math.max(0, number(req.body.prizeThird));
+    const durationHours = Math.max(1, number(req.body.durationHours) || 24);
+    const activate = Boolean(req.body.activate);
+
+    if (!title) {
+      res.status(400).json({ error: "TITLE_REQUIRED" });
+      return;
+    }
+
+    const prizePool = prizeWinner + prizeRunnerUp + prizeThird;
+    const startsAt = new Date().toISOString();
+    const endsAt = new Date(nowMs() + durationHours * 60 * 60 * 1000).toISOString();
+
+    if (activate) {
+      await supabase
+        .from("tournaments")
+        .update({ status: "ended", updated_at: new Date().toISOString() })
+        .eq("status", "active");
+    }
+
+    const { data, error } = await supabase
+      .from("tournaments")
+      .insert({
+        title,
+        description,
+        entry_fee: entryFee,
+        prize_pool: prizePool,
+        prize_winner: prizeWinner,
+        prize_runner_up: prizeRunnerUp,
+        prize_third: prizeThird,
+        status: activate ? "active" : "draft",
+        starts_at: startsAt,
+        ends_at: endsAt
+      })
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    res.json({ ok: true, tournament: toClientTournament(data) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/admin/tournaments/status", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const tournamentId = String(req.body.tournamentId || "");
+    const status = String(req.body.status || "");
+
+    if (!tournamentId || !["draft", "active", "ended"].includes(status)) {
+      res.status(400).json({ error: "BAD_REQUEST" });
+      return;
+    }
+
+    if (status === "active") {
+      await supabase
+        .from("tournaments")
+        .update({ status: "ended", updated_at: new Date().toISOString() })
+        .eq("status", "active");
+    }
+
+    const { data, error } = await supabase
+      .from("tournaments")
+      .update({
+        status,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", tournamentId)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    if (status === "ended") {
+      await distributeTournamentPrizes(data);
+    }
+
+    res.json({ ok: true, tournament: toClientTournament(data) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+async function distributeTournamentPrizes(tournament) {
+  const { data: entries, error } = await supabase
+    .from("tournament_entries")
+    .select("*")
+    .eq("tournament_id", tournament.id)
+    .order("tap_score", { ascending: false })
+    .limit(3);
+
+  if (error) throw error;
+
+  const prizes = [
+    number(tournament.prize_winner),
+    number(tournament.prize_runner_up),
+    number(tournament.prize_third)
+  ];
+
+  for (let i = 0; i < (entries || []).length; i += 1) {
+    const entry = entries[i];
+    const prize = prizes[i];
+    if (!prize) continue;
+
+    const row = await loadGame(entry.user_id);
+
+    await supabase
+      .from("game_states")
+      .update({
+        coins: number(row.coins) + prize,
+        city_value: number(row.coins) + prize + number(row.spent),
+        updated_at: new Date().toISOString()
+      })
+      .eq("user_id", entry.user_id);
+
+    await supabase
+      .from("tournament_entries")
+      .update({ prize_won: prize })
+      .eq("id", entry.id);
+  }
+}
+
+app.post("/api/admin/metrics", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const metricType = String(req.body.metricType || "manual");
+    const amount = number(req.body.amount);
+    const notes = String(req.body.notes || "");
+
+    if (!amount) {
+      res.status(400).json({ error: "BAD_REQUEST" });
+      return;
+    }
+
+    await logMetric(metricType, amount, notes);
+
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/admin/metrics", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const { data, error } = await supabase
+      .from("admin_metrics")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (error) throw error;
+
+    res.json({ rows: data || [] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/tournaments/active", async (req, res) => {
+  try {
+    const userId = String(req.body.userId || "");
+    const tournament = await getActiveTournament();
+
+    if (!tournament) {
+      res.json({ tournament: null });
+      return;
+    }
+
+    const entry = userId ? await getTournamentEntry(tournament.id, userId) : null;
+
+    res.json({ tournament: toClientTournament(tournament, entry) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/tournaments/join", async (req, res) => {
+  try {
+    const userId = String(req.body.userId || "");
+    const tournamentId = String(req.body.tournamentId || "");
+
+    if (!userId || !tournamentId) {
+      res.status(400).json({ error: "BAD_REQUEST" });
+      return;
+    }
+
+    const { data: tournament, error: tournamentError } = await supabase
+      .from("tournaments")
+      .select("*")
+      .eq("id", tournamentId)
+      .single();
+
+    if (tournamentError) throw tournamentError;
+
+    if (!tournamentIsLive(tournament)) {
+      res.status(400).json({ error: "TOURNAMENT_NOT_LIVE" });
+      return;
+    }
+
+    const existing = await getTournamentEntry(tournamentId, userId);
+    if (existing) {
+      res.status(400).json({ error: "ALREADY_JOINED" });
+      return;
+    }
+
+    const row = await loadGame(userId);
+    const fee = number(tournament.entry_fee);
+
+    if (fee > 0 && number(row.coins) < fee) {
+      res.status(400).json({ error: "NOT_ENOUGH_COINS" });
+      return;
+    }
+
+    if (fee > 0) {
+      await supabase
+        .from("game_states")
+        .update({
+          coins: number(row.coins) - fee,
+          city_value: number(row.coins) - fee + number(row.spent),
+          updated_at: new Date().toISOString()
+        })
+        .eq("user_id", userId);
+
+      await logMetric("tournament_fee", fee, `Entry: ${tournament.title}`, {
+        userId,
+        tournamentId
+      });
+    }
+
+    const { error: entryError } = await supabase
+      .from("tournament_entries")
+      .insert({
+        tournament_id: tournamentId,
+        user_id: userId,
+        entry_paid: fee,
+        tap_score: 0
+      });
+
+    if (entryError) throw entryError;
+
+    const updatedRow = await loadGame(userId);
+    const entry = await getTournamentEntry(tournamentId, userId);
+
+    res.json({
+      ok: true,
+      fee,
+      tournament: toClientTournament(tournament, entry),
+      user: toClientUser(updatedRow)
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/tournaments/leaderboard", async (req, res) => {
+  try {
+    const tournamentId = String(req.body.tournamentId || "");
+    const userId = String(req.body.userId || "");
+
+    if (!tournamentId) {
+      res.status(400).json({ error: "BAD_REQUEST" });
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("tournament_entries")
+      .select("user_id, tap_score, prize_won")
+      .eq("tournament_id", tournamentId)
+      .order("tap_score", { ascending: false })
+      .limit(20);
+
+    if (error) throw error;
+
+    const ids = (data || []).map((row) => row.user_id);
+    const { data: users } = ids.length
+      ? await supabase
+        .from("users")
+        .select("id, first_name, username")
+        .in("id", ids)
+      : { data: [] };
+
+    const userMap = new Map((users || []).map((user) => [user.id, user]));
+
+    res.json({
+      rows: (data || []).map((row, index) => {
+        const profile = userMap.get(row.user_id) || {};
+        return {
+          rank: index + 1,
+          userId: row.user_id,
+          name: profile.first_name || profile.username || `Player ${String(row.user_id).slice(-4)}`,
+          tapScore: number(row.tap_score),
+          prizeWon: number(row.prize_won),
+          isYou: row.user_id === userId
+        };
+      })
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

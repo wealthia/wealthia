@@ -1,8 +1,11 @@
-const API_URL = "https://wealthia-backend.onrender.com";
+const API_URL = (window.WEALTHIA_CONFIG && window.WEALTHIA_CONFIG.API_URL) ||
+  "https://wealthia-backend.onrender.com";
 const CONFIG = window.WEALTHIA_CONFIG || {};
 let backendUserId = "web_demo";
 let backendReady = false;
 let leaderboardRows = [];
+let tournamentData = null;
+let tournamentLeaderboard = [];
 let adsgramController = null;
 let onboardingStep = 1;
 
@@ -65,7 +68,9 @@ const els = {
   factoryBuilding: document.getElementById("factoryBuilding"),
   tasksPanel: document.getElementById("tasksPanel"),
   earnPanel: document.getElementById("earnPanel"),
-  rankPanel: document.getElementById("rankPanel")
+  rankPanel: document.getElementById("rankPanel"),
+  tournamentPanel: document.getElementById("tournamentPanel"),
+  globalLeaderboard: document.getElementById("globalLeaderboard")
 };
 
 connectBackend();
@@ -156,6 +161,7 @@ function render() {
 
   renderDailyTasks();
   renderEarnPanel();
+  renderTournamentPanel();
   renderRankPanel();
   updateCityVisuals();
 }
@@ -293,8 +299,85 @@ function medalForRank(rank) {
   return "&#x1F3C5;";
 }
 
+function tournamentTimeLeft(endsAt) {
+  const diff = Math.max(0, Date.parse(endsAt || "") - Date.now());
+  const hours = Math.floor(diff / 3600000);
+  const minutes = Math.floor((diff % 3600000) / 60000);
+  if (diff <= 0) return "Ended";
+  if (hours > 0) return `${hours}h ${minutes}m left`;
+  return `${minutes}m left`;
+}
+
+function renderTournamentPanel() {
+  const panel = els.tournamentPanel;
+  if (!panel) return;
+
+  const t = tournamentData;
+
+  if (!t) {
+    panel.innerHTML = `
+      <article class="card stack tournament-card tournament-card--empty">
+        <div class="tournament-card__badge">Arena</div>
+        <h2>No Live Tournament</h2>
+        <p>Check back soon for tap races with coin prizes.</p>
+      </article>
+    `;
+    return;
+  }
+
+  const joined = Boolean(t.joined);
+  const rows = tournamentLeaderboard.length
+    ? tournamentLeaderboard
+    : joined
+      ? [{ rank: 1, name: "You", tapScore: t.myScore || 0, isYou: true }]
+      : [];
+
+  panel.innerHTML = `
+    <article class="card stack tournament-card">
+      <div class="tournament-card__badge">${t.isLive ? "Live Now" : "Upcoming"}</div>
+      <h2>${t.title}</h2>
+      <p>${t.description || "Tap as much as you can to climb the leaderboard."}</p>
+      <div class="tournament-meta">
+        <span>Entry: ${format(t.entryFee)} coins</span>
+        <span>Prize pool: ${format(t.prizePool)}</span>
+        <span>${tournamentTimeLeft(t.endsAt)}</span>
+      </div>
+      ${joined ? `
+        <div class="tournament-score">
+          <span>Your taps</span>
+          <strong>${format(t.myScore || 0)}</strong>
+        </div>
+      ` : `
+        <button class="wide-button tournament-join" type="button" id="joinTournamentButton">
+          Join Tournament · ${format(t.entryFee)} coins
+        </button>
+      `}
+    </article>
+    ${joined ? `
+      <div class="panel-head">
+        <h2>Tournament Leaderboard</h2>
+        <p>Top tappers win coin prizes</p>
+      </div>
+      <ol class="rank">
+        ${rows.map((row) => `
+          <li class="${row.isYou ? "rank__you" : ""}">
+            <span class="rank__medal">${medalForRank(row.rank)}</span>
+            <span>${row.isYou ? "You" : row.name}</span>
+            <strong>${format(row.tapScore)} taps</strong>
+          </li>
+        `).join("")}
+      </ol>
+    ` : ""}
+  `;
+
+  const joinButton = document.getElementById("joinTournamentButton");
+  if (joinButton) {
+    joinButton.addEventListener("click", joinTournament);
+  }
+}
+
 function renderRankPanel() {
-  const panel = els.rankPanel;
+  const panel = els.globalLeaderboard;
   if (!panel) return;
 
   const rows = leaderboardRows.length
@@ -612,6 +695,7 @@ async function connectBackend() {
 
   backendUserId = result.userId;
   await applyBackendUser(result, "Backend connected.");
+  await loadTournament();
 }
 
 async function loadLeaderboard() {
@@ -622,6 +706,58 @@ async function loadLeaderboard() {
 
   leaderboardRows = result.rows;
   renderRankPanel();
+}
+
+async function loadTournament() {
+  if (!backendReady) {
+    tournamentData = null;
+    tournamentLeaderboard = [];
+    renderTournamentPanel();
+    return;
+  }
+
+  const { ok, result } = await apiPost("/api/tournaments/active", { userId: backendUserId });
+  if (!ok || !result) return;
+
+  tournamentData = result.tournament || null;
+
+  if (tournamentData && tournamentData.joined) {
+    const board = await apiPost("/api/tournaments/leaderboard", {
+      tournamentId: tournamentData.id,
+      userId: backendUserId
+    });
+
+    if (board.ok && board.result && Array.isArray(board.result.rows)) {
+      tournamentLeaderboard = board.result.rows;
+    }
+  } else {
+    tournamentLeaderboard = [];
+  }
+
+  renderTournamentPanel();
+}
+
+async function joinTournament() {
+  if (!backendReady || !tournamentData) {
+    showToast("Backend offline.");
+    return;
+  }
+
+  const { ok, result } = await apiPost("/api/tournaments/join", {
+    userId: backendUserId,
+    tournamentId: tournamentData.id
+  });
+
+  if (!ok) {
+    if (result && result.error === "NOT_ENOUGH_COINS") showToast("Not enough coins to join.");
+    else if (result && result.error === "ALREADY_JOINED") showToast("Already joined.");
+    else showToast("Could not join tournament.");
+    return;
+  }
+
+  tournamentData = result.tournament || tournamentData;
+  await applyBackendUser(result.user, "Joined tournament! Start tapping.");
+  await loadTournament();
 }
 
 function tapLocal(event) {
@@ -659,6 +795,11 @@ async function backendTap(event) {
   syncFromBackend(result.user);
   saveState();
   render();
+
+  if (tournamentData && tournamentData.joined) {
+    tournamentData.myScore = Number(tournamentData.myScore || 0) + 1;
+    loadTournament();
+  }
 }
 
 function upgradeLocal(name) {
@@ -838,6 +979,7 @@ async function refreshBackendState() {
   saveState();
   render();
   await loadLeaderboard();
+  await loadTournament();
 }
 
 if (els.tapButton) {
@@ -859,6 +1001,7 @@ document.querySelectorAll(".tab").forEach((tab) => {
 
     if (tab.dataset.tab === "rankPanel") {
       loadLeaderboard();
+      loadTournament();
     }
   });
 });

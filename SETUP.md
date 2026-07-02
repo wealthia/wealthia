@@ -52,6 +52,40 @@ To show it again, change `ONBOARDING_VERSION` in `config.js`.
 
 ---
 
+## 6. Admin Panel + Tournaments
+
+### Supabase migration
+
+1. Supabase → **SQL Editor** → New query
+2. Paste and run `supabase/migration-admin-tournaments.sql`
+
+### Backend env (Render)
+
+Add to **wealthia-backend** environment variables:
+
+```
+ADMIN_SECRET=your-long-random-secret-here
+```
+
+Then **Manual Deploy** the backend.
+
+### Admin panel
+
+Open: https://wealthia.github.io/wealthia/admin.html
+
+Sign in with your `ADMIN_SECRET`. From there you can:
+
+- View player stats and revenue
+- Grant coins to players
+- Create tap tournaments (entry fee + prizes)
+- Log ad/sponsor revenue
+
+### Tournaments in game
+
+Players see live tournaments on the **Rank** tab. They pay the entry fee in coins, tap to score, and top 3 win prizes when you end the tournament from admin.
+
+---
+
 ## Links
 
 - Game: https://wealthia.github.io/wealthia/v5.html
