@@ -106,7 +106,13 @@ async function verifySecret(secret) {
   const previous = adminSecret;
   adminSecret = secret;
 
-  const { ok, status, result } = await api("/api/admin/ping");
+  let { ok, status, result } = await api("/api/admin/ping");
+
+  if (status === 404) {
+    ({ ok, status, result } = await api("/api/admin/dashboard"));
+    if (ok) dashboardData = result;
+  }
+
   if (!ok) {
     adminSecret = previous;
     return { valid: false, message: loginErrorMessage(status, result) };
