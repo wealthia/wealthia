@@ -144,25 +144,14 @@ async function verifySecret(secret) {
   const previous = adminSecret;
   adminSecret = secret;
 
-  let { ok, status, result } = await api("/api/admin/auth", {
-    method: "POST",
-    body: JSON.stringify({ adminSecret: secret })
-  });
-
-  if (status === 404) {
-    ({ ok, status, result } = await api("/api/admin/dashboard"));
-  }
+  const { ok, status, result } = await api("/api/admin/dashboard");
 
   if (!ok) {
     adminSecret = previous;
     return { valid: false, message: loginErrorMessage(status, result) };
   }
 
-  if (!dashboardData) {
-    const dash = await api("/api/admin/dashboard");
-    if (dash.ok) dashboardData = dash.result;
-  }
-
+  dashboardData = result;
   return { valid: true, message: "" };
 }
 
