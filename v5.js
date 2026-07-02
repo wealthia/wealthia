@@ -432,3 +432,82 @@ window.setInterval(() => {
   saveState();
   render();
 }, 1000);
+async function connectBackend() {
+  try {
+    const response = await fetch(API_URL + "/api/session", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        telegramUser: {
+          id: 123,
+          first_name: "Test",
+          username: "testuser"
+        }
+      })
+    });
+
+    const user = await response.json();
+
+    backendUserId = user.userId;
+    state.coins = user.game.coins;
+    state.energy = user.game.energy;
+    state.taps = user.game.taps;
+    state.buildings = user.game.buildings;
+
+    backendReady = true;
+    saveState();
+    render();
+    showToast("Backend connected.");
+  } catch (error) {
+    backendReady = false;
+    showToast("Backend offline. Local mode.");
+  }
+}
+
+async function backendTap(event) {
+  if (!backendReady) {
+    handleTap(event);
+    return;
+  }
+
+  if (event.cancelable) {
+    event.preventDefault();
+  }
+
+  try {
+    const response = await fetch(API_URL + "/api/tap", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        userId: backendUserId
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      showToast("No energy.");
+      return;
+    }
+
+    state.coins = result.user.game.coins;
+    state.energy = result.user.game.energy;
+    state.taps = result.user.game.taps;
+    state.buildings = result.user.game.buildings;
+
+    saveState();
+    render();
+
+    coinPop(
+      event.clientX || window.innerWidth / 2,
+      event.clientY || window.innerHeight / 2,
+      result.amount
+    );
+  } catch (error) {
+    showToast("Backend error.");
+  }
+}
