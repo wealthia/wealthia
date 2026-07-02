@@ -12,6 +12,7 @@ const defaultState = {
   lastSeen: Date.now(),
   dailyDate: "",
   dailyStreak: 0,
+  dailyTasks: [],
   tasks: {
     tap100: false,
     earn500: false,
@@ -71,6 +72,7 @@ function loadState() {
     return {
       ...structuredClone(defaultState),
       ...parsed,
+      dailyTasks: Array.isArray(parsed.dailyTasks) ? parsed.dailyTasks : [],
       tasks: {
         ...structuredClone(defaultState).tasks,
         ...(parsed.tasks || {})
@@ -94,30 +96,21 @@ function saveState() {
   localStorage.setItem(storageKey, JSON.stringify(state));
 }
 
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function format(number) {
   return Math.floor(Number(number || 0)).toLocaleString("en-US");
 }
 
 function tapPower() {
-  return state.buildings.shop;
+  return Math.max(1, Number(state.buildings.shop || 1));
 }
 
 function cityValue() {
-  return state.coins + state.spent;
-}
-
-function dailyRewardAmount() {
-  const rewards = [100, 150, 250, 400, 700, 1000, 1500];
-  return rewards[Math.min(state.dailyStreak, rewards.length - 1)];
+  return Number(state.coins || 0) + Number(state.spent || 0);
 }
 
 function upgradeCost(name) {
   const base = { shop: 50, bank: 120, factory: 200 }[name];
-  const level = state.buildings[name];
+  const level = Number(state.buildings[name] || 0);
   return Math.floor(base * Math.pow(1.75, Math.max(0, level - 1)));
 }
 
@@ -140,37 +133,67 @@ function render() {
   els.factoryCost.textContent = format(upgradeCost("factory"));
   els.rankYou.textContent = format(cityValue());
 
-  const dailyClaimedToday = state.dailyDate === today();
-const nextDailyDay = Math.min(state.dailyStreak + 1, 7);
-
-els.dailyText.textContent = dailyClaimedToday
-  ? `Daily reward claimed - Next Day ${nextDailyDay}`
-  : `Daily reward - Day ${nextDailyDay}`;
-
-els.dailyAmount.textContent = dailyClaimedToday
-  ? "Claimed"
-  : `+${format(dailyRewardAmount())}`;
-
-setDisabled("dailyReward", dailyClaimedToday);
-markTask("dailyReward", dailyClaimedToday);
-  setDisabled("tapTask", state.tasks.tap100 || state.taps < 100);
-  setDisabled("earnTask", state.tasks.earn500 || cityValue() < 500);
-  setDisabled("shopTask", state.tasks.shopUpgrade || state.buildings.shop < 2);
-  setDisabled("bankTask", state.tasks.bankOpen || state.buildings.bank < 1);
-
-  setDisabled("sponsorTask", state.tasks.sponsor);
-  setDisabled("adTask", state.tasks.ad);
-  setDisabled("channelTask", state.tasks.channel);
-
-  markTask("tapTask", state.tasks.tap100);
-  markTask("earnTask", state.tasks.earn500);
-  markTask("shopTask", state.tasks.shopUpgrade);
-  markTask("bankTask", state.tasks.bankOpen);
-  markTask("sponsorTask", state.tasks.sponsor);
-  markTask("adTask", state.tasks.ad);
-  markTask("channelTask", state.tasks.channel);
-
+  renderDailyTasks();
   updateCityVisuals();
+}
+
+function renderDailyTasks() {
+  const taskButtons = ["dailyReward", "tapTask", "earnTask", "shopTask", "bankTask"];
+  const tasks = Array.isArray(state.dailyTasks) ? state.dailyTasks : [];
+
+  taskButtons.forEach((buttonId, index) => {
+    const button = document.getElementById(buttonId);
+    if (!button) return;
+
+    const task = tasks[index];
+    const row = button.closest(".task-row") || button.closest(".item") || button.parentElement;
+
+    if (!task) {
+      if (row) row.style.display = "none";
+      return;
+    }
+
+    if (row) row.style.display = "";
+
+    button.dataset.taskId = task.id;
+
+    if (buttonId === "dailyReward" && els.dailyText && els.dailyAmount) {
+      els.dailyText.textContent = task.title;
+    } else if (row) {
+      const title =
+        row.querySelector(".task-title") ||
+        row.querySelector("strong") ||
+        row.querySelector("span");
+
+      if (title && title !== button) {
+        title.textContent = task.title;
+      }
+    }
+
+    if (task.claimed) {
+      button.textContent = "Claimed";
+      button.disabled = true;
+      button.classList.add("completed");
+      if (buttonId === "dailyReward" && els.dailyAmount) els.dailyAmount.textContent = "Claimed";
+      return;
+    }
+
+    button.classList.remove("completed");
+
+    if (task.ready) {
+      button.textContent = `Claim +${format(task.reward)}`;
+      button.disabled = false;
+      if (buttonId === "dailyReward" && els.dailyAmount) {
+        els.dailyAmount.textContent = `Claim +${format(task.reward)}`;
+      }
+    } else {
+      button.textContent = `${format(task.progress)} / ${format(task.target)}`;
+      button.disabled = true;
+      if (buttonId === "dailyReward" && els.dailyAmount) {
+        els.dailyAmount.textContent = `${format(task.progress)} / ${format(task.target)}`;
+      }
+    }
+  });
 }
 
 function setDisabled(id, disabled) {
@@ -224,7 +247,8 @@ function syncFromBackend(user) {
   state.taps = Number(user.game.taps || 0);
   state.spent = Number(user.game.spent || 0);
   state.dailyDate = user.game.dailyDate || user.game.daily_date || "";
-state.dailyStreak = Number(user.game.dailyStreak || user.game.daily_streak || 0);
+  state.dailyStreak = Number(user.game.dailyStreak || user.game.daily_streak || 0);
+  state.dailyTasks = Array.isArray(user.game.dailyTasks) ? user.game.dailyTasks : [];
 
   if (user.game.tasks) {
     state.tasks = {
@@ -379,7 +403,9 @@ async function claimBackendTask(task) {
     const result = await response.json();
 
     if (!response.ok) {
-      showToast("Task locked or already claimed.");
+      if (result.error === "TASK_NOT_READY") showToast("Task is not ready yet.");
+      else if (result.error === "TASK_ALREADY_CLAIMED") showToast("Task already claimed.");
+      else showToast("Task locked.");
       return;
     }
 
@@ -409,7 +435,7 @@ async function refreshBackendState() {
     saveState();
     render();
   } catch {
-    // silent refresh fail
+    // Silent refresh fail.
   }
 }
 
@@ -431,48 +457,38 @@ document.querySelectorAll(".tab").forEach((tab) => {
   });
 });
 
-document.getElementById("dailyReward").addEventListener("click", () => {
-  claimBackendTask("daily");
-});
+["dailyReward", "tapTask", "earnTask", "shopTask", "bankTask"].forEach((buttonId) => {
+  const button = document.getElementById(buttonId);
+  if (!button) return;
 
-document.getElementById("tapTask").addEventListener("click", () => {
-  claimBackendTask("tap100");
-});
-
-document.getElementById("earnTask").addEventListener("click", () => {
-  claimBackendTask("earn500");
-});
-
-document.getElementById("shopTask").addEventListener("click", () => {
-  claimBackendTask("shopUpgrade");
-});
-
-document.getElementById("bankTask").addEventListener("click", () => {
-  claimBackendTask("bankOpen");
+  button.addEventListener("click", () => {
+    if (!button.dataset.taskId) return;
+    claimBackendTask(button.dataset.taskId);
+  });
 });
 
 document.getElementById("sponsorTask").addEventListener("click", () => {
-  claimBackendTask("sponsor");
+  showToast("Sponsor task coming soon.");
 });
 
 document.getElementById("adTask").addEventListener("click", () => {
-  claimBackendTask("ad");
+  showToast("Rewarded ads coming soon.");
 });
 
 document.getElementById("channelTask").addEventListener("click", () => {
-  claimBackendTask("channel");
+  showToast("Partner channel coming soon.");
 });
 
 document.getElementById("fullEnergyBoost").addEventListener("click", () => {
-  showToast("Boosts will connect next.");
+  showToast("Boosts coming soon.");
 });
 
 document.getElementById("tapBoost").addEventListener("click", () => {
-  showToast("Boosts will connect next.");
+  showToast("Boosts coming soon.");
 });
 
 document.getElementById("incomeBoost").addEventListener("click", () => {
-  showToast("Boosts will connect next.");
+  showToast("Boosts coming soon.");
 });
 
 document.getElementById("inviteButton").addEventListener("click", async () => {
