@@ -261,7 +261,7 @@ function handleTap(event) {
   coinPop(event.clientX || window.innerWidth / 2, event.clientY || window.innerHeight / 2, amount);
 }
 
-els.tapButton.addEventListener("pointerdown", handleTap);
+els.tapButton.addEventListener("pointerdown", backendTap);
 
 document.querySelectorAll("[data-upgrade]").forEach((button) => {
   button.addEventListener("click", () => {
