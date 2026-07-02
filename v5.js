@@ -439,10 +439,9 @@ async function connectBackend() {
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        telegramUser: getTelegramUser()
-      })
-    });
+     body: JSON.stringify({
+  telegramUser: getTelegramUser()
+})
 
     const user = await response.json();
 
