@@ -12,7 +12,19 @@ const defaultGame = {
   city_value: 0,
   shop_level: 1,
   bank_level: 0,
-  factory_level: 0
+  factory_level: 0,
+  daily_date: "",
+  daily_streak: 0,
+  tap100_done: false,
+  earn500_done: false,
+  shop_upgrade_done: false,
+  bank_open_done: false,
+  invite_done: false,
+  sponsor_done: false,
+  ad_done: false,
+  channel_done: false,
+  tap_boost_until: 0,
+  income_boost_until: 0
 };
 
 const server = http.createServer(async (req, res) => {
@@ -39,7 +51,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/api/session") {
       const body = await readBody(req);
       const tg = body.telegramUser || {};
-      const userId = String(tg.id || "demo_user");
+      const userId = String(tg.id || "web_demo");
 
       await upsertUser({
         id: userId,
@@ -69,7 +81,10 @@ const server = http.createServer(async (req, res) => {
       }
 
       if (Number(game.energy) <= 0) {
-        send(res, 400, { error: "NO_ENERGY", user: toClientUser(userId, "Player", "", game) });
+        send(res, 400, {
+          error: "NO_ENERGY",
+          user: toClientUser(userId, "Player", "", game)
+        });
         return;
       }
 
@@ -78,8 +93,8 @@ const server = http.createServer(async (req, res) => {
         ...game,
         energy: Number(game.energy) - 1,
         coins: Number(game.coins) + amount,
-        city_value: Number(game.city_value) + amount,
-        taps: Number(game.taps) + 1,
+        city_value: Number(game.city_value || 0) + amount,
+        taps: Number(game.taps || 0) + 1,
         updated_at: new Date().toISOString()
       };
 
@@ -88,6 +103,64 @@ const server = http.createServer(async (req, res) => {
       send(res, 200, {
         amount,
         user: toClientUser(userId, "Player", "", nextGame)
+      });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/upgrade") {
+      const body = await readBody(req);
+      const userId = String(body.userId || "");
+      const building = String(body.building || "");
+      const game = await getGame(userId);
+
+      if (!game) {
+        send(res, 404, { error: "USER_NOT_FOUND" });
+        return;
+      }
+
+      if (!["shop", "bank", "factory"].includes(building)) {
+        send(res, 400, { error: "BAD_BUILDING" });
+        return;
+      }
+
+      const levelKey = `${building}_level`;
+      const cost = upgradeCost(game, building);
+
+      if (Number(game.coins) < cost) {
+        send(res, 400, {
+          error: "NOT_ENOUGH_COINS",
+          user: toClientUser(userId, "Player", "", game)
+        });
+        return;
+      }
+
+      const nextGame = {
+        ...game,
+        coins: Number(game.coins) - cost,
+        spent: Number(game.spent || 0) + cost,
+        city_value: Number(game.city_value || 0) + cost,
+        [levelKey]: Number(game[levelKey] || 0) + 1,
+        updated_at: new Date().toISOString()
+      };
+
+      await updateGame(userId, nextGame);
+
+      send(res, 200, {
+        cost,
+        user: toClientUser(userId, "Player", "", nextGame)
+      });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/leaderboard") {
+      const games = await select("game_states?select=*&order=city_value.desc&limit=25");
+
+      send(res, 200, {
+        players: games.map((game, index) => ({
+          rank: index + 1,
+          userId: game.user_id,
+          cityValue: Number(game.city_value || 0)
+        }))
       });
       return;
     }
@@ -163,8 +236,33 @@ async function updateGame(userId, game) {
     shop_level: game.shop_level,
     bank_level: game.bank_level,
     factory_level: game.factory_level,
+    daily_date: game.daily_date || "",
+    daily_streak: game.daily_streak || 0,
+    tap100_done: Boolean(game.tap100_done),
+    earn500_done: Boolean(game.earn500_done),
+    shop_upgrade_done: Boolean(game.shop_upgrade_done),
+    bank_open_done: Boolean(game.bank_open_done),
+    invite_done: Boolean(game.invite_done),
+    sponsor_done: Boolean(game.sponsor_done),
+    ad_done: Boolean(game.ad_done),
+    channel_done: Boolean(game.channel_done),
+    tap_boost_until: game.tap_boost_until || 0,
+    income_boost_until: game.income_boost_until || 0,
     updated_at: new Date().toISOString()
   });
+}
+
+function upgradeCost(game, building) {
+  const base = {
+    shop: 50,
+    bank: 120,
+    factory: 200
+  }[building];
+
+  const levelKey = `${building}_level`;
+  const level = Number(game[levelKey] || 0);
+
+  return Math.floor(base * Math.pow(1.75, Math.max(0, level - 1)));
 }
 
 function toClientUser(userId, name, username, game) {
