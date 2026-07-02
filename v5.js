@@ -440,32 +440,40 @@ async function connectBackend() {
         "Content-Type": "application/json"
       },
      body: JSON.stringify({
- function getTelegramUser() {
+function getTelegramUser() {
   const tg = window.Telegram && window.Telegram.WebApp;
 
-  if (tg) {
-    tg.ready();
-    tg.expand();
-  }
-
-  const user = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
-
-  if (user && user.id) {
+  if (!tg) {
+    showToast("Telegram object yoxdur");
     return {
-      id: user.id,
-      first_name: user.first_name || "Player",
-      username: user.username || ""
+      id: "web_demo",
+      first_name: "Web Demo",
+      username: ""
     };
   }
 
+  tg.ready();
+  tg.expand();
+
+  const user = tg.initDataUnsafe && tg.initDataUnsafe.user;
+
+  if (!user) {
+    showToast("Telegram user yoxdur");
+    return {
+      id: "web_demo",
+      first_name: "Web Demo",
+      username: ""
+    };
+  }
+
+  showToast("Telegram user: " + user.id);
+
   return {
-    id: "web_demo",
-    first_name: "Web Demo",
-    username: ""
+    id: user.id,
+    first_name: user.first_name || "Player",
+    username: user.username || ""
   };
 }
-})
-    });
 
     const user = await response.json();
 
