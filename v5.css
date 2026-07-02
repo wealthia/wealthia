@@ -2230,3 +2230,59 @@ button.completed {
     font-size: 16px;
   }
 }
+
+/* Hot fix: stats and city icon positions */
+.stat strong,
+.stat strong span,
+#energy {
+  display: inline !important;
+  margin: 0 !important;
+  font-size: 28px !important;
+  line-height: 1 !important;
+  color: #fff !important;
+  font-weight: 900 !important;
+  text-shadow: 0 3px 0 #2d4b9a !important;
+}
+
+.city-icon {
+  bottom: 58px !important;
+}
+
+.shop-icon {
+  left: 28px !important;
+  right: auto !important;
+}
+
+.bank-icon {
+  left: 150px !important;
+  right: auto !important;
+}
+
+.tower-icon,
+.factory-icon,
+.office-icon {
+  left: auto !important;
+  right: 32px !important;
+}
+
+@media (max-width: 380px) {
+  .stat strong,
+  .stat strong span,
+  #energy {
+    font-size: 23px !important;
+  }
+
+  .shop-icon {
+    left: 22px !important;
+  }
+
+  .bank-icon {
+    left: 122px !important;
+  }
+
+  .tower-icon,
+  .factory-icon,
+  .office-icon {
+    right: 22px !important;
+  }
+}
