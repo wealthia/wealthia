@@ -561,11 +561,11 @@ async function loadGame(userId) {
 }
 
 app.get("/", (_req, res) => {
-  res.json({ ok: true, app: "Wealthia API", database: true, version: "admin-tournaments-v1" });
+  res.json({ ok: true, app: "Wealthia API", database: true, version: "admin-tournaments-v2" });
 });
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, app: "Wealthia API", database: true, version: "admin-tournaments-v1" });
+  res.json({ ok: true, app: "Wealthia API", database: true, version: "admin-tournaments-v2" });
 });
 
 app.post("/api/session", async (req, res) => {

@@ -3,11 +3,17 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Wealthia Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./admin.css?v=2" />
+  <style>
+    #loginScreen { display: grid; }
+    #adminApp { display: none; }
+    [hidden] { display: none !important; }
+  </style>
+  <link rel="stylesheet" href="./admin.css?v=5" />
 </head>
 <body>
   <div class="login" id="loginScreen">
@@ -188,6 +194,6 @@
   <div class="toast" id="toast"></div>
 
   <script src="./config.js?v=1"></script>
-  <script src="./admin.js?v=4"></script>
+  <script src="./admin.js?v=5"></script>
 </body>
 </html>

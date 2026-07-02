@@ -11,7 +11,7 @@ const els = {
   adminApp: document.getElementById("adminApp"),
   loginForm: document.getElementById("loginForm"),
   loginError: document.getElementById("loginError"),
-  adminSecret: document.getElementById("adminSecret"),
+  secretInput: document.getElementById("adminSecret"),
   logoutButton: document.getElementById("logoutButton"),
   refreshButton: document.getElementById("refreshButton"),
   viewTitle: document.getElementById("viewTitle"),
@@ -45,110 +45,177 @@ function showToast(message) {
   els.toast.textContent = message;
   els.toast.classList.add("show");
   window.clearTimeout(showToast.timer);
-  showToast.timer = window.setTimeout(() => els.toast.classList.remove("show"), 2000);
-}
-
-async function api(path, options = {}) {
-  const headers = {
-    "Content-Type": "application/json",
-    "x-admin-secret": adminSecret,
-    ...(options.headers || {})
-  };
-
-  try {
-    const response = await fetch(`${API_URL}${path}`, {
-      ...options,
-      headers
-    });
-
-    const result = await response.json().catch(() => ({}));
-    return { ok: response.ok, status: response.status, result };
-  } catch {
-    return { ok: false, status: 0, result: { error: "NETWORK_ERROR" } };
-  }
+  showToast.timer = window.setTimeout(() => els.toast.classList.remove("show"), 2200);
 }
 
 function showLogin(error = "") {
-  els.loginScreen.hidden = false;
-  els.adminApp.hidden = true;
-  if (error) {
-    els.loginError.hidden = false;
-    els.loginError.textContent = error;
-  } else {
-    els.loginError.hidden = true;
+  if (els.loginScreen) {
+    els.loginScreen.hidden = false;
+    els.loginScreen.style.display = "grid";
+  }
+  if (els.adminApp) {
+    els.adminApp.hidden = true;
+    els.adminApp.style.display = "none";
+  }
+  if (els.loginError) {
+    if (error) {
+      els.loginError.hidden = false;
+      els.loginError.textContent = error;
+    } else {
+      els.loginError.hidden = true;
+      els.loginError.textContent = "";
+    }
   }
 }
 
 function showApp() {
-  els.loginScreen.hidden = true;
-  els.adminApp.hidden = false;
+  if (els.loginScreen) {
+    els.loginScreen.hidden = true;
+    els.loginScreen.style.display = "none";
+  }
+  if (els.adminApp) {
+    els.adminApp.hidden = false;
+    els.adminApp.style.display = "grid";
+  }
+}
+
+async function api(path, options = {}) {
+  const headers = {
+    "x-admin-secret": adminSecret,
+    ...(options.headers || {})
+  };
+
+  if (options.body) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 25000);
+
+  try {
+    const response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers,
+      signal: controller.signal
+    });
+
+    const text = await response.text();
+    let result = {};
+
+    try {
+      result = text ? JSON.parse(text) : {};
+    } catch {
+      result = { error: text.slice(0, 120) || "BAD_RESPONSE" };
+    }
+
+    return { ok: response.ok, status: response.status, result };
+  } catch (error) {
+    if (error && error.name === "AbortError") {
+      return { ok: false, status: 0, result: { error: "TIMEOUT" } };
+    }
+    return { ok: false, status: 0, result: { error: "NETWORK_ERROR" } };
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 function loginErrorMessage(status, result) {
   const code = result && result.error;
 
+  if (code === "TIMEOUT") {
+    return "Backend is waking up. Wait 30 seconds and try again.";
+  }
   if (status === 0 || code === "NETWORK_ERROR") {
-    return "Cannot reach backend. Check your internet or try again.";
+    return "Cannot reach backend. Check internet or try again.";
   }
   if (status === 503 || code === "ADMIN_NOT_CONFIGURED") {
-    return "Backend has no ADMIN_SECRET yet. Add it in Render → Environment → Manual Deploy.";
+    return "Render-də ADMIN_SECRET yoxdur. Environment-ə əlavə et və deploy et.";
   }
   if (status === 401 || code === "UNAUTHORIZED") {
-    return "Wrong admin secret. It must match ADMIN_SECRET in Render exactly.";
+    return "Secret səhvdir. Render-dəki ADMIN_SECRET ilə eyni olmalıdır.";
   }
   if (status >= 500) {
-    return `Server error: ${code || "unknown"}. Run Supabase SQL migration if you have not yet.`;
+    return `Server error: ${code || "unknown"}`;
   }
-  return "Sign in failed. Check secret and backend deploy.";
+  return "Giriş alınmadı. Secret-i yoxla.";
 }
 
 async function verifySecret(secret) {
   const previous = adminSecret;
   adminSecret = secret;
 
-  const { ok, status, result } = await api("/api/admin/dashboard");
+  let { ok, status, result } = await api("/api/admin/auth", {
+    method: "POST",
+    body: JSON.stringify({ adminSecret: secret })
+  });
+
+  if (status === 404) {
+    ({ ok, status, result } = await api("/api/admin/dashboard"));
+  }
 
   if (!ok) {
     adminSecret = previous;
     return { valid: false, message: loginErrorMessage(status, result) };
   }
 
-  dashboardData = result;
+  if (!dashboardData) {
+    const dash = await api("/api/admin/dashboard");
+    if (dash.ok) dashboardData = dash.result;
+  }
+
   return { valid: true, message: "" };
 }
 
 async function handleLogin(event) {
   event.preventDefault();
-  const secret = els.adminSecret.value.trim();
+
+  const secret = els.secretInput ? els.secretInput.value.trim() : "";
   if (!secret) return;
 
-  const submitButton = els.loginForm.querySelector('button[type="submit"]');
+  const submitButton = els.loginForm && els.loginForm.querySelector('button[type="submit"]');
+
   if (submitButton) {
     submitButton.disabled = true;
     submitButton.textContent = "Signing in...";
   }
 
-  const check = await verifySecret(secret);
-
-  if (submitButton) {
-    submitButton.disabled = false;
-    submitButton.textContent = "Sign in";
+  if (els.loginError) {
+    els.loginError.hidden = true;
   }
 
-  if (!check.valid) {
-    showLogin(check.message);
-    return;
-  }
+  try {
+    const check = await verifySecret(secret);
 
-  localStorage.setItem(SECRET_KEY, secret);
-  showApp();
-  showToast("Signed in.");
-  loadCurrentView().catch(() => showToast("Could not load dashboard."));
+    if (!check.valid) {
+      showLogin(check.message);
+      return;
+    }
+
+    localStorage.setItem(SECRET_KEY, secret);
+    showApp();
+    renderDashboardFromCache();
+    showToast("Signed in.");
+    loadCurrentView().catch(() => showToast("Dashboard refresh failed."));
+  } catch {
+    showLogin("Unexpected error. Try again.");
+  } finally {
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = "Sign in";
+    }
+  }
+}
+
+function renderDashboardFromCache() {
+  if (!dashboardData) return;
+  renderDashboardStats(dashboardData);
+  renderActiveTournament(dashboardData.tournaments.active);
 }
 
 function handleLogout() {
   adminSecret = "";
   localStorage.removeItem(SECRET_KEY);
+  if (els.secretInput) els.secretInput.value = "";
   showLogin();
 }
 
@@ -185,6 +252,8 @@ function getActiveView() {
 }
 
 function renderDashboardStats(data) {
+  if (!els.dashboardStats || !data) return;
+
   const cards = [
     ["Total Players", formatNumber(data.players.total)],
     ["Active Today", formatNumber(data.players.activeToday)],
@@ -205,6 +274,8 @@ function renderDashboardStats(data) {
 }
 
 function renderActiveTournament(tournament) {
+  if (!els.activeTournamentCard) return;
+
   if (!tournament) {
     els.activeTournamentCard.innerHTML = '<p class="empty">No live tournament. Create one in Tournaments.</p>';
     return;
@@ -221,7 +292,7 @@ function renderActiveTournament(tournament) {
 async function loadDashboard() {
   const { ok, result } = await api("/api/admin/dashboard");
   if (!ok) {
-    if (els.adminApp.hidden) {
+    if (els.adminApp && els.adminApp.style.display === "none") {
       showLogin("Session expired.");
     } else {
       showToast("Could not refresh dashboard.");
@@ -235,6 +306,8 @@ async function loadDashboard() {
 }
 
 function renderPlayers(rows) {
+  if (!els.playersTable) return;
+
   if (!rows.length) {
     els.playersTable.innerHTML = '<tr><td colspan="6" class="empty">No players found.</td></tr>';
     return;
@@ -301,6 +374,8 @@ async function loadTournaments() {
   }
 
   const rows = result.rows || [];
+  if (!els.tournamentsList) return;
+
   if (!rows.length) {
     els.tournamentsList.innerHTML = '<p class="empty">No tournaments yet.</p>';
     return;
@@ -370,6 +445,8 @@ async function setTournamentStatus(tournamentId, status) {
 }
 
 function renderRevenueSummary(data) {
+  if (!els.revenueSummary) return;
+
   if (!data) {
     els.revenueSummary.innerHTML = '<p class="empty">No data.</p>';
     return;
@@ -383,6 +460,8 @@ function renderRevenueSummary(data) {
 }
 
 function renderMetrics(rows) {
+  if (!els.metricsTable) return;
+
   if (!rows.length) {
     els.metricsTable.innerHTML = '<tr><td colspan="4" class="empty">No entries yet.</td></tr>';
     return;
@@ -483,10 +562,8 @@ if (els.tournamentsList) {
     }
 
     const end = event.target.closest("[data-end]");
-    if (end) {
-      if (window.confirm("End tournament and pay top 3 prizes?")) {
-        setTournamentStatus(end.dataset.end, "ended");
-      }
+    if (end && window.confirm("End tournament and pay top 3 prizes?")) {
+      setTournamentStatus(end.dataset.end, "ended");
     }
   });
 }
@@ -495,11 +572,10 @@ if (els.logRevenueForm) {
   els.logRevenueForm.addEventListener("submit", logRevenue);
 }
 
+showLogin();
+
 (async function init() {
-  if (!adminSecret) {
-    showLogin();
-    return;
-  }
+  if (!adminSecret) return;
 
   const check = await verifySecret(adminSecret);
   if (!check.valid) {
@@ -509,5 +585,6 @@ if (els.logRevenueForm) {
   }
 
   showApp();
-  await loadDashboard();
+  renderDashboardFromCache();
+  loadDashboard().catch(() => {});
 })();
