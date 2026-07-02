@@ -140,7 +140,7 @@ function render() {
 }
 
 function renderDailyTasks() {
-  const panel = document.getElementById("tasks");
+  const panel = document.getElementById("tasksPanel");
   const tasks = Array.isArray(state.dailyTasks) ? state.dailyTasks : [];
 
   if (!panel) return;
