@@ -147,6 +147,10 @@ function renderDailyTasks() {
 
   if (tasks.length === 0) {
     panel.innerHTML = `
+      <div class="panel-head">
+        <h2>Daily Missions</h2>
+        <p>Complete tasks and claim premium rewards</p>
+      </div>
       <button class="task" type="button" disabled>
         <span><b>&#127873; Daily tasks preparing</b><small>Tasks will appear soon.</small></span>
         <strong>Soon</strong>
@@ -155,7 +159,12 @@ function renderDailyTasks() {
     return;
   }
 
-  panel.innerHTML = tasks.map((task) => {
+  panel.innerHTML = `
+    <div class="panel-head">
+      <h2>Daily Missions</h2>
+      <p>Complete tasks and claim premium rewards</p>
+    </div>
+    ${tasks.map((task) => {
     const title = task.title || "Daily Task";
     const reward = format(task.reward || 0);
     const progress = Number(task.progress || 0);
@@ -171,7 +180,8 @@ function renderDailyTasks() {
         <strong class="${claimed ? "completed" : ""}">${buttonText}</strong>
       </button>
     `;
-  }).join("");
+  }).join("")}
+  `;
 }
 
 function updateCityVisuals() {
@@ -199,12 +209,22 @@ function showToast(message) {
 
 function coinPop(x, y, amount) {
   const pop = document.createElement("div");
-  pop.className = "coin-pop";
-  pop.textContent = `+${amount}`;
-  pop.style.left = `${x - 14}px`;
-  pop.style.top = `${y - 18}px`;
+  pop.className = "coin-pop coin-pop--burst";
+  pop.textContent = `+${format(amount)}`;
+  pop.style.left = `${x}px`;
+  pop.style.top = `${y}px`;
   document.body.appendChild(pop);
-  window.setTimeout(() => pop.remove(), 720);
+
+  const ripple = document.createElement("div");
+  ripple.className = "tap-ripple";
+  ripple.style.left = `${x}px`;
+  ripple.style.top = `${y}px`;
+  document.body.appendChild(ripple);
+
+  window.setTimeout(() => {
+    pop.remove();
+    ripple.remove();
+  }, 720);
 }
 
 function syncFromBackend(user) {
