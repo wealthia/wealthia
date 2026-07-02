@@ -29,6 +29,14 @@ const defaultGame = {
   income_boost_until: 0
 };
 
+const taskRewards = {
+  tap100: 150,
+  earn500: 250,
+  shopUpgrade: 200,
+  bankOpen: 200,
+  daily: 0
+};
+
 const server = http.createServer(async (req, res) => {
   setCors(res);
 
@@ -46,7 +54,7 @@ const server = http.createServer(async (req, res) => {
         ok: true,
         app: "Wealthia API",
         database: Boolean(supabaseUrl && supabaseKey),
-        version: "energy-upgrade-v1"
+        version: "tasks-v1"
       });
       return;
     }
@@ -161,6 +169,38 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "POST" && url.pathname === "/api/claim-task") {
+      const body = await readBody(req);
+      const userId = String(body.userId || "");
+      const task = String(body.task || "");
+      let game = await getGame(userId);
+
+      if (!game) {
+        send(res, 404, { error: "USER_NOT_FOUND" });
+        return;
+      }
+
+      game = await applyPassiveProgress(userId, game);
+
+      const result = claimTask(game, task);
+
+      if (!result.ok) {
+        send(res, 400, {
+          error: result.error,
+          user: toClientUser(userId, "Player", "", game)
+        });
+        return;
+      }
+
+      await updateGame(userId, result.game);
+
+      send(res, 200, {
+        reward: result.reward,
+        user: toClientUser(userId, "Player", "", result.game)
+      });
+      return;
+    }
+
     if (req.method === "GET" && url.pathname === "/api/leaderboard") {
       const games = await select("game_states?select=*&order=city_value.desc&limit=25");
 
@@ -200,6 +240,84 @@ const server = http.createServer(async (req, res) => {
 server.listen(port, () => {
   console.log(`Wealthia backend running on port ${port}`);
 });
+
+function claimTask(game, task) {
+  const todayDate = today();
+
+  if (task === "daily") {
+    if (game.daily_date === todayDate) {
+      return { ok: false, error: "DAILY_ALREADY_CLAIMED" };
+    }
+
+    const reward = dailyRewardAmount(game);
+    const nextGame = {
+      ...game,
+      coins: Number(game.coins) + reward,
+      city_value: Number(game.city_value || 0) + reward,
+      daily_date: todayDate,
+      daily_streak: Math.min(Number(game.daily_streak || 0) + 1, 7),
+      updated_at: new Date().toISOString()
+    };
+
+    return { ok: true, reward, game: nextGame };
+  }
+
+  if (task === "tap100") {
+    if (game.tap100_done) return { ok: false, error: "TASK_DONE" };
+    if (Number(game.taps || 0) < 100) return { ok: false, error: "TASK_LOCKED" };
+
+    return completeTask(game, "tap100_done", taskRewards.tap100);
+  }
+
+  if (task === "earn500") {
+    if (game.earn500_done) return { ok: false, error: "TASK_DONE" };
+    if (Number(game.city_value || 0) < 500) return { ok: false, error: "TASK_LOCKED" };
+
+    return completeTask(game, "earn500_done", taskRewards.earn500);
+  }
+
+  if (task === "shopUpgrade") {
+    if (game.shop_upgrade_done) return { ok: false, error: "TASK_DONE" };
+    if (Number(game.shop_level || 1) < 2) return { ok: false, error: "TASK_LOCKED" };
+
+    return completeTask(game, "shop_upgrade_done", taskRewards.shopUpgrade);
+  }
+
+  if (task === "bankOpen") {
+    if (game.bank_open_done) return { ok: false, error: "TASK_DONE" };
+    if (Number(game.bank_level || 0) < 1) return { ok: false, error: "TASK_LOCKED" };
+
+    return completeTask(game, "bank_open_done", taskRewards.bankOpen);
+  }
+
+  return { ok: false, error: "BAD_TASK" };
+}
+
+function completeTask(game, doneKey, reward) {
+  const nextGame = {
+    ...game,
+    [doneKey]: true,
+    coins: Number(game.coins) + reward,
+    city_value: Number(game.city_value || 0) + reward,
+    updated_at: new Date().toISOString()
+  };
+
+  return {
+    ok: true,
+    reward,
+    game: nextGame
+  };
+}
+
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function dailyRewardAmount(game) {
+  const rewards = [100, 150, 250, 400, 700, 1000, 1500];
+  const streak = Number(game.daily_streak || 0);
+  return rewards[Math.min(streak, rewards.length - 1)];
+}
 
 async function upsertUser(user) {
   const existing = await select(`users?id=eq.${encodeURIComponent(user.id)}&select=id`);
@@ -326,9 +444,21 @@ function toClientUser(userId, name, username, game) {
       taps: Number(game.taps || 0),
       spent: Number(game.spent || 0),
       cityValue: Number(game.city_value || 0),
+      dailyDate: game.daily_date || "",
+      dailyStreak: Number(game.daily_streak || 0),
       tapPower: tapPower(game),
       hourlyIncome: hourlyIncome(game),
       energyRecovery: energyRecovery(game),
+      tasks: {
+        tap100: Boolean(game.tap100_done),
+        earn500: Boolean(game.earn500_done),
+        shopUpgrade: Boolean(game.shop_upgrade_done),
+        bankOpen: Boolean(game.bank_open_done),
+        invite: Boolean(game.invite_done),
+        sponsor: Boolean(game.sponsor_done),
+        ad: Boolean(game.ad_done),
+        channel: Boolean(game.channel_done)
+      },
       buildings: {
         shop: Number(game.shop_level || 1),
         bank: Number(game.bank_level || 0),
