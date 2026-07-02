@@ -278,9 +278,9 @@ function renderEarnPanel() {
       <h2>Multiply Your Fortune</h2>
       <p>Complete partner tasks and buy power boosts to grow faster.</p>
     </article>
-    ${earnRow("sponsor", "Partner Bot", "Open sponsor bot", 750, state.tasks.sponsor)}
-    ${earnRow("ad", "Rewarded Ad", "Watch a short ad", 300, state.tasks.ad)}
-    ${earnRow("channel", "Partner Channel", "Join Telegram channel", 500, state.tasks.channel)}
+    ${earnRow("sponsor", "Partner Bot", "Open sponsor bot · one-time bonus", 750, state.tasks.sponsor)}
+    ${earnRow("ad", "Rewarded Ad", "Watch 30s ad for coins", 300, state.tasks.ad)}
+    ${earnRow("channel", "Join Channel", "Subscribe for bonus coins", 500, state.tasks.channel)}
     <article class="card stack">
       <h2>Power Boosts</h2>
       <div class="boost-grid">

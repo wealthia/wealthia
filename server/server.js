@@ -927,6 +927,22 @@ app.post("/api/leaderboard", async (req, res) => {
   }
 });
 
+app.post("/api/admin/auth", async (req, res) => {
+  const secret = String(req.body.adminSecret || req.body.secret || "").trim();
+
+  if (!ADMIN_SECRET) {
+    res.status(503).json({ error: "ADMIN_NOT_CONFIGURED" });
+    return;
+  }
+
+  if (secret !== ADMIN_SECRET) {
+    res.status(401).json({ error: "UNAUTHORIZED" });
+    return;
+  }
+
+  res.json({ ok: true });
+});
+
 app.get("/api/admin/ping", async (req, res) => {
   if (!requireAdmin(req, res)) return;
   res.json({ ok: true });

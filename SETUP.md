@@ -2,6 +2,8 @@
 
 Everything is ready in code. Complete these steps once:
 
+**Monetization (do before tournaments):** see `MONETIZATION.md`
+
 ---
 
 ## 1. Telegram Bot (5 min)

@@ -27,3 +27,5 @@ services:
         value: https://wealthia.github.io/wealthia/v5.html
       - key: BOT_USERNAME
         value: WealthiaGameBot
+      - key: CHANNEL_URL
+        sync: false

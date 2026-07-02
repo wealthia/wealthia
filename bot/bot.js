@@ -1,16 +1,18 @@
-/**
- * Wealthia Telegram Bot
- *
- * Setup:
- * 1. Create bot via @BotFather → copy token
- * 2. Set env: TELEGRAM_BOT_TOKEN=your_token
- * 3. Optional: WEBAPP_URL, BOT_USERNAME
- * 4. Run: npm start
- */
-
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const WEBAPP_URL = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html";
 const BOT_USERNAME = process.env.BOT_USERNAME || "WealthiaGameBot";
+const CHANNEL_URL = process.env.CHANNEL_URL || "";
+const BOT_DESCRIPTION = process.env.BOT_DESCRIPTION || [
+  "🏙️ Wealthia — Build your wealth empire in Telegram!",
+  "",
+  "Tap for coins, upgrade your city, complete daily missions and climb the leaderboard.",
+  "Invite friends for +500 bonus coins.",
+  "",
+  "Press Start to play free."
+].join("\n");
+
+const BOT_SHORT_DESCRIPTION = process.env.BOT_SHORT_DESCRIPTION ||
+  "Tap. Build. Earn. Free city-building clicker game in Telegram.";
 
 if (!TOKEN) {
   console.error("Missing TELEGRAM_BOT_TOKEN environment variable.");
@@ -35,6 +37,23 @@ async function api(method, body) {
   return data.result;
 }
 
+async function setupBotProfile() {
+  try {
+    await api("setMyDescription", { description: BOT_DESCRIPTION });
+    await api("setMyShortDescription", { short_description: BOT_SHORT_DESCRIPTION });
+    await api("setChatMenuButton", {
+      menu_button: {
+        type: "web_app",
+        text: "Play Wealthia",
+        web_app: { url: WEBAPP_URL }
+      }
+    });
+    console.log("Bot profile updated (description + menu button).");
+  } catch (error) {
+    console.warn("Bot profile setup skipped:", error.message);
+  }
+}
+
 function gameUrl(startParam) {
   if (!startParam) return WEBAPP_URL;
   return `${WEBAPP_URL}?tgWebAppStartParam=${encodeURIComponent(startParam)}`;
@@ -42,6 +61,9 @@ function gameUrl(startParam) {
 
 function welcomeText(firstName, referral) {
   const name = firstName || "Builder";
+  const channelLine = CHANNEL_URL
+    ? `\n📢 Join our channel for updates: ${CHANNEL_URL}\n`
+    : "";
 
   if (referral) {
     return (
@@ -49,6 +71,7 @@ function welcomeText(firstName, referral) {
       `Your friend invited you to build a wealth empire.\n` +
       `Tap, upgrade your city, complete daily missions and climb the leaderboard.\n\n` +
       `🎁 New players get a welcome bonus!\n` +
+      channelLine +
       `👇 Press Play to start`
     );
   }
@@ -58,30 +81,35 @@ function welcomeText(firstName, referral) {
     `Build your empire, tap for Wealth Coins, upgrade Shop, Bank and Factory.\n\n` +
     `✨ Daily missions refresh every 12 hours\n` +
     `👥 Invite friends → +500 coins each\n` +
-    `🏆 Compete on the global leaderboard\n\n` +
+    `📺 Watch ads in Earn tab for bonus coins\n` +
+    `🏆 Compete on the global leaderboard\n` +
+    channelLine +
     `👇 Press Play to start your empire`
   );
 }
 
 function startKeyboard(userId, startParam) {
   const ref = startParam && startParam.startsWith("ref_") ? startParam : `ref_${userId}`;
-
-  return {
-    inline_keyboard: [
-      [
-        {
-          text: "🎮 Play Wealthia",
-          web_app: { url: gameUrl(startParam || `ref_${userId}`) }
-        }
-      ],
-      [
-        {
-          text: "👥 Invite Friends",
-          url: `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${BOT_USERNAME}?start=${ref}`)}&text=${encodeURIComponent("Join my Wealthia empire!")}`
-        }
-      ]
+  const rows = [
+    [
+      {
+        text: "🎮 Play Wealthia",
+        web_app: { url: gameUrl(startParam || `ref_${userId}`) }
+      }
+    ],
+    [
+      {
+        text: "👥 Invite Friends",
+        url: `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${BOT_USERNAME}?start=${ref}`)}&text=${encodeURIComponent("Join my Wealthia empire!")}`
+      }
     ]
-  };
+  ];
+
+  if (CHANNEL_URL) {
+    rows.push([{ text: "📢 Official Channel", url: CHANNEL_URL }]);
+  }
+
+  return { inline_keyboard: rows };
 }
 
 async function handleStart(chatId, user, startParam) {
@@ -111,6 +139,25 @@ async function handleMessage(message) {
     return;
   }
 
+  if (text === "/channel") {
+    if (!CHANNEL_URL) {
+      await api("sendMessage", {
+        chat_id: chatId,
+        text: "Channel link is not configured yet."
+      });
+      return;
+    }
+
+    await api("sendMessage", {
+      chat_id: chatId,
+      text: `📢 Join the official Wealthia channel:\n${CHANNEL_URL}`,
+      reply_markup: {
+        inline_keyboard: [[{ text: "📢 Join Channel", url: CHANNEL_URL }]]
+      }
+    });
+    return;
+  }
+
   if (text === "/help") {
     await api("sendMessage", {
       chat_id: chatId,
@@ -118,6 +165,7 @@ async function handleMessage(message) {
         "Wealthia Commands:\n" +
         "/start — Open the game\n" +
         "/play — Play Wealthia\n" +
+        "/channel — Official channel\n" +
         "/help — This message\n\n" +
         `Game: ${WEBAPP_URL}`
     });
@@ -158,4 +206,6 @@ async function poll() {
 
 console.log("Wealthia bot running...");
 console.log("WebApp:", WEBAPP_URL);
-poll();
+if (CHANNEL_URL) console.log("Channel:", CHANNEL_URL);
+
+setupBotProfile().finally(() => poll());

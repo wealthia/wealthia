@@ -98,3 +98,45 @@ Your first 60 seconds:
 
 Questions? Bot: https://t.me/[BOT_USERNAME]
 ```
+
+---
+
+## Post 7 — Tournament teaser
+
+```
+🏆 FIRST TOURNAMENT COMING SOON!
+
+Tap races with coin prizes:
+🥇 Big rewards for top tappers
+⏱️ Limited-time events
+
+Prepare now:
+📺 Watch ads in Earn tab
+👥 Invite friends → +500 coins
+
+🎮 Play: https://t.me/[BOT_USERNAME]
+📢 Channel: https://t.me/[CHANNEL_USERNAME]
+```
+
+---
+
+## Post 8 — Earn / ads tip
+
+```
+💸 FREE COINS — Earn tab
+
+📺 Rewarded Ad → +300 coins
+📢 Join channel → +500 coins
+🤝 Partner tasks → +750 coins
+
+🎮 https://wealthia.github.io/wealthia/v5.html
+```
+
+---
+
+## Posting tips
+
+- Post once per day at the same time
+- Always include: `https://t.me/[BOT_USERNAME]`
+- Pin Post 1 (intro)
+- Replace `[BOT_USERNAME]` and `[CHANNEL_USERNAME]` before posting
