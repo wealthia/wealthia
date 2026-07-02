@@ -1,3 +1,7 @@
+const API_URL = "http://localhost:3000";
+let backendUserId = "123";
+let backendReady = false;
+
 const storageKey = "wealthiaMvpState";
 
 const defaultState = {
