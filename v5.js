@@ -553,3 +553,182 @@ window.setInterval(refreshBackendState, 10000);
     right: 22px !important;
   }
 }
+/* WEALTHIA STABLE FIX - tap, tasks, energy */
+
+function renderDailyTasks() {
+  const panel = document.getElementById("tasksPanel");
+  const tasks = Array.isArray(state.dailyTasks) ? state.dailyTasks : [];
+
+  if (!panel) return;
+
+  if (tasks.length === 0) {
+    panel.innerHTML = `
+      <button class="task" type="button" disabled>
+        <span><b>&#127873; Daily tasks preparing</b><small>Tasks will appear soon.</small></span>
+        <strong>Soon</strong>
+      </button>
+    `;
+    return;
+  }
+
+  panel.innerHTML = tasks.map((task) => {
+    const title = task.title || "Daily Task";
+    const reward = format(task.reward || 0);
+    const progress = Number(task.progress || 0);
+    const target = Number(task.target || 1);
+    const claimed = Boolean(task.claimed);
+    const ready = !claimed && (task.ready || progress >= target);
+    const buttonText = claimed ? "Claimed" : ready ? `+${reward}` : `${format(progress)} / ${format(target)}`;
+    const statusText = claimed ? "Reward collected" : ready ? "Ready to claim" : "Progress";
+
+    return `
+      <button class="task ${claimed ? "completed" : ""}" type="button" data-daily-task="${task.id || ""}" ${claimed || !ready ? "disabled" : ""}>
+        <span><b>&#127873; ${title}</b><small>${statusText}</small></span>
+        <strong class="${claimed ? "completed" : ""}">${buttonText}</strong>
+      </button>
+    `;
+  }).join("");
+}
+
+function tapLocal(event) {
+  if (state.energy < 1) {
+    showToast("No energy.");
+    render();
+    return false;
+  }
+
+  const amount = tapPower();
+  state.coins = Number(state.coins || 0) + amount;
+  state.taps = Number(state.taps || 0) + 1;
+  state.energy = Math.max(0, Number(state.energy || 0) - 1);
+
+  saveState();
+  render();
+
+  coinPop(
+    event.clientX || window.innerWidth / 2,
+    event.clientY || window.innerHeight / 2,
+    amount
+  );
+
+  return true;
+}
+
+async function backendTap(event) {
+  if (event.cancelable) event.preventDefault();
+
+  tapLocal(event);
+
+  try {
+    const response = await fetch(`${API_URL}/api/tap`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: backendUserId })
+    });
+
+    const result = await response.json();
+    if (!response.ok) return;
+
+    syncFromBackend(result.user);
+    backendReady = true;
+    saveState();
+    render();
+  } catch {
+    backendReady = false;
+  }
+}
+
+function upgradeLocal(name) {
+  const cost = upgradeCost(name);
+
+  if (state.coins < cost) {
+    showToast("Not enough Wealth Coin.");
+    return false;
+  }
+
+  state.coins -= cost;
+  state.spent = Number(state.spent || 0) + cost;
+  state.buildings[name] = Number(state.buildings[name] || 0) + 1;
+
+  saveState();
+  render();
+  showToast(`${name[0].toUpperCase() + name.slice(1)} upgraded.`);
+  return true;
+}
+
+async function backendUpgrade(name) {
+  const changedLocal = upgradeLocal(name);
+  if (!changedLocal) return;
+
+  try {
+    const response = await fetch(`${API_URL}/api/upgrade`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: backendUserId, building: name })
+    });
+
+    const result = await response.json();
+    if (!response.ok) return;
+
+    syncFromBackend(result.user);
+    backendReady = true;
+    saveState();
+    render();
+  } catch {
+    backendReady = false;
+  }
+}
+
+async function claimBackendTask(taskId) {
+  try {
+    const response = await fetch(`${API_URL}/api/claim-task`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: backendUserId, taskId })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      if (result.error === "TASK_NOT_READY") showToast("Task is not ready yet.");
+      else if (result.error === "TASK_ALREADY_CLAIMED") showToast("Task already claimed.");
+      else showToast("Task locked.");
+      return;
+    }
+
+    syncFromBackend(result.user);
+    backendReady = true;
+    saveState();
+    render();
+    showToast(`Reward claimed: +${format(result.reward)}`);
+  } catch {
+    backendReady = false;
+    showToast("Task error.");
+  }
+}
+
+const fixedTasksPanel = document.getElementById("tasksPanel");
+
+if (fixedTasksPanel) {
+  fixedTasksPanel.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-daily-task]");
+    if (!button) return;
+
+    const taskId = button.dataset.dailyTask;
+    if (!taskId) return;
+
+    claimBackendTask(taskId);
+  });
+}
+
+setInterval(() => {
+  if (state.energy >= 100) return;
+
+  state.energy = Math.min(
+    100,
+    Number(state.energy || 0) + Math.max(1, Number(state.buildings.factory || 0) + 1)
+  );
+
+  saveState();
+  render();
+}, 5000);
