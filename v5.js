@@ -52,8 +52,6 @@ const els = {
   factoryCost: document.getElementById("factoryCost"),
   rankYou: document.getElementById("rankYou"),
   toast: document.getElementById("toast"),
-  dailyText: document.getElementById("dailyText"),
-  dailyAmount: document.getElementById("dailyAmount"),
   shopBuilding: document.getElementById("shopBuilding"),
   bankBuilding: document.getElementById("bankBuilding"),
   factoryBuilding: document.getElementById("factoryBuilding")
@@ -115,116 +113,79 @@ function upgradeCost(name) {
 }
 
 function render() {
-  els.coins.textContent = format(state.coins);
-  els.energy.textContent = Math.floor(state.energy);
-  els.cityValue.textContent = format(cityValue());
-  els.energyBar.style.width = `${Math.max(0, Math.min(100, state.energy))}%`;
-  els.energyBar.style.background = state.energy < 20 ? "var(--red)" : "var(--green)";
-  els.tapPower.textContent = tapPower();
-  els.tapLabel.textContent = state.energy < 1 ? "No Energy" : "Tap";
-  els.tapButton.classList.toggle("no-energy", state.energy < 1);
+  if (els.coins) els.coins.textContent = format(state.coins);
+  if (els.energy) els.energy.textContent = Math.floor(state.energy);
+  if (els.cityValue) els.cityValue.textContent = format(cityValue());
 
-  els.shopLevel.textContent = state.buildings.shop;
-  els.bankLevel.textContent = state.buildings.bank;
-  els.factoryLevel.textContent = state.buildings.factory;
+  if (els.energyBar) {
+    els.energyBar.style.width = `${Math.max(0, Math.min(100, state.energy))}%`;
+    els.energyBar.style.background = state.energy < 20 ? "var(--red)" : "var(--green)";
+  }
 
-  els.shopCost.textContent = format(upgradeCost("shop"));
-  els.bankCost.textContent = format(upgradeCost("bank"));
-  els.factoryCost.textContent = format(upgradeCost("factory"));
-  els.rankYou.textContent = format(cityValue());
+  if (els.tapPower) els.tapPower.textContent = tapPower();
+  if (els.tapLabel) els.tapLabel.textContent = state.energy < 1 ? "No Energy" : "Tap";
+  if (els.tapButton) els.tapButton.classList.toggle("no-energy", state.energy < 1);
+
+  if (els.shopLevel) els.shopLevel.textContent = state.buildings.shop;
+  if (els.bankLevel) els.bankLevel.textContent = state.buildings.bank;
+  if (els.factoryLevel) els.factoryLevel.textContent = state.buildings.factory;
+
+  if (els.shopCost) els.shopCost.textContent = format(upgradeCost("shop"));
+  if (els.bankCost) els.bankCost.textContent = format(upgradeCost("bank"));
+  if (els.factoryCost) els.factoryCost.textContent = format(upgradeCost("factory"));
+  if (els.rankYou) els.rankYou.textContent = format(cityValue());
 
   renderDailyTasks();
   updateCityVisuals();
 }
 
 function renderDailyTasks() {
-  const taskButtons = ["dailyReward", "tapTask", "earnTask", "shopTask", "bankTask"];
+  const panel = document.getElementById("tasks");
   const tasks = Array.isArray(state.dailyTasks) ? state.dailyTasks : [];
 
-  taskButtons.forEach((buttonId, index) => {
-    const button = document.getElementById(buttonId);
-    if (!button) return;
+  if (!panel) return;
 
-    const row = button.closest(".task-row") || button.closest(".item") || button.parentElement;
-    if (!row) return;
+  if (tasks.length === 0) {
+    panel.innerHTML = `
+      <div class="item">
+        <div>
+          <strong>Tasks loading...</strong>
+          <p>Backend is preparing your daily tasks.</p>
+        </div>
+      </div>
+    `;
+    return;
+  }
 
-    const task = tasks[index];
+  panel.innerHTML = tasks.map((task) => {
+    const buttonText = task.claimed
+      ? "Claimed"
+      : task.ready
+        ? `Claim +${format(task.reward)}`
+        : `${format(task.progress)} / ${format(task.target)}`;
 
-    row.style.display = "";
-    row.classList.remove("completed");
-    button.classList.remove("completed");
+    const statusText = task.claimed
+      ? "Reward collected"
+      : task.ready
+        ? "Ready to claim"
+        : "Complete the target";
 
-    if (!task) {
-      const title =
-        row.querySelector(".task-title") ||
-        row.querySelector("strong") ||
-        row.querySelector("span") ||
-        row.firstElementChild;
-
-      if (title && title !== button) {
-        title.textContent = "Task loading...";
-      }
-
-      button.textContent = "...";
-      button.disabled = true;
-      return;
-    }
-
-    button.dataset.taskId = task.id;
-
-    const title =
-      row.querySelector(".task-title") ||
-      row.querySelector("strong") ||
-      row.querySelector("span") ||
-      row.firstElementChild;
-
-    if (buttonId === "dailyReward") {
-      if (els.dailyText) els.dailyText.textContent = task.title;
-    } else if (title && title !== button) {
-      title.textContent = task.title;
-    }
-
-    if (task.claimed) {
-      row.classList.add("completed");
-      button.classList.add("completed");
-      button.textContent = "Claimed";
-      button.disabled = true;
-
-      if (buttonId === "dailyReward" && els.dailyAmount) {
-        els.dailyAmount.textContent = "Claimed";
-      }
-
-      return;
-    }
-
-    if (task.ready) {
-      button.textContent = `Claim +${format(task.reward)}`;
-      button.disabled = false;
-
-      if (buttonId === "dailyReward" && els.dailyAmount) {
-        els.dailyAmount.textContent = `Claim +${format(task.reward)}`;
-      }
-
-      return;
-    }
-
-    button.textContent = `${format(task.progress)} / ${format(task.target)}`;
-    button.disabled = true;
-
-    if (buttonId === "dailyReward" && els.dailyAmount) {
-      els.dailyAmount.textContent = `${format(task.progress)} / ${format(task.target)}`;
-    }
-  });
-}
-
-function setDisabled(id, disabled) {
-  const item = document.getElementById(id);
-  if (item) item.disabled = disabled;
-}
-
-function markTask(id, completed) {
-  const item = document.getElementById(id);
-  if (item) item.classList.toggle("completed", completed);
+    return `
+      <div class="item ${task.claimed ? "completed" : ""}">
+        <div>
+          <strong>${task.title}</strong>
+          <p>${statusText}</p>
+        </div>
+        <button
+          class="reward-btn ${task.claimed ? "completed" : ""}"
+          data-daily-task="${task.id}"
+          ${task.claimed || !task.ready ? "disabled" : ""}
+        >
+          ${buttonText}
+        </button>
+      </div>
+    `;
+  }).join("");
 }
 
 function updateCityVisuals() {
@@ -460,7 +421,9 @@ async function refreshBackendState() {
   }
 }
 
-els.tapButton.addEventListener("pointerdown", backendTap);
+if (els.tapButton) {
+  els.tapButton.addEventListener("pointerdown", backendTap);
+}
 
 document.querySelectorAll("[data-upgrade]").forEach((button) => {
   button.addEventListener("click", () => {
@@ -478,53 +441,80 @@ document.querySelectorAll(".tab").forEach((tab) => {
   });
 });
 
-["dailyReward", "tapTask", "earnTask", "shopTask", "bankTask"].forEach((buttonId) => {
-  const button = document.getElementById(buttonId);
-  if (!button) return;
+const tasksPanel = document.getElementById("tasks");
+if (tasksPanel) {
+  tasksPanel.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-daily-task]");
+    if (!button) return;
 
-  button.addEventListener("click", () => {
-    if (!button.dataset.taskId) return;
-    claimBackendTask(button.dataset.taskId);
+    const taskId = button.dataset.dailyTask;
+    if (!taskId) return;
+
+    claimBackendTask(taskId);
   });
-});
+}
 
-document.getElementById("sponsorTask").addEventListener("click", () => {
-  showToast("Sponsor task coming soon.");
-});
+const sponsorTask = document.getElementById("sponsorTask");
+if (sponsorTask) {
+  sponsorTask.addEventListener("click", () => {
+    showToast("Sponsor task coming soon.");
+  });
+}
 
-document.getElementById("adTask").addEventListener("click", () => {
-  showToast("Rewarded ads coming soon.");
-});
+const adTask = document.getElementById("adTask");
+if (adTask) {
+  adTask.addEventListener("click", () => {
+    showToast("Rewarded ads coming soon.");
+  });
+}
 
-document.getElementById("channelTask").addEventListener("click", () => {
-  showToast("Partner channel coming soon.");
-});
+const channelTask = document.getElementById("channelTask");
+if (channelTask) {
+  channelTask.addEventListener("click", () => {
+    showToast("Partner channel coming soon.");
+  });
+}
 
-document.getElementById("fullEnergyBoost").addEventListener("click", () => {
-  showToast("Boosts coming soon.");
-});
+const fullEnergyBoost = document.getElementById("fullEnergyBoost");
+if (fullEnergyBoost) {
+  fullEnergyBoost.addEventListener("click", () => {
+    showToast("Boosts coming soon.");
+  });
+}
 
-document.getElementById("tapBoost").addEventListener("click", () => {
-  showToast("Boosts coming soon.");
-});
+const tapBoost = document.getElementById("tapBoost");
+if (tapBoost) {
+  tapBoost.addEventListener("click", () => {
+    showToast("Boosts coming soon.");
+  });
+}
 
-document.getElementById("incomeBoost").addEventListener("click", () => {
-  showToast("Boosts coming soon.");
-});
+const incomeBoost = document.getElementById("incomeBoost");
+if (incomeBoost) {
+  incomeBoost.addEventListener("click", () => {
+    showToast("Boosts coming soon.");
+  });
+}
 
-document.getElementById("inviteButton").addEventListener("click", async () => {
-  const link = `https://t.me/WealthiaGameBot?start=ref_${backendUserId}`;
+const inviteButton = document.getElementById("inviteButton");
+if (inviteButton) {
+  inviteButton.addEventListener("click", async () => {
+    const link = `https://t.me/WealthiaGameBot?start=ref_${backendUserId}`;
 
-  try {
-    await navigator.clipboard.writeText(link);
-    showToast("Invite link copied.");
-  } catch {
-    showToast(link);
-  }
-});
+    try {
+      await navigator.clipboard.writeText(link);
+      showToast("Invite link copied.");
+    } catch {
+      showToast(link);
+    }
+  });
+}
 
-document.getElementById("resetButton").addEventListener("click", () => {
-  showToast("Reset disabled on backend version.");
-});
+const resetButton = document.getElementById("resetButton");
+if (resetButton) {
+  resetButton.addEventListener("click", () => {
+    showToast("Reset disabled on backend version.");
+  });
+}
 
 window.setInterval(refreshBackendState, 10000);
