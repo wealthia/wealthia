@@ -1,188 +1,272 @@
 <!doctype html>
 <html lang="en">
- <head>
+<head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <title>Wealthia V5</title>
-  <link rel="stylesheet" href="./v5.css?v=910" />
+  <title>Wealthia</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./v5.css?v=2000" />
 </head>
-  <body>
-    <main class="app">
-      <header class="header">
+<body>
+  <div class="ambient" aria-hidden="true">
+    <div class="ambient__orb ambient__orb--gold"></div>
+    <div class="ambient__orb ambient__orb--violet"></div>
+    <div class="ambient__grid"></div>
+  </div>
+
+  <main class="app">
+    <header class="header">
+      <div class="brand">
+        <div class="brand__mark">W</div>
         <div>
+          <p class="brand__eyebrow">Empire Builder</p>
           <h1>Wealthia</h1>
         </div>
-        <button class="round-button" id="resetButton" type="button">↻</button>
-      </header>
+      </div>
+      <button class="round-button" id="resetButton" type="button" aria-label="Reset">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M4 12a8 8 0 0 1 13.66-5.66M20 4v5h-5M20 12a8 8 0 0 1-13.66 5.66M4 20v-5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </header>
 
-      <section class="stats">
-        <div class="stat">
-          <span>Wealth Coin</span>
-          <strong id="coins">0</strong>
-        </div>
-        <div class="stat">
-          <span>Energy</span>
-          <strong><span id="energy">100</span>/100</strong>
-        </div>
-        <div class="stat">
-          <span>City Value</span>
-          <strong id="cityValue">0</strong>
-        </div>
-      </section>
+    <section class="stats">
+      <article class="stat stat--coins">
+        <div class="stat__icon">&#x1F4B0;</div>
+        <span>Wealth Coin</span>
+        <strong id="coins">0</strong>
+      </article>
+      <article class="stat stat--energy">
+        <div class="stat__icon">&#x26A1;</div>
+        <span>Energy</span>
+        <strong><span id="energy">100</span><small>/100</small></strong>
+      </article>
+      <article class="stat stat--city">
+        <div class="stat__icon">&#x1F3D9;&#xFE0F;</div>
+        <span>City Value</span>
+        <strong id="cityValue">0</strong>
+      </article>
+    </section>
 
-      <section class="city">
-        <div class="sky">
-          <div class="sun"></div>
-          <div class="cloud cloud-one"></div>
-          <div class="cloud cloud-two"></div>
-        </div>
+    <section class="city">
+      <div class="city__glow" aria-hidden="true"></div>
+      <div class="sky">
+        <div class="stars" aria-hidden="true"></div>
+        <div class="sun"></div>
+        <div class="cloud cloud-one"></div>
+        <div class="cloud cloud-two"></div>
+        <div class="cloud cloud-three"></div>
+      </div>
 
-        <div class="building shop-building" id="shopBuilding"><span></span></div>
-        <div class="building bank-building" id="bankBuilding"><span></span></div>
-        <div class="building factory-building" id="factoryBuilding"><span></span></div>
-        <div class="city-icon shop-icon">🏪</div>
-<div class="city-icon bank-icon">🏦</div>
-<div class="city-icon factory-icon">🏢</div>
-        <div class="street"></div>
-      </section>
+      <div class="building shop-building" id="shopBuilding"><span></span></div>
+      <div class="building bank-building" id="bankBuilding"><span></span></div>
+      <div class="building factory-building" id="factoryBuilding"><span></span></div>
 
-      <section class="tap-area">
-        <button class="tap-button" id="tapButton" type="button">
-          <span id="tapLabel">Tap</span>
-          <strong>+<span id="tapPower">1</span></strong>
-        </button>
+      <div class="city-icon shop-icon">&#x1F3EA;</div>
+      <div class="city-icon bank-icon">&#x1F3E6;</div>
+      <div class="city-icon factory-icon">&#x1F3ED;</div>
+
+      <div class="street"></div>
+      <div class="city__label">Your Empire</div>
+    </section>
+
+    <section class="tap-area">
+      <div class="tap-ring tap-ring--outer" aria-hidden="true"></div>
+      <div class="tap-ring tap-ring--inner" aria-hidden="true"></div>
+      <button class="tap-button" id="tapButton" type="button">
+        <span class="tap-button__shine" aria-hidden="true"></span>
+        <span id="tapLabel">Tap</span>
+        <strong>+<span id="tapPower">1</span></strong>
+        <small class="tap-button__hint">per tap</small>
+      </button>
+      <div class="energy-wrap">
         <div class="energy-bar">
           <span id="energyBar"></span>
         </div>
-      </section>
+        <span class="energy-label">Energy Reserve</span>
+      </div>
+    </section>
 
-      <nav class="tabs">
-        <button class="tab active" type="button" data-tab="cityPanel">City</button>
-        <button class="tab" type="button" data-tab="tasksPanel">Tasks</button>
-        <button class="tab" type="button" data-tab="earnPanel">Earn</button>
-        <button class="tab" type="button" data-tab="friendsPanel">Friends</button>
-        <button class="tab" type="button" data-tab="rankPanel">Rank</button>
-      </nav>
+    <nav class="tabs">
+      <button class="tab active" type="button" data-tab="cityPanel">
+        <span class="tab__icon">&#x1F3D9;</span>
+        City
+      </button>
+      <button class="tab" type="button" data-tab="tasksPanel">
+        <span class="tab__icon">&#x1F3C6;</span>
+        Tasks
+      </button>
+      <button class="tab" type="button" data-tab="earnPanel">
+        <span class="tab__icon">&#x1F4B8;</span>
+        Earn
+      </button>
+      <button class="tab" type="button" data-tab="friendsPanel">
+        <span class="tab__icon">&#x1F465;</span>
+        Friends
+      </button>
+      <button class="tab" type="button" data-tab="rankPanel">
+        <span class="tab__icon">&#x1F451;</span>
+        Rank
+      </button>
+    </nav>
 
-      <section class="panel active" id="cityPanel">
-        <article class="card">
-          <div>
-            <h2>Shop</h2>
-            <p>Tap income · Level <span id="shopLevel">1</span></p>
-          </div>
-          <button class="buy-button" type="button" data-upgrade="shop">
-            Upgrade · <span id="shopCost">50</span>
-          </button>
-        </article>
+    <section class="panel active" id="cityPanel">
+      <div class="panel-head">
+        <h2>Build Your City</h2>
+        <p>Upgrade buildings to multiply your wealth</p>
+      </div>
 
-        <article class="card">
-          <div>
-            <h2>Bank</h2>
-            <p>Offline income · Level <span id="bankLevel">0</span></p>
-          </div>
-          <button class="buy-button" type="button" data-upgrade="bank">
-            Upgrade · <span id="bankCost">120</span>
-          </button>
-        </article>
+      <article class="card card--shop">
+        <div class="card__icon">&#x1F3EA;</div>
+        <div class="card__body">
+          <h2>Shop</h2>
+          <p>Tap income &middot; Level <span id="shopLevel">1</span></p>
+        </div>
+        <button class="buy-button" type="button" data-upgrade="shop">
+          Upgrade <span id="shopCost">50</span>
+        </button>
+      </article>
 
-        <article class="card">
-          <div>
-            <h2>Factory</h2>
-            <p>Energy recovery · Level <span id="factoryLevel">0</span></p>
-          </div>
-          <button class="buy-button" type="button" data-upgrade="factory">
-            Upgrade · <span id="factoryCost">200</span>
-          </button>
-        </article>
-      </section>
+      <article class="card card--bank">
+        <div class="card__icon">&#x1F3E6;</div>
+        <div class="card__body">
+          <h2>Bank</h2>
+          <p>Offline income &middot; Level <span id="bankLevel">0</span></p>
+        </div>
+        <button class="buy-button" type="button" data-upgrade="bank">
+          Upgrade <span id="bankCost">120</span>
+        </button>
+      </article>
 
-      <section class="panel" id="tasksPanel">
-        <button class="task" type="button" id="dailyReward">
-          <span id="dailyText">Daily reward · Day 1</span>
-          <strong id="dailyAmount">+100</strong>
+      <article class="card card--factory">
+        <div class="card__icon">&#x1F3ED;</div>
+        <div class="card__body">
+          <h2>Factory</h2>
+          <p>Energy recovery &middot; Level <span id="factoryLevel">0</span></p>
+        </div>
+        <button class="buy-button" type="button" data-upgrade="factory">
+          Upgrade <span id="factoryCost">200</span>
         </button>
-      
-        <button class="task" type="button" id="tapTask">
-          <span>Tap 100 times</span>
-          <strong>+150</strong>
-        </button>
-      
-        <button class="task" type="button" id="earnTask">
-          <span>Earn 500 coins</span>
-          <strong>+250</strong>
-        </button>
-      
-        <button class="task" type="button" id="shopTask">
-          <span>Upgrade Shop</span>
-          <strong>+200</strong>
-        </button>
-      
-        <button class="task" type="button" id="bankTask">
-          <span>Open Bank</span>
-          <strong>+200</strong>
-        </button>
-      </section>
+      </article>
+    </section>
+
+    <section class="panel" id="tasksPanel">
+      <div class="panel-head">
+        <h2>Daily Missions</h2>
+        <p>Complete tasks and claim premium rewards</p>
+      </div>
+      <button class="task" type="button" id="dailyReward">
+        <span id="dailyText">Daily reward &middot; Day 1</span>
+        <strong id="dailyAmount">+100</strong>
+      </button>
+      <button class="task" type="button" id="tapTask">
+        <span>Tap 100 times</span>
+        <strong>+150</strong>
+      </button>
+      <button class="task" type="button" id="earnTask">
+        <span>Earn 500 coins</span>
+        <strong>+250</strong>
+      </button>
+      <button class="task" type="button" id="shopTask">
+        <span>Upgrade Shop</span>
+        <strong>+200</strong>
+      </button>
+      <button class="task" type="button" id="bankTask">
+        <span>Open Bank</span>
+        <strong>+200</strong>
+      </button>
+    </section>
+
     <section class="panel" id="earnPanel">
-  <article class="card stack earn-hero">
-    <h2>Earn Center</h2>
-    <p>Complete partner campaigns, watch ads, and use boosts to grow your city faster.</p>
-  </article>
+      <article class="card stack earn-hero">
+        <div class="earn-hero__badge">VIP Earn Center</div>
+        <h2>Multiply Your Fortune</h2>
+        <p>Partner campaigns, rewarded ads, and power boosts to accelerate your empire.</p>
+      </article>
 
-  <button class="task earn-task" type="button" id="sponsorTask">
-    <span><b>Partner Bot</b><small>Open a sponsor bot</small></span>
-    <strong>+750</strong>
-  </button>
-
-  <button class="task earn-task" type="button" id="adTask">
-    <span><b>Rewarded Ad</b><small>Watch a short ad</small></span>
-    <strong>+300</strong>
-  </button>
-
-  <button class="task earn-task" type="button" id="channelTask">
-    <span><b>Partner Channel</b><small>Join a Telegram channel</small></span>
-    <strong>+500</strong>
-  </button>
-
-  <article class="card stack">
-    <h2>Boosts</h2>
-    <div class="boost-grid">
-      <button class="boost-button" type="button" id="fullEnergyBoost">
-        Full Energy<br><span>Cost 100</span>
+      <button class="task earn-task" type="button" id="sponsorTask">
+        <span><b>Partner Bot</b><small>Open a sponsor bot</small></span>
+        <strong>+750</strong>
       </button>
 
-      <button class="boost-button" type="button" id="tapBoost">
-        2x Tap<br><span>Cost 150</span>
+      <button class="task earn-task" type="button" id="adTask">
+        <span><b>Rewarded Ad</b><small>Watch a short ad</small></span>
+        <strong>+300</strong>
       </button>
 
-      <button class="boost-button" type="button" id="incomeBoost">
-        2x Income<br><span>Cost 200</span>
+      <button class="task earn-task" type="button" id="channelTask">
+        <span><b>Partner Channel</b><small>Join a Telegram channel</small></span>
+        <strong>+500</strong>
       </button>
-    </div>
-  </article>
-</section>
-      <section class="panel" id="friendsPanel">
-        <div class="card stack">
-          <h2>Invite friends</h2>
-          <p>Invite link will connect to Telegram later. For now it copies a demo link.</p>
-          <button class="wide-button" id="inviteButton" type="button">
-            Copy Invite Link · +500
+
+      <article class="card stack">
+        <h2>Power Boosts</h2>
+        <div class="boost-grid">
+          <button class="boost-button" type="button" id="fullEnergyBoost">
+            <span class="boost-button__icon">&#x26A1;</span>
+            Full Energy
+            <span>Cost 100</span>
+          </button>
+          <button class="boost-button" type="button" id="tapBoost">
+            <span class="boost-button__icon">&#x1F4AA;</span>
+            2x Tap
+            <span>Cost 150</span>
+          </button>
+          <button class="boost-button" type="button" id="incomeBoost">
+            <span class="boost-button__icon">&#x1F4C8;</span>
+            2x Income
+            <span>Cost 200</span>
           </button>
         </div>
-      </section>
+      </article>
+    </section>
 
-      <section class="panel" id="rankPanel">
-        <ol class="rank">
-          <li><span>You</span><strong id="rankYou">0</strong></li>
-          <li><span>Golden Mayor</span><strong>24,500</strong></li>
-          <li><span>Mint Builder</span><strong>18,200</strong></li>
-          <li><span>Urban Prince</span><strong>9,700</strong></li>
-        </ol>
-      </section>
-    </main>
+    <section class="panel" id="friendsPanel">
+      <div class="card stack friends-card">
+        <div class="friends-card__icon">&#x1F91D;</div>
+        <h2>Invite Allies</h2>
+        <p>Share your invite link and earn bonus coins for every friend who joins your empire.</p>
+        <button class="wide-button" id="inviteButton" type="button">
+          Copy Invite Link &middot; +500
+        </button>
+      </div>
+    </section>
 
-    <div class="toast" id="toast"></div>
+    <section class="panel" id="rankPanel">
+      <div class="panel-head">
+        <h2>Global Leaderboard</h2>
+        <p>Compete with the wealthiest builders</p>
+      </div>
+      <ol class="rank">
+        <li class="rank__you">
+          <span class="rank__medal">&#x1F947;</span>
+          <span>You</span>
+          <strong id="rankYou">0</strong>
+        </li>
+        <li>
+          <span class="rank__medal">&#x1F948;</span>
+          <span>Golden Mayor</span>
+          <strong>24,500</strong>
+        </li>
+        <li>
+          <span class="rank__medal">&#x1F949;</span>
+          <span>Mint Builder</span>
+          <strong>18,200</strong>
+        </li>
+        <li>
+          <span class="rank__medal">&#x1F3C5;</span>
+          <span>Urban Prince</span>
+          <strong>9,700</strong>
+        </li>
+      </ol>
+    </section>
+  </main>
 
- <script src="./v5.js?v=10000"></script>
-  </body>
+  <div class="toast" id="toast"></div>
+
+  <script src="./v5.js?v=10001"></script>
+</body>
 </html>
