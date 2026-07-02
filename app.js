@@ -24,8 +24,9 @@ const els = {
   coins: document.getElementById("coins"),
   energy: document.getElementById("energy"),
   cityValue: document.getElementById("cityValue"),
-  tapValue: document.getElementById("tapValue"),
-  energyFill: document.getElementById("energyFill"),
+  tapPower: document.getElementById("tapPower"),
+  tapLabel: document.getElementById("tapLabel"),
+  energyBar: document.getElementById("energyBar"),
   tapButton: document.getElementById("tapButton"),
   resetButton: document.getElementById("resetButton"),
   tabs: document.querySelectorAll(".tab"),
@@ -80,7 +81,8 @@ function setupTabs() {
       els.panels.forEach((panel) => panel.classList.remove("active"));
 
       tab.classList.add("active");
-      document.getElementById(`${target}Panel`).classList.add("active");
+      const panel = document.getElementById(target);
+      if (panel) panel.classList.add("active");
 
       render();
     });
@@ -155,8 +157,23 @@ function saveState() {
   localStorage.setItem(storageKey, JSON.stringify(state));
 }
 
+function getTelegramUser() {
+  const tg = window.Telegram && window.Telegram.WebApp;
+  const user = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+
+  if (user && user.id) {
+    return {
+      id: user.id,
+      first_name: user.first_name || "Player",
+      username: user.username || ""
+    };
+  }
+
+  return { id: backendUserId, first_name: "Web Demo", username: "" };
+}
+
 async function startBackend() {
-  const session = await apiPost("/api/session", { userId: backendUserId });
+  const session = await apiPost("/api/session", { telegramUser: getTelegramUser() });
 
   if (!session) {
     backendReady = false;
@@ -174,7 +191,7 @@ async function startBackend() {
 }
 
 async function refreshSession() {
-  const session = await apiPost("/api/session", { userId: backendUserId });
+  const session = await apiPost("/api/session", { telegramUser: getTelegramUser() });
   if (!session) return;
 
   backendReady = true;
@@ -234,6 +251,19 @@ async function tap(event) {
     return;
   }
 
+  if (backendReady) {
+    const result = await apiPost("/api/tap", { userId: backendUserId });
+
+    if (result && result.user) {
+      applyServerState(result.user);
+      render();
+      showCoinPop(event, result.amount || getTapIncome());
+    } else {
+      showToast("Tap failed.");
+    }
+    return;
+  }
+
   const income = getTapIncome();
 
   state.coins += income;
@@ -244,15 +274,6 @@ async function tap(event) {
   saveState();
   render();
   showCoinPop(event, income);
-
-  if (backendReady) {
-    const result = await apiPost("/api/tap", { userId: backendUserId });
-
-    if (result) {
-      applyServerState(result);
-      render();
-    }
-  }
 }
 
 async function upgradeBuilding(type) {
@@ -315,7 +336,7 @@ async function claimTask(taskId) {
   if (backendReady) {
     const result = await apiPost("/api/claim-task", {
       userId: backendUserId,
-      taskId
+      task: taskId
     });
 
     if (result) {
@@ -398,10 +419,20 @@ function renderTop() {
   els.coins.textContent = formatNumber(state.coins);
   els.energy.textContent = `${Math.floor(state.energy)}/100`;
   els.cityValue.textContent = formatNumber(state.cityValue);
-  els.tapValue.textContent = getTapIncome();
+
+  if (els.tapPower) els.tapPower.textContent = getTapIncome();
+  if (els.tapLabel) {
+    els.tapLabel.textContent = state.energy < 1 ? "No Energy" : "Tap";
+  }
+  if (els.tapButton) {
+    els.tapButton.classList.toggle("no-energy", state.energy < 1);
+  }
 
   const energyPercent = Math.max(0, Math.min(100, state.energy));
-  els.energyFill.style.width = `${energyPercent}%`;
+  if (els.energyBar) {
+    els.energyBar.style.width = `${energyPercent}%`;
+    els.energyBar.style.background = state.energy < 20 ? "var(--red, #ff5c5c)" : "var(--green, #5cff9a)";
+  }
 }
 
 function renderCity() {

@@ -259,10 +259,8 @@ function handleTap(event) {
 }
 
 if (els.tapButton) {
-  els.tapButton.addEventListener("click", handleTap);
+  els.tapButton.addEventListener("pointerdown", handleTap);
 }
-
-els.tapButton.addEventListener("pointerdown", handleTap);
 
 document.querySelectorAll("[data-upgrade]").forEach((button) => {
   button.addEventListener("click", () => {

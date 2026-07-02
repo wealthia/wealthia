@@ -241,13 +241,30 @@ async function connectBackend() {
   }
 }
 
-async function backendTap(event) {
-  if (!backendReady) {
-    showToast("Backend offline.");
-    return;
+function tapLocal(event) {
+  if (state.energy < 1) {
+    showToast("No energy.");
+    render();
+    return false;
   }
 
+  const amount = tapPower();
+  state.coins = Number(state.coins || 0) + amount;
+  state.taps = Number(state.taps || 0) + 1;
+  state.energy = Math.max(0, Number(state.energy || 0) - 1);
+
+  saveState();
+  render();
+
+  coinPop(event.clientX || window.innerWidth / 2, event.clientY || window.innerHeight / 2, amount);
+  return true;
+}
+
+async function backendTap(event) {
   if (event.cancelable) event.preventDefault();
+  if (!tapLocal(event)) return;
+
+  if (!backendReady) return;
 
   try {
     const response = await fetch(`${API_URL}/api/tap`, {
@@ -266,18 +283,32 @@ async function backendTap(event) {
     syncFromBackend(result.user);
     saveState();
     render();
-
-    coinPop(event.clientX || window.innerWidth / 2, event.clientY || window.innerHeight / 2, result.amount);
   } catch {
     showToast("Backend error.");
   }
 }
 
-async function backendUpgrade(name) {
-  if (!backendReady) {
-    showToast("Backend offline.");
-    return;
+function upgradeLocal(name) {
+  const cost = upgradeCost(name);
+
+  if (state.coins < cost) {
+    showToast("Not enough Wealth Coin.");
+    return false;
   }
+
+  state.coins -= cost;
+  state.spent = Number(state.spent || 0) + cost;
+  state.buildings[name] = Number(state.buildings[name] || 0) + 1;
+
+  saveState();
+  render();
+  showToast(`${name[0].toUpperCase() + name.slice(1)} upgraded.`);
+  return true;
+}
+
+async function backendUpgrade(name) {
+  if (!upgradeLocal(name)) return;
+  if (!backendReady) return;
 
   try {
     const response = await fetch(`${API_URL}/api/upgrade`, {
@@ -296,7 +327,6 @@ async function backendUpgrade(name) {
     syncFromBackend(result.user);
     saveState();
     render();
-    showToast(`${name[0].toUpperCase() + name.slice(1)} upgraded.`);
   } catch {
     showToast("Upgrade error.");
   }
@@ -417,3 +447,15 @@ if (resetButton) {
 }
 
 setInterval(refreshBackendState, 10000);
+
+setInterval(() => {
+  if (state.energy >= 100) return;
+
+  state.energy = Math.min(
+    100,
+    Number(state.energy || 0) + Math.max(1, Number(state.buildings.factory || 0) + 1)
+  );
+
+  saveState();
+  render();
+}, 5000);
