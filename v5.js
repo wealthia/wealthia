@@ -149,8 +149,8 @@ function renderDailyTasks() {
     panel.innerHTML = `
       <div class="item">
         <div>
-          <strong>Tasks loading...</strong>
-          <p>Backend is preparing your daily tasks.</p>
+          <strong>🎁 Daily tasks preparing</strong>
+          <p>Tasks will appear soon.</p>
         </div>
       </div>
     `;
@@ -158,28 +158,34 @@ function renderDailyTasks() {
   }
 
   panel.innerHTML = tasks.map((task) => {
-    const buttonText = task.claimed
-      ? "Claimed"
-      : task.ready
-        ? `Claim +${format(task.reward)}`
-        : `${format(task.progress)} / ${format(task.target)}`;
+    const title = task.title || "Daily Task";
+    const reward = format(task.reward || 0);
+    const progress = format(task.progress || 0);
+    const target = format(task.target || 0);
 
-    const statusText = task.claimed
-      ? "Reward collected"
-      : task.ready
-        ? "Ready to claim"
-        : "Complete the target";
+    let buttonText = `${progress} / ${target}`;
+    let statusText = "Complete the target";
+    let disabled = "disabled";
+
+    if (task.claimed) {
+      buttonText = "Claimed";
+      statusText = "Reward collected";
+    } else if (task.ready) {
+      buttonText = `Claim +${reward}`;
+      statusText = "Ready to claim";
+      disabled = "";
+    }
 
     return `
       <div class="item ${task.claimed ? "completed" : ""}">
         <div>
-          <strong>${task.title}</strong>
+          <strong>🎁 ${title}</strong>
           <p>${statusText}</p>
         </div>
         <button
           class="reward-btn ${task.claimed ? "completed" : ""}"
-          data-daily-task="${task.id}"
-          ${task.claimed || !task.ready ? "disabled" : ""}
+          data-daily-task="${task.id || ""}"
+          ${disabled}
         >
           ${buttonText}
         </button>
