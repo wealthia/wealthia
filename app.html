@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Wealthia</title>
+  <link rel="stylesheet" href="./app.css?v=1" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <main class="app">
+    <header class="header">
+      <h1>Wealthia</h1>
+      <button class="round-button" id="resetButton" type="button">↻</button>
+    </header>
+
+    <section class="stats">
+      <div class="stat">
+        <span>Wealth Coin</span>
+        <strong id="coins">0</strong>
+      </div>
+      <div class="stat">
+        <span>Energy</span>
+        <strong><span id="energy">100</span>/100</strong>
+      </div>
+      <div class="stat">
+        <span>City Value</span>
+        <strong id="cityValue">0</strong>
+      </div>
+    </section>
+
+    <section class="city">
+      <div class="sky">
+        <div class="sun"></div>
+        <div class="cloud cloud-one"></div>
+        <div class="cloud cloud-two"></div>
+      </div>
+
+      <div class="city-icon shop-icon">🏪</div>
+      <div class="city-icon bank-icon">🏦</div>
+      <div class="city-icon factory-icon">🏢</div>
+      <div class="street"></div>
+    </section>
+
+    <section class="tap-area">
+      <button class="tap-button" id="tapButton" type="button">
+        <span id="tapLabel">Tap</span>
+        <strong>+<span id="tapPower">1</span></strong>
+      </button>
+      <div class="energy-bar">
+        <span id="energyBar"></span>
+      </div>
+    </section>
+
+    <nav class="tabs">
+      <button class="tab active" type="button" data-tab="cityPanel">City</button>
+      <button class="tab" type="button" data-tab="tasksPanel">Tasks</button>
+      <button class="tab" type="button" data-tab="earnPanel">Earn</button>
+      <button class="tab" type="button" data-tab="friendsPanel">Friends</button>
+      <button class="tab" type="button" data-tab="rankPanel">Rank</button>
+    </nav>
+
+    <section class="panel active" id="cityPanel">
+      <article class="card">
+        <div>
+          <h2>Shop</h2>
+          <p>Tap income · Level <span id="shopLevel">1</span></p>
+        </div>
+        <button class="buy-button" type="button" data-upgrade="shop">
+          Upgrade · <span id="shopCost">50</span>
+        </button>
+      </article>
+
+      <article class="card">
+        <div>
+          <h2>Bank</h2>
+          <p>Offline income · Level <span id="bankLevel">0</span></p>
+        </div>
+        <button class="buy-button" type="button" data-upgrade="bank">
+          Upgrade · <span id="bankCost">120</span>
+        </button>
+      </article>
+
+      <article class="card">
+        <div>
+          <h2>Factory</h2>
+          <p>Energy recovery · Level <span id="factoryLevel">0</span></p>
+        </div>
+        <button class="buy-button" type="button" data-upgrade="factory">
+          Upgrade · <span id="factoryCost">200</span>
+        </button>
+      </article>
+    </section>
+
+    <section class="panel" id="tasksPanel">
+      <article class="card">
+        <h2>Daily Tasks</h2>
+        <p>Loading tasks...</p>
+      </article>
+    </section>
+
+    <section class="panel" id="earnPanel">
+      <article class="card stack">
+        <h2>Earn Center</h2>
+        <p>Partner campaigns, ads, and boosts will connect here.</p>
+      </article>
+
+      <button class="task" type="button" id="sponsorTask">
+        <span><b>Partner Bot</b><small>Coming soon</small></span>
+        <strong>+750</strong>
+      </button>
+
+      <button class="task" type="button" id="adTask">
+        <span><b>Rewarded Ad</b><small>Coming soon</small></span>
+        <strong>+300</strong>
+      </button>
+
+      <button class="task" type="button" id="channelTask">
+        <span><b>Partner Channel</b><small>Coming soon</small></span>
+        <strong>+500</strong>
+      </button>
+    </section>
+
+    <section class="panel" id="friendsPanel">
+      <article class="card stack">
+        <h2>Invite Friends</h2>
+        <p>Your invite link will connect to Telegram referrals later.</p>
+        <button class="wide-button" id="inviteButton" type="button">Copy Invite Link</button>
+      </article>
+    </section>
+
+    <section class="panel" id="rankPanel">
+      <ol class="rank">
+        <li><span>You</span><strong id="rankYou">0</strong></li>
+        <li><span>Golden Mayor</span><strong>24,500</strong></li>
+        <li><span>Mint Builder</span><strong>18,200</strong></li>
+        <li><span>Urban Prince</span><strong>9,700</strong></li>
+      </ol>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="./app.js?v=1"></script>
+</body>
+</html>
