@@ -71,7 +71,7 @@ Then **Manual Deploy** the backend.
 
 ### Admin panel
 
-Open: https://wealthia.github.io/wealthia/admin.html
+Open: https://wealthia.github.io/wealthia/panel.html
 
 Sign in with your `ADMIN_SECRET`. From there you can:
 

@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <title>Wealthia Admin Panel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <style>
+    #loginScreen { display: grid; }
+    #adminApp { display: none; }
+    [hidden] { display: none !important; }
+  </style>
+  <link rel="stylesheet" href="./admin-app.css" />
+</head>
+<body>
+  <div class="login" id="loginScreen">
+    <form class="login__card" id="loginForm">
+      <div class="login__brand">W</div>
+      <h1>Wealthia Admin</h1>
+      <p>Enter your admin secret to manage players, tournaments and revenue.</p>
+      <input type="password" id="adminSecret" placeholder="Admin secret" autocomplete="current-password" required />
+      <button type="submit">Sign in</button>
+      <p class="login__error" id="loginError" hidden></p>
+    </form>
+  </div>
+
+  <div class="admin" id="adminApp" hidden>
+    <aside class="sidebar">
+      <div class="sidebar__brand">
+        <span class="sidebar__mark">W</span>
+        <div>
+          <strong>Wealthia</strong>
+          <small>Admin Panel</small>
+        </div>
+      </div>
+      <nav class="sidebar__nav">
+        <button class="nav-item active" type="button" data-view="dashboard">Dashboard</button>
+        <button class="nav-item" type="button" data-view="players">Players</button>
+        <button class="nav-item" type="button" data-view="tournaments">Tournaments</button>
+        <button class="nav-item" type="button" data-view="revenue">Revenue</button>
+      </nav>
+      <button class="sidebar__logout" id="logoutButton" type="button">Sign out</button>
+    </aside>
+
+    <main class="content">
+      <header class="content__head">
+        <div>
+          <p class="eyebrow">Control Center</p>
+          <h1 id="viewTitle">Dashboard</h1>
+        </div>
+        <button class="refresh-button" id="refreshButton" type="button">Refresh</button>
+      </header>
+
+      <section class="view active" id="dashboardView">
+        <div class="stats-grid" id="dashboardStats"></div>
+        <div class="split">
+          <article class="card">
+            <h2>Active Tournament</h2>
+            <div id="activeTournamentCard"></div>
+          </article>
+          <article class="card">
+            <h2>Quick Actions</h2>
+            <div class="quick-actions">
+              <button type="button" data-goto="tournaments">Create Tournament</button>
+              <button type="button" data-goto="players">View Players</button>
+              <button type="button" data-goto="revenue">Log Revenue</button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" id="playersView">
+        <div class="toolbar">
+          <input type="search" id="playerSearch" placeholder="Search by name or ID..." />
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th>Coins</th>
+                <th>Taps</th>
+                <th>City Value</th>
+                <th>Last Seen</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="playersTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="view" id="tournamentsView">
+        <article class="card form-card">
+          <h2>Create Tournament</h2>
+          <form id="createTournamentForm" class="form-grid">
+            <label>
+              Title
+              <input name="title" required placeholder="Weekend Tap Race" />
+            </label>
+            <label>
+              Entry Fee (coins)
+              <input name="entryFee" type="number" min="0" value="100" />
+            </label>
+            <label>
+              Duration (hours)
+              <input name="durationHours" type="number" min="1" value="24" />
+            </label>
+            <label>
+              1st Prize
+              <input name="prizeWinner" type="number" min="0" value="5000" />
+            </label>
+            <label>
+              2nd Prize
+              <input name="prizeRunnerUp" type="number" min="0" value="2500" />
+            </label>
+            <label>
+              3rd Prize
+              <input name="prizeThird" type="number" min="0" value="1000" />
+            </label>
+            <label class="full">
+              Description
+              <input name="description" placeholder="Tap as much as you can!" />
+            </label>
+            <label class="checkbox full">
+              <input name="activate" type="checkbox" checked />
+              Activate immediately (ends other active tournaments)
+            </label>
+            <div class="full">
+              <button type="submit">Create Tournament</button>
+            </div>
+          </form>
+        </article>
+        <article class="card">
+          <h2>All Tournaments</h2>
+          <div id="tournamentsList"></div>
+        </article>
+      </section>
+
+      <section class="view" id="revenueView">
+        <div class="split">
+          <article class="card form-card">
+            <h2>Log Revenue</h2>
+            <form id="logRevenueForm" class="form-grid">
+              <label>
+                Type
+                <select name="metricType">
+                  <option value="ad_revenue">Ad Revenue</option>
+                  <option value="sponsor">Sponsor</option>
+                  <option value="manual">Manual</option>
+                </select>
+              </label>
+              <label>
+                Amount ($)
+                <input name="amount" type="number" min="0" step="0.01" required />
+              </label>
+              <label class="full">
+                Notes
+                <input name="notes" placeholder="AdsGram payout March" />
+              </label>
+              <div class="full">
+                <button type="submit">Save Entry</button>
+              </div>
+            </form>
+          </article>
+          <article class="card">
+            <h2>Revenue Summary</h2>
+            <div id="revenueSummary"></div>
+          </article>
+        </div>
+        <article class="card">
+          <h2>Recent Entries</h2>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Type</th>
+                  <th>Amount</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody id="metricsTable"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="./config.js?v=1"></script>
+  <script src="./admin-app.js"></script>
+</body>
+</html>

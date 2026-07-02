@@ -2,7 +2,7 @@
 window.WEALTHIA_CONFIG = {
   API_URL: "https://wealthia-backend.onrender.com",
   GAME_URL: "https://wealthia.github.io/wealthia/v5.html",
-  ADMIN_URL: "https://wealthia.github.io/wealthia/admin.html",
+  ADMIN_URL: "https://wealthia.github.io/wealthia/panel.html",
   BOT_USERNAME: "WealthiaGameBot",
 
   // AdsGram: get block ID from https://partner.adsgram.ai
