@@ -1,738 +1,543 @@
 const API_URL = "https://wealthia-backend.onrender.com";
 let backendUserId = "web_demo";
 let backendReady = false;
-:root {
-  color-scheme: dark;
-  --bg: #11151a;
-  --surface: #1a2128;
-  --surface-2: #222c35;
-  --line: #344350;
-  --text: #f7f2e8;
-  --muted: #a9b4bf;
-  --gold: #f0b84b;
-  --green: #45c383;
-  --red: #e56b6b;
-}
 
-* {
-  box-sizing: border-box;
-}
+const storageKey = "wealthiaV5State";
 
-body {
-  margin: 0;
-  min-height: 100vh;
-  background: var(--bg);
-  color: var(--text);
-  font-family: Arial, Helvetica, sans-serif;
-}
+const defaultState = {
+  coins: 0,
+  energy: 100,
+  taps: 0,
+  spent: 0,
+  lastSeen: Date.now(),
+  dailyDate: "",
+  dailyStreak: 0,
+  tasks: {
+    tap100: false,
+    earn500: false,
+    shopUpgrade: false,
+    bankOpen: false,
+    invite: false,
+    sponsor: false,
+    ad: false,
+    channel: false
+  },
+  boosts: {
+    tapUntil: 0,
+    incomeUntil: 0
+  },
+  buildings: {
+    shop: 1,
+    bank: 0,
+    factory: 0
+  }
+};
 
-button {
-  border: 0;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
+let state = loadState();
 
-.app {
-  width: min(100%, 520px);
-  min-height: 100vh;
-  margin: 0 auto;
-  padding: 18px 14px 24px;
-  background: #151b21;
-}
+const els = {
+  coins: document.getElementById("coins"),
+  energy: document.getElementById("energy"),
+  cityValue: document.getElementById("cityValue"),
+  energyBar: document.getElementById("energyBar"),
+  tapPower: document.getElementById("tapPower"),
+  tapLabel: document.getElementById("tapLabel"),
+  tapButton: document.getElementById("tapButton"),
+  shopLevel: document.getElementById("shopLevel"),
+  bankLevel: document.getElementById("bankLevel"),
+  factoryLevel: document.getElementById("factoryLevel"),
+  shopCost: document.getElementById("shopCost"),
+  bankCost: document.getElementById("bankCost"),
+  factoryCost: document.getElementById("factoryCost"),
+  rankYou: document.getElementById("rankYou"),
+  toast: document.getElementById("toast"),
+  dailyText: document.getElementById("dailyText"),
+  dailyAmount: document.getElementById("dailyAmount"),
+  shopBuilding: document.getElementById("shopBuilding"),
+  bankBuilding: document.getElementById("bankBuilding"),
+  factoryBuilding: document.getElementById("factoryBuilding")
+};
 
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
+connectBackend();
+render();
 
-.label {
-  margin: 0 0 5px;
-  color: var(--gold);
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
+function loadState() {
+  const saved = localStorage.getItem(storageKey);
 
-h1,
-h2,
-p {
-  margin: 0;
-}
-
-h1 {
-  font-size: 32px;
-  line-height: 1;
-}
-
-.round-button {
-  width: 42px;
-  height: 42px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--surface-2);
-  font-size: 20px;
-}
-
-.stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin: 18px 0 12px;
-}
-
-.stat {
-  min-height: 76px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
-}
-
-.stat span {
-  display: block;
-  min-height: 28px;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.15;
-}
-
-.stat strong {
-  display: block;
-  margin-top: 8px;
-  font-size: 18px;
-}
-
-.stat strong span {
-  display: inline;
-  min-height: 0;
-  font-size: inherit;
-  color: inherit;
-}
-
-.city {
-  position: relative;
-  height: 220px;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #2b3944;
-}
-
-.sky {
-  position: absolute;
-  inset: 0 0 38px;
-  background: linear-gradient(#3b6272, #31424d);
-}
-
-.sun {
-  position: absolute;
-  top: 24px;
-  right: 34px;
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  background: var(--gold);
-}
-
-.cloud {
-  position: absolute;
-  width: 58px;
-  height: 18px;
-  border-radius: 999px;
-  background: #d9edf0;
-  opacity: 0.75;
-}
-
-.cloud::before,
-.cloud::after {
-  content: "";
-  position: absolute;
-  bottom: 4px;
-  border-radius: 50%;
-  background: #d9edf0;
-}
-
-.cloud::before {
-  left: 9px;
-  width: 24px;
-  height: 24px;
-}
-
-.cloud::after {
-  right: 10px;
-  width: 18px;
-  height: 18px;
-}
-
-.cloud-one {
-  top: 38px;
-  left: 28px;
-}
-
-.cloud-two {
-  top: 78px;
-  right: 118px;
-  transform: scale(0.8);
-}
-
-.building {
-  position: absolute;
-  bottom: 38px;
-  border: 2px solid #101418;
-  border-bottom: 0;
-}
-
-.building span,
-.building::before,
-.building::after {
-  content: "";
-  position: absolute;
-  left: 12px;
-  width: 12px;
-  height: 12px;
-  background: #ffe49a;
-  box-shadow: 24px 0 #ffe49a, 0 28px #ffe49a, 24px 28px #ffe49a;
-}
-
-.shop-building {
-  left: 22px;
-  width: 68px;
-  height: 78px;
-  background: #cf5d51;
-}
-
-.bank-building {
-  left: 118px;
-  width: 74px;
-  height: 116px;
-  background: #d6aa55;
-}
-
-.factory-building {
-  right: 26px;
-  width: 96px;
-  height: 96px;
-  background: #8d98a1;
-}
-
-.factory-building::after {
-  top: -36px;
-  left: 58px;
-  width: 20px;
-  height: 36px;
-  background: #5c6872;
-  box-shadow: none;
-}
-
-.street {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 38px;
-  background: #101418;
-  border-top: 3px solid #414d57;
-}
-
-.street::after {
-  content: "";
-  position: absolute;
-  left: 24px;
-  right: 24px;
-  top: 17px;
-  border-top: 3px dashed #f7f2e8;
-}
-
-.tap-area {
-  display: grid;
-  justify-items: center;
-  gap: 12px;
-  padding: 18px 0 14px;
-}
-
-.tap-button {
-  width: 156px;
-  height: 156px;
-  border-radius: 50%;
-  border: 8px solid #4f3215;
-  background: radial-gradient(circle at 50% 35%, #ffdc7f, #d98d2d 72%);
-  box-shadow: 0 12px 0 #2b1b0c;
-  color: #201408;
-  transition: transform 100ms ease, box-shadow 100ms ease;
-}
-
-.tap-button:active {
-  transform: translateY(8px) scale(0.98);
-  box-shadow: 0 4px 0 #2b1b0c;
-}
-
-.tap-button span {
-  display: block;
-  font-size: 25px;
-  font-weight: 800;
-}
-
-.tap-button strong {
-  font-size: 22px;
-}
-
-.energy-bar {
-  width: 100%;
-  height: 12px;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #0f1419;
-}
-
-.energy-bar span {
-  display: block;
-  width: 100%;
-  height: 100%;
-  background: var(--green);
-}
-
-.tabs {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.tab {
-  height: 42px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--muted);
-  font-weight: 700;
-}
-
-.tab.active {
-  background: var(--gold);
-  color: #201408;
-}
-
-.panel {
-  display: none;
-  gap: 10px;
-}
-
-.panel.active {
-  display: grid;
-}
-
-.card,
-.task,
-.rank li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 72px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
-}
-
-.stack {
-  display: grid;
-  justify-items: stretch;
-}
-
-.card h2 {
-  font-size: 17px;
-}
-
-.card p {
-  margin-top: 4px;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.35;
-}
-
-.buy-button,
-.wide-button,
-.task strong {
-  min-height: 42px;
-  padding: 0 12px;
-  border-radius: 8px;
-  background: var(--green);
-  color: #07160f;
-  font-weight: 800;
-}
-
-.buy-button {
-  flex: 0 0 auto;
-  min-width: 118px;
-}
-
-.wide-button {
-  width: 100%;
-}
-
-.task {
-  width: 100%;
-  text-align: left;
-}
-
-.task:disabled,
-.buy-button:disabled {
-  cursor: default;
-  opacity: 0.55;
-}
-
-.task strong {
-  display: grid;
-  min-width: 88px;
-  place-items: center;
-}
-
-.rank {
-  display: grid;
-  gap: 10px;
-  padding: 0;
-  margin: 0;
-  list-style-position: inside;
-}
-
-.rank li strong {
-  color: var(--gold);
-}
-
-.toast {
-  position: fixed;
-  left: 50%;
-  bottom: 18px;
-  width: min(92%, 420px);
-  padding: 12px 14px;
-  border-radius: 8px;
-  background: #f7f2e8;
-  color: #11151a;
-  font-weight: 800;
-  opacity: 0;
-  pointer-events: none;
-  transform: translate(-50%, 16px);
-  transition: opacity 160ms ease, transform 160ms ease;
-}
-
-.toast.show {
-  opacity: 1;
-  transform: translate(-50%, 0);
-}
-
-.coin-pop {
-  position: fixed;
-  color: var(--gold);
-  font-weight: 900;
-  pointer-events: none;
-  animation: float-up 700ms ease forwards;
-}
-
-@keyframes float-up {
-  from {
-    opacity: 1;
-    transform: translateY(0) scale(1);
+  if (!saved) {
+    return structuredClone(defaultState);
   }
 
-  to {
-    opacity: 0;
-    transform: translateY(-54px) scale(1.2);
+  try {
+    const parsed = JSON.parse(saved);
+
+    return {
+      ...structuredClone(defaultState),
+      ...parsed,
+      tasks: {
+        ...structuredClone(defaultState).tasks,
+        ...(parsed.tasks || {})
+      },
+      boosts: {
+        ...structuredClone(defaultState).boosts,
+        ...(parsed.boosts || {})
+      },
+      buildings: {
+        ...structuredClone(defaultState).buildings,
+        ...(parsed.buildings || {})
+      }
+    };
+  } catch {
+    return structuredClone(defaultState);
   }
 }
 
-@media (max-width: 390px) {
-  .app {
-    padding-inline: 10px;
+function saveState() {
+  state.lastSeen = Date.now();
+  localStorage.setItem(storageKey, JSON.stringify(state));
+}
+
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function format(number) {
+  return Math.floor(Number(number || 0)).toLocaleString("en-US");
+}
+
+function isTapBoostActive() {
+  return Date.now() < state.boosts.tapUntil;
+}
+
+function isIncomeBoostActive() {
+  return Date.now() < state.boosts.incomeUntil;
+}
+
+function tapPower() {
+  return state.buildings.shop * (isTapBoostActive() ? 2 : 1);
+}
+
+function hourlyIncome() {
+  const bank = state.buildings.bank;
+  const baseIncome = bank * 20 * Math.max(1, bank);
+  return baseIncome * (isIncomeBoostActive() ? 2 : 1);
+}
+
+function energyRecovery() {
+  return 1 + state.buildings.factory;
+}
+
+function cityValue() {
+  return state.coins + state.spent;
+}
+
+function dailyRewardAmount() {
+  const rewards = [100, 150, 250, 400, 700, 1000, 1500];
+  return rewards[Math.min(state.dailyStreak, rewards.length - 1)];
+}
+
+function upgradeCost(name) {
+  const base = { shop: 50, bank: 120, factory: 200 }[name];
+  const level = state.buildings[name];
+  return Math.floor(base * Math.pow(1.75, Math.max(0, level - 1)));
+}
+
+function render() {
+  els.coins.textContent = format(state.coins);
+  els.energy.textContent = Math.floor(state.energy);
+  els.cityValue.textContent = format(cityValue());
+  els.energyBar.style.width = `${Math.max(0, Math.min(100, state.energy))}%`;
+  els.energyBar.style.background = state.energy < 20 ? "var(--red)" : "var(--green)";
+  els.tapPower.textContent = tapPower();
+  els.tapLabel.textContent = state.energy < 1 ? "No Energy" : "Tap";
+  els.tapButton.classList.toggle("no-energy", state.energy < 1);
+
+  els.shopLevel.textContent = state.buildings.shop;
+  els.bankLevel.textContent = state.buildings.bank;
+  els.factoryLevel.textContent = state.buildings.factory;
+
+  els.shopCost.textContent = format(upgradeCost("shop"));
+  els.bankCost.textContent = format(upgradeCost("bank"));
+  els.factoryCost.textContent = format(upgradeCost("factory"));
+  els.rankYou.textContent = format(cityValue());
+
+  els.dailyText.textContent = `Daily reward - Day ${Math.min(state.dailyStreak + 1, 7)}`;
+  els.dailyAmount.textContent = `+${format(dailyRewardAmount())}`;
+
+  setDisabled("dailyReward", state.dailyDate === today());
+  setDisabled("tapTask", state.tasks.tap100 || state.taps < 100);
+  setDisabled("earnTask", state.tasks.earn500 || cityValue() < 500);
+  setDisabled("shopTask", state.tasks.shopUpgrade || state.buildings.shop < 2);
+  setDisabled("bankTask", state.tasks.bankOpen || state.buildings.bank < 1);
+  setDisabled("sponsorTask", state.tasks.sponsor);
+  setDisabled("adTask", state.tasks.ad);
+  setDisabled("channelTask", state.tasks.channel);
+
+  markTask("tapTask", state.tasks.tap100);
+  markTask("earnTask", state.tasks.earn500);
+  markTask("shopTask", state.tasks.shopUpgrade);
+  markTask("bankTask", state.tasks.bankOpen);
+  markTask("sponsorTask", state.tasks.sponsor);
+  markTask("adTask", state.tasks.ad);
+  markTask("channelTask", state.tasks.channel);
+
+  updateCityVisuals();
+}
+
+function setDisabled(id, disabled) {
+  const item = document.getElementById(id);
+  if (item) item.disabled = disabled;
+}
+
+function markTask(id, completed) {
+  const item = document.getElementById(id);
+  if (item) item.classList.toggle("completed", completed);
+}
+
+function updateCityVisuals() {
+  if (!els.shopBuilding || !els.bankBuilding || !els.factoryBuilding) return;
+
+  els.shopBuilding.style.height = `${78 + Math.min(state.buildings.shop - 1, 8) * 8}px`;
+  els.bankBuilding.style.height = `${80 + Math.min(state.buildings.bank, 8) * 10}px`;
+  els.factoryBuilding.style.height = `${82 + Math.min(state.buildings.factory, 8) * 8}px`;
+
+  els.shopBuilding.classList.toggle("upgraded", state.buildings.shop > 1);
+  els.bankBuilding.classList.toggle("upgraded", state.buildings.bank > 0);
+  els.factoryBuilding.classList.toggle("upgraded", state.buildings.factory > 0);
+  els.factoryBuilding.classList.toggle("active-smoke", state.buildings.factory > 0);
+}
+
+function addCoins(amount) {
+  state.coins += amount;
+  saveState();
+  render();
+}
+
+function spendCoins(amount) {
+  state.coins -= amount;
+  state.spent += amount;
+  saveState();
+  render();
+}
+
+function showToast(message) {
+  if (!els.toast) return;
+
+  els.toast.textContent = message;
+  els.toast.classList.add("show");
+  window.clearTimeout(showToast.timer);
+  showToast.timer = window.setTimeout(() => {
+    els.toast.classList.remove("show");
+  }, 1800);
+}
+
+function coinPop(x, y, amount) {
+  const pop = document.createElement("div");
+
+  pop.className = "coin-pop";
+  pop.textContent = `+${amount}`;
+  pop.style.left = `${x - 14}px`;
+  pop.style.top = `${y - 18}px`;
+
+  document.body.appendChild(pop);
+  window.setTimeout(() => pop.remove(), 720);
+}
+
+function handleLocalTap(event) {
+  if (event.cancelable) event.preventDefault();
+
+  if (state.energy < 1) {
+    showToast("Energy is empty. Wait a little.");
+    return;
   }
 
-  .stat strong {
-    font-size: 16px;
-  }
+  const amount = tapPower();
 
-  .city {
-    height: 204px;
-  }
+  state.energy = Math.max(0, state.energy - 1);
+  state.taps += 1;
+  addCoins(amount);
 
-  .bank-building {
-    left: 100px;
-  }
+  coinPop(
+    event.clientX || window.innerWidth / 2,
+    event.clientY || window.innerHeight / 2,
+    amount
+  );
+}
 
-  .factory-building {
-    right: 12px;
-  }
+async function connectBackend() {
+  try {
+    const response = await fetch(`${API_URL}/api/session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramUser: getTelegramUser() })
+    });
 
-  .buy-button {
-    min-width: 104px;
+    const user = await response.json();
+
+    if (!response.ok) {
+      throw new Error("Session failed");
+    }
+
+    backendUserId = user.userId;
+    syncFromBackend(user);
+
+    backendReady = true;
+    saveState();
+    render();
+    showToast("Backend connected.");
+  } catch {
+    backendReady = false;
+    showToast("Backend offline.");
   }
 }
 
-.building {
-  transition: height 220ms ease, transform 220ms ease, filter 220ms ease;
-  transform-origin: bottom center;
-}
-
-.building.upgraded {
-  filter: brightness(1.12);
-}
-
-.factory-building span::after {
-  content: "";
-  position: absolute;
-  top: -54px;
-  left: 54px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #c8d5da;
-  opacity: 0;
-  box-shadow: 14px -12px #c8d5da, 28px -24px #c8d5da;
-  animation: smoke 2.2s ease-in-out infinite;
-}
-
-.factory-building.active-smoke span::after {
-  opacity: 0.55;
-}
-
-@keyframes smoke {
-  0% {
-    transform: translateY(0) scale(0.8);
+async function backendTap(event) {
+  if (!backendReady) {
+    handleLocalTap(event);
+    return;
   }
 
-  50% {
-    transform: translateY(-8px) scale(1);
-  }
+  if (event.cancelable) event.preventDefault();
 
-  100% {
-    transform: translateY(-16px) scale(1.15);
+  try {
+    const response = await fetch(`${API_URL}/api/tap`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: backendUserId })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      showToast("No energy.");
+      return;
+    }
+
+    syncFromBackend(result.user);
+    saveState();
+    render();
+
+    coinPop(
+      event.clientX || window.innerWidth / 2,
+      event.clientY || window.innerHeight / 2,
+      result.amount
+    );
+  } catch {
+    showToast("Backend error.");
   }
 }
 
-.task.completed {
-  opacity: 0.55;
-}
+function syncFromBackend(user) {
+  if (!user || !user.game) return;
 
-.task.completed strong {
-  background: var(--surface-2);
-  color: var(--muted);
-}
+  state.coins = Number(user.game.coins || 0);
+  state.energy = Number(user.game.energy || 0);
+  state.taps = Number(user.game.taps || 0);
+  state.spent = Number(user.game.spent || 0);
 
-.boost-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.boost-button {
-  min-height: 68px;
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface-2);
-  color: var(--text);
-  font-weight: 800;
-  line-height: 1.15;
-}
-
-.boost-button span {
-  display: block;
-  margin-top: 6px;
-  color: var(--gold);
-  font-size: 12px;
-}
-
-@media (max-width: 390px) {
-  .tab {
-    font-size: 13px;
-  }
-
-  .boost-grid {
-    grid-template-columns: 1fr;
+  if (user.game.buildings) {
+    state.buildings = {
+      shop: Number(user.game.buildings.shop || 1),
+      bank: Number(user.game.buildings.bank || 0),
+      factory: Number(user.game.buildings.factory || 0)
+    };
   }
 }
 
-@media (max-width: 520px) {
-  body {
-    overflow: hidden;
+function getTelegramUser() {
+  const tg = window.Telegram && window.Telegram.WebApp;
+
+  if (tg) {
+    tg.ready();
+    tg.expand();
   }
 
-  .app {
-    height: 100dvh;
-    overflow: hidden;
-    padding: 4px 7px;
+  const user = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+
+  if (user && user.id) {
+    return {
+      id: user.id,
+      first_name: user.first_name || "Player",
+      username: user.username || ""
+    };
   }
 
-  .label {
-    display: none;
-  }
-
-  h1 {
-    font-size: 22px;
-  }
-
-  .round-button {
-    width: 30px;
-    height: 30px;
-    font-size: 14px;
-  }
-
-  .stats {
-    margin: 5px 0;
-    gap: 4px;
-  }
-
-  .stat {
-    min-height: 40px;
-    padding: 5px;
-  }
-
-  .stat span {
-    font-size: 9px;
-    min-height: 10px;
-  }
-
-  .stat strong {
-    font-size: 13px;
-    margin-top: 2px;
-  }
-
-  .city {
-    height: 96px;
-  }
-
-  .sky {
-    inset: 0 0 22px;
-  }
-
-  .street {
-    height: 22px;
-  }
-
-  .street::after {
-    top: 9px;
-  }
-
-  .sun {
-    width: 26px;
-    height: 26px;
-    top: 10px;
-    right: 24px;
-  }
-
-  .cloud {
-    transform: scale(0.55);
-  }
-
-  .shop-building {
-    width: 44px;
-    height: 36px !important;
-    left: 18px;
-    bottom: 22px;
-  }
-
-  .bank-building {
-    width: 48px;
-    height: 44px !important;
-    left: 84px;
-    bottom: 22px;
-  }
-
-  .factory-building {
-    width: 60px;
-    height: 42px !important;
-    right: 16px;
-    bottom: 22px;
-  }
-
-  .tap-area {
-    padding: 5px 0 4px;
-    gap: 4px;
-  }
-
-  .tap-button {
-    width: 68px;
-    height: 68px;
-    border-width: 5px;
-    box-shadow: 0 4px 0 #2b1b0c;
-  }
-
-  .tap-button span {
-    font-size: 14px;
-  }
-
-  .tap-button strong {
-    font-size: 14px;
-  }
-
-  .energy-bar {
-    height: 7px;
-  }
-
-  .tab {
-    height: 28px;
-    font-size: 10px;
-  }
-
-  .panel {
-    max-height: calc(100dvh - 315px);
-    overflow-y: auto;
-  }
-
-  .card,
-  .task,
-  .rank li {
-    min-height: 44px;
-    padding: 7px;
-  }
+  return {
+    id: "web_demo",
+    first_name: "Web Demo",
+    username: ""
+  };
 }
 
-html,
-body {
-  touch-action: manipulation;
-  overscroll-behavior: none;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-}
+els.tapButton.addEventListener("pointerdown", backendTap);
 
-button,
-.tap-button,
-.tab,
-.card,
-.task {
-  touch-action: manipulation;
-}
+document.querySelectorAll("[data-upgrade]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const name = button.dataset.upgrade;
+    const cost = upgradeCost(name);
 
-.tap-button.no-energy {
-  filter: grayscale(0.55);
-  opacity: 0.72;
-  background: radial-gradient(circle at 50% 35%, #d9d0bd, #8a8174 72%);
-}
+    if (state.coins < cost) {
+      showToast("Not enough Wealth Coin.");
+      return;
+    }
 
-.tap-button.no-energy span,
-.tap-button.no-energy strong {
-  color: #2b261f;
-}
+    spendCoins(cost);
+    state.buildings[name] += 1;
+    saveState();
+    render();
+    showToast(`${name[0].toUpperCase() + name.slice(1)} upgraded.`);
+  });
+});
 
-.earn-hero {
-  border-color: rgba(240, 184, 75, 0.55);
-  background: linear-gradient(135deg, rgba(240, 184, 75, 0.14), var(--surface) 62%);
-}
+document.querySelectorAll(".tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((item) => item.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach((panel) => panel.classList.remove("active"));
 
-.earn-task span {
-  display: grid;
-  gap: 3px;
-}
+    tab.classList.add("active");
+    document.getElementById(tab.dataset.tab).classList.add("active");
+  });
+});
 
-.earn-task b {
-  font-size: 15px;
-}
+document.getElementById("dailyReward").addEventListener("click", () => {
+  if (state.dailyDate === today()) return;
 
-.earn-task small {
-  color: var(--muted);
-  font-size: 12px;
-}
+  const amount = dailyRewardAmount();
+  state.dailyDate = today();
+  state.dailyStreak = Math.min(state.dailyStreak + 1, 7);
+
+  addCoins(amount);
+  showToast("Daily reward claimed.");
+});
+
+document.getElementById("tapTask").addEventListener("click", () => {
+  if (state.tasks.tap100 || state.taps < 100) return;
+
+  state.tasks.tap100 = true;
+  addCoins(150);
+  showToast("Task completed.");
+});
+
+document.getElementById("earnTask").addEventListener("click", () => {
+  if (state.tasks.earn500 || cityValue() < 500) return;
+
+  state.tasks.earn500 = true;
+  addCoins(250);
+  showToast("Task completed.");
+});
+
+document.getElementById("shopTask").addEventListener("click", () => {
+  if (state.tasks.shopUpgrade || state.buildings.shop < 2) return;
+
+  state.tasks.shopUpgrade = true;
+  addCoins(200);
+  showToast("Task completed.");
+});
+
+document.getElementById("bankTask").addEventListener("click", () => {
+  if (state.tasks.bankOpen || state.buildings.bank < 1) return;
+
+  state.tasks.bankOpen = true;
+  addCoins(200);
+  showToast("Task completed.");
+});
+
+document.getElementById("sponsorTask").addEventListener("click", () => {
+  if (state.tasks.sponsor) return;
+
+  state.tasks.sponsor = true;
+  addCoins(750);
+  showToast("Sponsor task completed.");
+});
+
+document.getElementById("adTask").addEventListener("click", () => {
+  if (state.tasks.ad) return;
+
+  state.tasks.ad = true;
+  addCoins(300);
+  showToast("Rewarded ad completed.");
+});
+
+document.getElementById("channelTask").addEventListener("click", () => {
+  if (state.tasks.channel) return;
+
+  state.tasks.channel = true;
+  addCoins(500);
+  showToast("Partner channel reward claimed.");
+});
+
+document.getElementById("fullEnergyBoost").addEventListener("click", () => {
+  if (state.coins < 100) {
+    showToast("Not enough Wealth Coin.");
+    return;
+  }
+
+  spendCoins(100);
+  state.energy = 100;
+  saveState();
+  render();
+  showToast("Energy filled.");
+});
+
+document.getElementById("tapBoost").addEventListener("click", () => {
+  if (state.coins < 150) {
+    showToast("Not enough Wealth Coin.");
+    return;
+  }
+
+  spendCoins(150);
+  state.boosts.tapUntil = Date.now() + 60 * 1000;
+  saveState();
+  render();
+  showToast("2x Tap active for 60 seconds.");
+});
+
+document.getElementById("incomeBoost").addEventListener("click", () => {
+  if (state.coins < 200) {
+    showToast("Not enough Wealth Coin.");
+    return;
+  }
+
+  spendCoins(200);
+  state.boosts.incomeUntil = Date.now() + 60 * 1000;
+  saveState();
+  render();
+  showToast("2x Income active for 60 seconds.");
+});
+
+document.getElementById("inviteButton").addEventListener("click", async () => {
+  const link = "https://t.me/WealthiaGameBot?start=ref_demo";
+
+  try {
+    await navigator.clipboard.writeText(link);
+  } catch {
+    showToast(link);
+    return;
+  }
+
+  if (!state.tasks.invite) {
+    state.tasks.invite = true;
+    addCoins(500);
+  }
+
+  showToast("Invite link copied.");
+});
+
+document.getElementById("resetButton").addEventListener("click", () => {
+  if (!confirm("Reset Wealthia preview?")) return;
+
+  state = structuredClone(defaultState);
+  saveState();
+  render();
+  showToast("Preview reset.");
+});
+
+window.setInterval(() => {
+  if (backendReady) return;
+
+  state.energy = Math.min(100, state.energy + energyRecovery());
+  state.coins += hourlyIncome() / 3600;
+
+  saveState();
+  render();
+}, 1000);
