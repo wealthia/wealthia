@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./v5.css?v=2000" />
+  <link rel="stylesheet" href="./v5.css?v=2001" />
 </head>
 <body>
   <div class="ambient" aria-hidden="true">
@@ -153,76 +153,9 @@
       </article>
     </section>
 
-    <section class="panel" id="tasksPanel">
-      <div class="panel-head">
-        <h2>Daily Missions</h2>
-        <p>Complete tasks and claim premium rewards</p>
-      </div>
-      <button class="task" type="button" id="dailyReward">
-        <span id="dailyText">Daily reward &middot; Day 1</span>
-        <strong id="dailyAmount">+100</strong>
-      </button>
-      <button class="task" type="button" id="tapTask">
-        <span>Tap 100 times</span>
-        <strong>+150</strong>
-      </button>
-      <button class="task" type="button" id="earnTask">
-        <span>Earn 500 coins</span>
-        <strong>+250</strong>
-      </button>
-      <button class="task" type="button" id="shopTask">
-        <span>Upgrade Shop</span>
-        <strong>+200</strong>
-      </button>
-      <button class="task" type="button" id="bankTask">
-        <span>Open Bank</span>
-        <strong>+200</strong>
-      </button>
-    </section>
+    <section class="panel" id="tasksPanel"></section>
 
-    <section class="panel" id="earnPanel">
-      <article class="card stack earn-hero">
-        <div class="earn-hero__badge">VIP Earn Center</div>
-        <h2>Multiply Your Fortune</h2>
-        <p>Partner campaigns, rewarded ads, and power boosts to accelerate your empire.</p>
-      </article>
-
-      <button class="task earn-task" type="button" id="sponsorTask">
-        <span><b>Partner Bot</b><small>Open a sponsor bot</small></span>
-        <strong>+750</strong>
-      </button>
-
-      <button class="task earn-task" type="button" id="adTask">
-        <span><b>Rewarded Ad</b><small>Watch a short ad</small></span>
-        <strong>+300</strong>
-      </button>
-
-      <button class="task earn-task" type="button" id="channelTask">
-        <span><b>Partner Channel</b><small>Join a Telegram channel</small></span>
-        <strong>+500</strong>
-      </button>
-
-      <article class="card stack">
-        <h2>Power Boosts</h2>
-        <div class="boost-grid">
-          <button class="boost-button" type="button" id="fullEnergyBoost">
-            <span class="boost-button__icon">&#x26A1;</span>
-            Full Energy
-            <span>Cost 100</span>
-          </button>
-          <button class="boost-button" type="button" id="tapBoost">
-            <span class="boost-button__icon">&#x1F4AA;</span>
-            2x Tap
-            <span>Cost 150</span>
-          </button>
-          <button class="boost-button" type="button" id="incomeBoost">
-            <span class="boost-button__icon">&#x1F4C8;</span>
-            2x Income
-            <span>Cost 200</span>
-          </button>
-        </div>
-      </article>
-    </section>
+    <section class="panel" id="earnPanel"></section>
 
     <section class="panel" id="friendsPanel">
       <div class="card stack friends-card">
@@ -235,38 +168,11 @@
       </div>
     </section>
 
-    <section class="panel" id="rankPanel">
-      <div class="panel-head">
-        <h2>Global Leaderboard</h2>
-        <p>Compete with the wealthiest builders</p>
-      </div>
-      <ol class="rank">
-        <li class="rank__you">
-          <span class="rank__medal">&#x1F947;</span>
-          <span>You</span>
-          <strong id="rankYou">0</strong>
-        </li>
-        <li>
-          <span class="rank__medal">&#x1F948;</span>
-          <span>Golden Mayor</span>
-          <strong>24,500</strong>
-        </li>
-        <li>
-          <span class="rank__medal">&#x1F949;</span>
-          <span>Mint Builder</span>
-          <strong>18,200</strong>
-        </li>
-        <li>
-          <span class="rank__medal">&#x1F3C5;</span>
-          <span>Urban Prince</span>
-          <strong>9,700</strong>
-        </li>
-      </ol>
-    </section>
+    <section class="panel" id="rankPanel"></section>
   </main>
 
   <div class="toast" id="toast"></div>
 
-  <script src="./v5.js?v=10002"></script>
+  <script src="./v5.js?v=10003"></script>
 </body>
 </html>
