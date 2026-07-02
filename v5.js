@@ -1,7 +1,12 @@
 const API_URL = "https://wealthia-backend.onrender.com";
+const CONFIG = window.WEALTHIA_CONFIG || {};
 let backendUserId = "web_demo";
 let backendReady = false;
 let leaderboardRows = [];
+let adsgramController = null;
+let onboardingStep = 1;
+
+const onboardingKey = `wealthia_onboarding_${CONFIG.ONBOARDING_VERSION || "v1"}`;
 
 const storageKey = "wealthiaV5State";
 
@@ -64,6 +69,8 @@ const els = {
 };
 
 connectBackend();
+initAdsGram();
+setupOnboarding();
 render();
 
 function loadState() {
@@ -328,6 +335,123 @@ function updateCityVisuals() {
   els.factoryBuilding.classList.toggle("upgraded", state.buildings.factory > 0);
 }
 
+function openPartnerLink(url) {
+  const tg = window.Telegram && window.Telegram.WebApp;
+
+  if (tg && typeof tg.openTelegramLink === "function" && String(url).includes("t.me")) {
+    tg.openTelegramLink(url);
+    return;
+  }
+
+  if (tg && typeof tg.openLink === "function") {
+    tg.openLink(url);
+    return;
+  }
+
+  window.open(url, "_blank");
+}
+
+function initAdsGram() {
+  const blockId = CONFIG.ADSGRAM_BLOCK_ID;
+
+  if (!blockId || !window.Adsgram) return;
+
+  try {
+    adsgramController = window.Adsgram.init({ blockId, debug: false });
+  } catch {
+    adsgramController = null;
+  }
+}
+
+async function showRewardedAd() {
+  if (!adsgramController) {
+    showToast("Demo ad mode — reward granted.");
+    return true;
+  }
+
+  try {
+    await adsgramController.show();
+    return true;
+  } catch {
+    showToast("Watch the full ad to get reward.");
+    return false;
+  }
+}
+
+function setupOnboarding() {
+  const root = document.getElementById("onboarding");
+  const nextButton = document.getElementById("onboardingNext");
+  const skipButton = document.getElementById("onboardingSkip");
+
+  if (!root || !nextButton || !skipButton) return;
+
+  nextButton.addEventListener("click", () => {
+    if (onboardingStep >= 3) {
+      finishOnboarding();
+      return;
+    }
+
+    updateOnboardingStep(onboardingStep + 1);
+  });
+
+  skipButton.addEventListener("click", finishOnboarding);
+
+  window.addEventListener("resize", () => {
+    if (!root.hidden) updateOnboardingStep(onboardingStep);
+  });
+}
+
+function startOnboardingIfNeeded() {
+  if (localStorage.getItem(onboardingKey)) return;
+
+  const root = document.getElementById("onboarding");
+  if (!root) return;
+
+  root.hidden = false;
+  updateOnboardingStep(1);
+}
+
+function updateOnboardingStep(step) {
+  onboardingStep = step;
+
+  document.querySelectorAll(".onboarding__step").forEach((item) => {
+    item.hidden = Number(item.dataset.step) !== step;
+  });
+
+  const highlight = document.getElementById("onboardingHighlight");
+  const targets = {
+    1: els.tapButton,
+    2: document.querySelector('[data-tab="cityPanel"]'),
+    3: document.querySelector('[data-tab="tasksPanel"]')
+  };
+
+  const target = targets[step];
+
+  if (highlight && target) {
+    const rect = target.getBoundingClientRect();
+    highlight.style.left = `${rect.left - 8}px`;
+    highlight.style.top = `${rect.top - 8}px`;
+    highlight.style.width = `${rect.width + 16}px`;
+    highlight.style.height = `${rect.height + 16}px`;
+    highlight.hidden = false;
+  } else if (highlight) {
+    highlight.hidden = true;
+  }
+
+  const nextButton = document.getElementById("onboardingNext");
+  if (nextButton) nextButton.textContent = step >= 3 ? "Start!" : "Next";
+}
+
+function finishOnboarding() {
+  localStorage.setItem(onboardingKey, "1");
+
+  const root = document.getElementById("onboarding");
+  if (root) root.hidden = true;
+
+  const highlight = document.getElementById("onboardingHighlight");
+  if (highlight) highlight.hidden = true;
+}
+
 function showToast(message) {
   if (!els.toast) return;
 
@@ -469,6 +593,7 @@ async function applyBackendUser(user, message) {
   await loadLeaderboard();
 
   if (message) showToast(message);
+  startOnboardingIfNeeded();
   return true;
 }
 
@@ -609,6 +734,30 @@ async function claimDailyReward() {
   await applyBackendUser(result.user, `Daily reward: +${format(result.reward)}`);
 }
 
+async function handleEarnClick(type) {
+  if (state.tasks[type]) {
+    showToast("Already claimed.");
+    return;
+  }
+
+  if (type === "ad") {
+    const watched = await showRewardedAd();
+    if (!watched) return;
+  }
+
+  if (type === "sponsor") {
+    openPartnerLink(CONFIG.SPONSOR_BOT_URL || "https://t.me/WealthiaGameBot");
+    showToast("Open sponsor bot, then reward is added.");
+  }
+
+  if (type === "channel") {
+    openPartnerLink(CONFIG.PARTNER_CHANNEL_URL || "https://t.me/wealthia_channel");
+    showToast("Join channel, then reward is added.");
+  }
+
+  await claimEarnTask(type);
+}
+
 async function claimEarnTask(type) {
   if (!backendReady) {
     showToast("Backend offline.");
@@ -730,7 +879,7 @@ if (els.earnPanel) {
   els.earnPanel.addEventListener("click", (event) => {
     const earnButton = event.target.closest("[data-earn]");
     if (earnButton && !earnButton.disabled) {
-      claimEarnTask(earnButton.dataset.earn);
+      handleEarnClick(earnButton.dataset.earn);
       return;
     }
 
@@ -744,7 +893,8 @@ if (els.earnPanel) {
 const inviteButton = document.getElementById("inviteButton");
 if (inviteButton) {
   inviteButton.addEventListener("click", async () => {
-    const link = `https://t.me/WealthiaGameBot?start=ref_${backendUserId}`;
+    const botName = CONFIG.BOT_USERNAME || "WealthiaGameBot";
+    const link = `https://t.me/${botName}?start=ref_${backendUserId}`;
 
     try {
       await navigator.clipboard.writeText(link);
