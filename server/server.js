@@ -303,11 +303,11 @@ async function loadGame(userId) {
 }
 
 app.get("/", (_req, res) => {
-  res.json({ ok: true, app: "Wealthia API", database: true, version: ""daily-tasks-v3"" });
+  res.json({ ok: true, app: "Wealthia API", database: true, version: "daily-tasks-v3" });
 });
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, app: "Wealthia API", database: true, version: ""daily-tasks-v3"" });
+  res.json({ ok: true, app: "Wealthia API", database: true, version: "daily-tasks-v3" });
 });
 
 app.post("/api/session", async (req, res) => {
