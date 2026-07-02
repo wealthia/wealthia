@@ -1,543 +1,496 @@
-import http from "node:http";
+const express = require("express");
+const cors = require("cors");
+const { createClient } = require("@supabase/supabase-js");
 
+const app = express();
 const port = process.env.PORT || 3000;
+
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 
-const maxEnergy = 100;
-
-const defaultGame = {
-  coins: 0,
-  energy: 100,
-  taps: 0,
-  spent: 0,
-  city_value: 0,
-  shop_level: 1,
-  bank_level: 0,
-  factory_level: 0,
-  daily_date: "",
-  daily_streak: 0,
-  tap100_done: false,
-  earn500_done: false,
-  shop_upgrade_done: false,
-  bank_open_done: false,
-  invite_done: false,
-  sponsor_done: false,
-  ad_done: false,
-  channel_done: false,
-  tap_boost_until: 0,
-  income_boost_until: 0
-};
-
-const taskRewards = {
-  tap100: 150,
-  earn500: 250,
-  shopUpgrade: 200,
-  bankOpen: 200,
-  daily: 0
-};
-
-const server = http.createServer(async (req, res) => {
-  setCors(res);
-
-  if (req.method === "OPTIONS") {
-    res.writeHead(204);
-    res.end();
-    return;
-  }
-
-  const url = new URL(req.url, `http://${req.headers.host}`);
-
-  try {
-    if (req.method === "GET" && url.pathname === "/health") {
-      send(res, 200, {
-        ok: true,
-        app: "Wealthia API",
-        database: Boolean(supabaseUrl && supabaseKey),
-        version: "tasks-v1"
-      });
-      return;
-    }
-
-    if (req.method === "POST" && url.pathname === "/api/session") {
-      const body = await readBody(req);
-      const tg = body.telegramUser || {};
-      const userId = String(tg.id || "web_demo");
-
-      await upsertUser({
-        id: userId,
-        telegram_id: userId,
-        first_name: tg.first_name || "Player",
-        username: tg.username || ""
-      });
-
-      let game = await getGame(userId);
-
-      if (!game) {
-        game = await createGame(userId);
-      }
-
-      game = await applyPassiveProgress(userId, game);
-
-      send(res, 200, toClientUser(userId, tg.first_name || "Player", tg.username || "", game));
-      return;
-    }
-
-    if (req.method === "POST" && url.pathname === "/api/tap") {
-      const body = await readBody(req);
-      const userId = String(body.userId || "");
-      let game = await getGame(userId);
-
-      if (!game) {
-        send(res, 404, { error: "USER_NOT_FOUND" });
-        return;
-      }
-
-      game = await applyPassiveProgress(userId, game);
-
-      if (Number(game.energy) < 1) {
-        send(res, 400, {
-          error: "NO_ENERGY",
-          user: toClientUser(userId, "Player", "", game)
-        });
-        return;
-      }
-
-      const amount = tapPower(game);
-      const nextGame = {
-        ...game,
-        energy: Math.max(0, Number(game.energy) - 1),
-        coins: Number(game.coins) + amount,
-        city_value: Number(game.city_value || 0) + amount,
-        taps: Number(game.taps || 0) + 1,
-        updated_at: new Date().toISOString()
-      };
-
-      await updateGame(userId, nextGame);
-
-      send(res, 200, {
-        amount,
-        user: toClientUser(userId, "Player", "", nextGame)
-      });
-      return;
-    }
-
-    if (req.method === "POST" && url.pathname === "/api/upgrade") {
-      const body = await readBody(req);
-      const userId = String(body.userId || "");
-      const building = String(body.building || "");
-      let game = await getGame(userId);
-
-      if (!game) {
-        send(res, 404, { error: "USER_NOT_FOUND" });
-        return;
-      }
-
-      game = await applyPassiveProgress(userId, game);
-
-      if (!["shop", "bank", "factory"].includes(building)) {
-        send(res, 400, { error: "BAD_BUILDING" });
-        return;
-      }
-
-      const levelKey = `${building}_level`;
-      const cost = upgradeCost(game, building);
-
-      if (Number(game.coins) < cost) {
-        send(res, 400, {
-          error: "NOT_ENOUGH_COINS",
-          user: toClientUser(userId, "Player", "", game)
-        });
-        return;
-      }
-
-      const nextGame = {
-        ...game,
-        coins: Number(game.coins) - cost,
-        spent: Number(game.spent || 0) + cost,
-        city_value: Number(game.city_value || 0) + cost,
-        [levelKey]: Number(game[levelKey] || 0) + 1,
-        updated_at: new Date().toISOString()
-      };
-
-      await updateGame(userId, nextGame);
-
-      send(res, 200, {
-        cost,
-        user: toClientUser(userId, "Player", "", nextGame)
-      });
-      return;
-    }
-
-    if (req.method === "POST" && url.pathname === "/api/claim-task") {
-      const body = await readBody(req);
-      const userId = String(body.userId || "");
-      const task = String(body.task || "");
-      let game = await getGame(userId);
-
-      if (!game) {
-        send(res, 404, { error: "USER_NOT_FOUND" });
-        return;
-      }
-
-      game = await applyPassiveProgress(userId, game);
-
-      const result = claimTask(game, task);
-
-      if (!result.ok) {
-        send(res, 400, {
-          error: result.error,
-          user: toClientUser(userId, "Player", "", game)
-        });
-        return;
-      }
-
-      await updateGame(userId, result.game);
-
-      send(res, 200, {
-        reward: result.reward,
-        user: toClientUser(userId, "Player", "", result.game)
-      });
-      return;
-    }
-
-    if (req.method === "GET" && url.pathname === "/api/leaderboard") {
-      const games = await select("game_states?select=*&order=city_value.desc&limit=25");
-
-      send(res, 200, {
-        players: games.map((game, index) => ({
-          rank: index + 1,
-          userId: game.user_id,
-          cityValue: Number(game.city_value || 0)
-        }))
-      });
-      return;
-    }
-
-    if (req.method === "GET" && url.pathname === "/api/admin/summary") {
-      const games = await select("game_states?select=*");
-
-      send(res, 200, {
-        users: games.length,
-        totalCoins: games.reduce((sum, game) => sum + Number(game.coins || 0), 0),
-        totalTaps: games.reduce((sum, game) => sum + Number(game.taps || 0), 0),
-        topPlayers: games
-          .sort((a, b) => Number(b.city_value || 0) - Number(a.city_value || 0))
-          .slice(0, 10)
-      });
-      return;
-    }
-
-    send(res, 404, { error: "NOT_FOUND" });
-  } catch (error) {
-    send(res, 500, {
-      error: "SERVER_ERROR",
-      message: error.message
-    });
-  }
-});
-
-server.listen(port, () => {
-  console.log(`Wealthia backend running on port ${port}`);
-});
-
-function claimTask(game, task) {
-  const todayDate = today();
-
-  if (task === "daily") {
-    if (game.daily_date === todayDate) {
-      return { ok: false, error: "DAILY_ALREADY_CLAIMED" };
-    }
-
-    const reward = dailyRewardAmount(game);
-    const nextGame = {
-      ...game,
-      coins: Number(game.coins) + reward,
-      city_value: Number(game.city_value || 0) + reward,
-      daily_date: todayDate,
-      daily_streak: Math.min(Number(game.daily_streak || 0) + 1, 7),
-      updated_at: new Date().toISOString()
-    };
-
-    return { ok: true, reward, game: nextGame };
-  }
-
-  if (task === "tap100") {
-    if (game.tap100_done) return { ok: false, error: "TASK_DONE" };
-    if (Number(game.taps || 0) < 100) return { ok: false, error: "TASK_LOCKED" };
-
-    return completeTask(game, "tap100_done", taskRewards.tap100);
-  }
-
-  if (task === "earn500") {
-    if (game.earn500_done) return { ok: false, error: "TASK_DONE" };
-    if (Number(game.city_value || 0) < 500) return { ok: false, error: "TASK_LOCKED" };
-
-    return completeTask(game, "earn500_done", taskRewards.earn500);
-  }
-
-  if (task === "shopUpgrade") {
-    if (game.shop_upgrade_done) return { ok: false, error: "TASK_DONE" };
-    if (Number(game.shop_level || 1) < 2) return { ok: false, error: "TASK_LOCKED" };
-
-    return completeTask(game, "shop_upgrade_done", taskRewards.shopUpgrade);
-  }
-
-  if (task === "bankOpen") {
-    if (game.bank_open_done) return { ok: false, error: "TASK_DONE" };
-    if (Number(game.bank_level || 0) < 1) return { ok: false, error: "TASK_LOCKED" };
-
-    return completeTask(game, "bank_open_done", taskRewards.bankOpen);
-  }
-
-  return { ok: false, error: "BAD_TASK" };
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_KEY");
+  process.exit(1);
 }
 
-function completeTask(game, doneKey, reward) {
-  const nextGame = {
-    ...game,
-    [doneKey]: true,
-    coins: Number(game.coins) + reward,
-    city_value: Number(game.city_value || 0) + reward,
-    updated_at: new Date().toISOString()
-  };
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  return {
-    ok: true,
-    reward,
-    game: nextGame
-  };
+app.use(cors());
+app.use(express.json());
+
+const MAX_ENERGY = 100;
+const ENERGY_RECOVERY_PER_MINUTE = 2;
+const OFFLINE_INCOME_PER_BANK_LEVEL_PER_MINUTE = 3;
+
+function nowMs() {
+  return Date.now();
 }
 
-function today() {
+function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function dailyRewardAmount(game) {
-  const rewards = [100, 150, 250, 400, 700, 1000, 1500];
-  const streak = Number(game.daily_streak || 0);
-  return rewards[Math.min(streak, rewards.length - 1)];
+function number(value) {
+  return Number(value || 0);
 }
 
-async function upsertUser(user) {
-  const existing = await select(`users?id=eq.${encodeURIComponent(user.id)}&select=id`);
-
-  if (existing.length > 0) {
-    await patch(`users?id=eq.${encodeURIComponent(user.id)}`, {
-      first_name: user.first_name,
-      username: user.username,
-      last_seen_at: new Date().toISOString()
-    });
-    return;
-  }
-
-  await insert("users", {
-    ...user,
-    last_seen_at: new Date().toISOString()
-  });
-}
-
-async function getGame(userId) {
-  const rows = await select(`game_states?user_id=eq.${encodeURIComponent(userId)}&select=*`);
-  return rows[0] || null;
-}
-
-async function createGame(userId) {
-  const game = {
-    user_id: userId,
-    ...defaultGame,
-    updated_at: new Date().toISOString()
-  };
-
-  const rows = await insert("game_states", game);
-  return rows[0];
-}
-
-async function applyPassiveProgress(userId, game) {
-  const now = Date.now();
-  const updatedAt = game.updated_at ? new Date(game.updated_at).getTime() : now;
-  const secondsAway = Math.max(0, Math.floor((now - updatedAt) / 1000));
-
-  if (secondsAway <= 0) {
-    return game;
-  }
-
-  const recoveredEnergy = secondsAway * energyRecovery(game);
-  const cappedSeconds = Math.min(secondsAway, 8 * 60 * 60);
-  const earnedOffline = Math.floor((hourlyIncome(game) / 3600) * cappedSeconds);
-
-  const nextGame = {
-    ...game,
-    energy: Math.min(maxEnergy, Number(game.energy || 0) + recoveredEnergy),
-    coins: Number(game.coins || 0) + earnedOffline,
-    city_value: Number(game.city_value || 0) + earnedOffline,
-    updated_at: new Date().toISOString()
-  };
-
-  await updateGame(userId, nextGame);
-  return nextGame;
-}
-
-async function updateGame(userId, game) {
-  await patch(`game_states?user_id=eq.${encodeURIComponent(userId)}`, {
-    coins: game.coins,
-    energy: game.energy,
-    taps: game.taps,
-    spent: game.spent,
-    city_value: game.city_value,
-    shop_level: game.shop_level,
-    bank_level: game.bank_level,
-    factory_level: game.factory_level,
-    daily_date: game.daily_date || "",
-    daily_streak: game.daily_streak || 0,
-    tap100_done: Boolean(game.tap100_done),
-    earn500_done: Boolean(game.earn500_done),
-    shop_upgrade_done: Boolean(game.shop_upgrade_done),
-    bank_open_done: Boolean(game.bank_open_done),
-    invite_done: Boolean(game.invite_done),
-    sponsor_done: Boolean(game.sponsor_done),
-    ad_done: Boolean(game.ad_done),
-    channel_done: Boolean(game.channel_done),
-    tap_boost_until: game.tap_boost_until || 0,
-    income_boost_until: game.income_boost_until || 0,
-    updated_at: new Date().toISOString()
-  });
-}
-
-function tapPower(game) {
-  const active = Date.now() < Number(game.tap_boost_until || 0);
-  return Number(game.shop_level || 1) * (active ? 2 : 1);
-}
-
-function hourlyIncome(game) {
-  const bank = Number(game.bank_level || 0);
-  const active = Date.now() < Number(game.income_boost_until || 0);
-  const baseIncome = bank * 20 * Math.max(1, bank);
-  return baseIncome * (active ? 2 : 1);
-}
-
-function energyRecovery(game) {
-  return 1 + Number(game.factory_level || 0);
-}
-
-function upgradeCost(game, building) {
-  const base = {
-    shop: 50,
-    bank: 120,
-    factory: 200
-  }[building];
-
-  const levelKey = `${building}_level`;
-  const level = Number(game[levelKey] || 0);
-
+function upgradeCost(building, level) {
+  const base = { shop: 50, bank: 120, factory: 200 }[building];
   return Math.floor(base * Math.pow(1.75, Math.max(0, level - 1)));
 }
 
-function toClientUser(userId, name, username, game) {
+function tapPower(row) {
+  const boostActive = number(row.tap_boost_until) > nowMs();
+  const base = Math.max(1, number(row.shop_level));
+  return boostActive ? base * 2 : base;
+}
+
+function incomeMultiplier(row) {
+  return number(row.income_boost_until) > nowMs() ? 2 : 1;
+}
+
+function buildCityValue(row) {
+  return number(row.coins) + number(row.spent);
+}
+
+function safeJson(value, fallback) {
+  if (Array.isArray(value)) return value;
+  if (value && typeof value === "object") return value;
+  try {
+    const parsed = JSON.parse(value || "");
+    return parsed || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function buildDailyTasks(row) {
+  const level = Math.max(1, number(row.shop_level) + number(row.bank_level) + number(row.factory_level));
+  const daySeed = Number(todayKey().replaceAll("-", ""));
+
+  const pool = [
+    {
+      id: "tap-small",
+      title: `Tap ${50 + (daySeed % 3) * 25} times`,
+      type: "taps",
+      target: 50 + (daySeed % 3) * 25,
+      reward: 120 + level * 20
+    },
+    {
+      id: "tap-big",
+      title: `Tap ${120 + (daySeed % 4) * 40} times`,
+      type: "taps",
+      target: 120 + (daySeed % 4) * 40,
+      reward: 220 + level * 35
+    },
+    {
+      id: "earn-coins",
+      title: `Reach ${300 + level * 100} city value`,
+      type: "city_value",
+      target: 300 + level * 100,
+      reward: 250 + level * 40
+    },
+    {
+      id: "upgrade-shop",
+      title: "Upgrade Shop",
+      type: "shop_level",
+      target: Math.max(2, number(row.shop_level)),
+      reward: 200 + level * 30
+    },
+    {
+      id: "open-bank",
+      title: "Open Bank",
+      type: "bank_level",
+      target: 1,
+      reward: 220
+    },
+    {
+      id: "grow-factory",
+      title: "Build Factory",
+      type: "factory_level",
+      target: 1,
+      reward: 300
+    }
+  ];
+
+  const start = daySeed % pool.length;
+  const picked = [];
+
+  for (let i = 0; i < 4; i += 1) {
+    picked.push(pool[(start + i) % pool.length]);
+  }
+
+  return picked;
+}
+
+function taskProgress(row, task) {
+  if (task.type === "taps") return number(row.taps);
+  if (task.type === "city_value") return buildCityValue(row);
+  if (task.type === "shop_level") return number(row.shop_level);
+  if (task.type === "bank_level") return number(row.bank_level);
+  if (task.type === "factory_level") return number(row.factory_level);
+  return 0;
+}
+
+function taskReady(row, task) {
+  return taskProgress(row, task) >= number(task.target);
+}
+
+function refreshDailyTasks(row) {
+  const date = todayKey();
+
+  if (row.daily_tasks_date === date && Array.isArray(safeJson(row.daily_tasks_json, [])) && safeJson(row.daily_tasks_json, []).length > 0) {
+    return row;
+  }
+
+  row.daily_tasks_date = date;
+  row.daily_tasks_json = buildDailyTasks(row);
+  row.daily_tasks_claimed_json = [];
+  return row;
+}
+
+function applyPassive(row) {
+  const current = nowMs();
+  const lastSeen = row.last_seen_at ? new Date(row.last_seen_at).getTime() : current;
+  const minutes = Math.max(0, (current - lastSeen) / 60000);
+
+  const energyGain = Math.floor(minutes * ENERGY_RECOVERY_PER_MINUTE);
+  const bankIncome = Math.floor(minutes * number(row.bank_level) * OFFLINE_INCOME_PER_BANK_LEVEL_PER_MINUTE * incomeMultiplier(row));
+
+  row.energy = Math.min(MAX_ENERGY, number(row.energy) + energyGain);
+  row.coins = number(row.coins) + bankIncome;
+  row.city_value = buildCityValue(row);
+  row.last_seen_at = new Date(current).toISOString();
+
+  return row;
+}
+
+function toClientUser(row) {
+  const tasks = safeJson(row.daily_tasks_json, []);
+  const claimed = safeJson(row.daily_tasks_claimed_json, []);
+
   return {
-    userId,
-    name,
-    username,
+    userId: row.user_id,
     game: {
-      coins: Number(game.coins || 0),
-      energy: Number(game.energy || 0),
-      taps: Number(game.taps || 0),
-      spent: Number(game.spent || 0),
-      cityValue: Number(game.city_value || 0),
-      dailyDate: game.daily_date || "",
-      dailyStreak: Number(game.daily_streak || 0),
-      tapPower: tapPower(game),
-      hourlyIncome: hourlyIncome(game),
-      energyRecovery: energyRecovery(game),
+      coins: number(row.coins),
+      energy: number(row.energy),
+      taps: number(row.taps),
+      spent: number(row.spent),
+      cityValue: buildCityValue(row),
+      dailyDate: row.daily_date || "",
+      dailyStreak: number(row.daily_streak),
+      dailyTasksDate: row.daily_tasks_date || "",
+      dailyTasks: tasks.map((task) => ({
+        ...task,
+        progress: taskProgress(row, task),
+        ready: taskReady(row, task),
+        claimed: claimed.includes(task.id)
+      })),
       tasks: {
-        tap100: Boolean(game.tap100_done),
-        earn500: Boolean(game.earn500_done),
-        shopUpgrade: Boolean(game.shop_upgrade_done),
-        bankOpen: Boolean(game.bank_open_done),
-        invite: Boolean(game.invite_done),
-        sponsor: Boolean(game.sponsor_done),
-        ad: Boolean(game.ad_done),
-        channel: Boolean(game.channel_done)
+        tap100: Boolean(row.tap100_done),
+        earn500: Boolean(row.earn500_done),
+        shopUpgrade: Boolean(row.shop_upgrade_done),
+        bankOpen: Boolean(row.bank_open_done),
+        invite: Boolean(row.invite_done),
+        sponsor: Boolean(row.sponsor_done),
+        ad: Boolean(row.ad_done),
+        channel: Boolean(row.channel_done)
       },
       buildings: {
-        shop: Number(game.shop_level || 1),
-        bank: Number(game.bank_level || 0),
-        factory: Number(game.factory_level || 0)
+        shop: number(row.shop_level),
+        bank: number(row.bank_level),
+        factory: number(row.factory_level)
       }
     }
   };
 }
 
-async function select(path) {
-  const response = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
-    headers: supabaseHeaders()
+async function getOrCreatePlayer(telegramUser) {
+  const telegramId = String(telegramUser?.id || "web_demo");
+  const name = telegramUser?.first_name || "Player";
+  const username = telegramUser?.username || "";
+
+  await supabase.from("users").upsert({
+    id: telegramId,
+    telegram_id: telegramId,
+    first_name: name,
+    username,
+    last_seen_at: new Date().toISOString()
   });
 
-  return handleSupabaseResponse(response);
-}
+  const { data: existing } = await supabase
+    .from("game_states")
+    .select("*")
+    .eq("user_id", telegramId)
+    .maybeSingle();
 
-async function insert(table, data) {
-  const response = await fetch(`${supabaseUrl}/rest/v1/${table}`, {
-    method: "POST",
-    headers: {
-      ...supabaseHeaders(),
-      Prefer: "return=representation"
-    },
-    body: JSON.stringify(data)
-  });
+  if (existing) {
+    let row = refreshDailyTasks(applyPassive(existing));
 
-  return handleSupabaseResponse(response);
-}
+    const { data: saved, error } = await supabase
+      .from("game_states")
+      .update({
+        coins: row.coins,
+        energy: row.energy,
+        city_value: row.city_value,
+        last_seen_at: row.last_seen_at,
+        daily_tasks_date: row.daily_tasks_date,
+        daily_tasks_json: row.daily_tasks_json,
+        daily_tasks_claimed_json: row.daily_tasks_claimed_json,
+        updated_at: new Date().toISOString()
+      })
+      .eq("user_id", telegramId)
+      .select("*")
+      .single();
 
-async function patch(path, data) {
-  const response = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
-    method: "PATCH",
-    headers: {
-      ...supabaseHeaders(),
-      Prefer: "return=representation"
-    },
-    body: JSON.stringify(data)
-  });
-
-  return handleSupabaseResponse(response);
-}
-
-async function handleSupabaseResponse(response) {
-  const text = await response.text();
-
-  if (!response.ok) {
-    throw new Error(text || `Supabase error ${response.status}`);
+    if (error) throw error;
+    return saved;
   }
 
-  return text ? JSON.parse(text) : [];
+  const fresh = refreshDailyTasks({
+    user_id: telegramId,
+    coins: 0,
+    energy: 100,
+    taps: 0,
+    spent: 0,
+    city_value: 0,
+    shop_level: 1,
+    bank_level: 0,
+    factory_level: 0,
+    last_seen_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  });
+
+  const { data, error } = await supabase
+    .from("game_states")
+    .insert(fresh)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
-function supabaseHeaders() {
-  return {
-    apikey: supabaseKey,
-    Authorization: `Bearer ${supabaseKey}`,
-    "Content-Type": "application/json"
-  };
+async function loadGame(userId) {
+  const { data, error } = await supabase
+    .from("game_states")
+    .select("*")
+    .eq("user_id", String(userId))
+    .single();
+
+  if (error) throw error;
+
+  let row = refreshDailyTasks(applyPassive(data));
+
+  const { data: saved, error: saveError } = await supabase
+    .from("game_states")
+    .update({
+      coins: row.coins,
+      energy: row.energy,
+      city_value: row.city_value,
+      last_seen_at: row.last_seen_at,
+      daily_tasks_date: row.daily_tasks_date,
+      daily_tasks_json: row.daily_tasks_json,
+      daily_tasks_claimed_json: row.daily_tasks_claimed_json,
+      updated_at: new Date().toISOString()
+    })
+    .eq("user_id", String(userId))
+    .select("*")
+    .single();
+
+  if (saveError) throw saveError;
+  return saved;
 }
 
-async function readBody(req) {
-  const chunks = [];
+app.get("/", (_req, res) => {
+  res.json({ ok: true, app: "Wealthia API", database: true, version: "daily-tasks-v1" });
+});
 
-  for await (const chunk of req) {
-    chunks.push(chunk);
+app.get("/health", (_req, res) => {
+  res.json({ ok: true, app: "Wealthia API", database: true, version: "daily-tasks-v1" });
+});
+
+app.post("/api/session", async (req, res) => {
+  try {
+    const row = await getOrCreatePlayer(req.body.telegramUser);
+    res.json(toClientUser(row));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
+});
 
-  const raw = Buffer.concat(chunks).toString("utf8");
-  return raw ? JSON.parse(raw) : {};
-}
+app.post("/api/tap", async (req, res) => {
+  try {
+    const userId = String(req.body.userId || "");
+    const row = await loadGame(userId);
 
-function send(res, status, data) {
-  res.writeHead(status, { "Content-Type": "application/json" });
-  res.end(JSON.stringify(data));
-}
+    if (number(row.energy) < 1) {
+      res.status(400).json({ error: "NO_ENERGY" });
+      return;
+    }
 
-function setCors(res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-}
+    const amount = tapPower(row);
+    const updated = {
+      coins: number(row.coins) + amount,
+      energy: Math.max(0, number(row.energy) - 1),
+      taps: number(row.taps) + 1,
+      city_value: number(row.coins) + amount + number(row.spent),
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from("game_states")
+      .update(updated)
+      .eq("user_id", userId)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    res.json({ amount, user: toClientUser(data) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/upgrade", async (req, res) => {
+  try {
+    const userId = String(req.body.userId || "");
+    const building = String(req.body.building || "");
+
+    if (!["shop", "bank", "factory"].includes(building)) {
+      res.status(400).json({ error: "BAD_BUILDING" });
+      return;
+    }
+
+    const row = await loadGame(userId);
+    const column = `${building}_level`;
+    const level = number(row[column]);
+    const cost = upgradeCost(building, building === "shop" ? level : level + 1);
+
+    if (number(row.coins) < cost) {
+      res.status(400).json({ error: "NOT_ENOUGH_COINS" });
+      return;
+    }
+
+    const updated = {
+      coins: number(row.coins) - cost,
+      spent: number(row.spent) + cost,
+      [column]: level + 1,
+      city_value: number(row.coins) - cost + number(row.spent) + cost,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from("game_states")
+      .update(updated)
+      .eq("user_id", userId)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    res.json({ cost, user: toClientUser(data) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/claim-task", async (req, res) => {
+  try {
+    const userId = String(req.body.userId || "");
+    const taskId = String(req.body.task || "");
+
+    const row = await loadGame(userId);
+    const tasks = safeJson(row.daily_tasks_json, []);
+    const claimed = safeJson(row.daily_tasks_claimed_json, []);
+    const task = tasks.find((item) => item.id === taskId);
+
+    if (!task) {
+      res.status(404).json({ error: "TASK_NOT_FOUND" });
+      return;
+    }
+
+    if (claimed.includes(task.id)) {
+      res.status(400).json({ error: "TASK_ALREADY_CLAIMED" });
+      return;
+    }
+
+    if (!taskReady(row, task)) {
+      res.status(400).json({ error: "TASK_NOT_READY" });
+      return;
+    }
+
+    const reward = number(task.reward);
+    const updatedClaimed = [...claimed, task.id];
+
+    const { data, error } = await supabase
+      .from("game_states")
+      .update({
+        coins: number(row.coins) + reward,
+        city_value: number(row.coins) + reward + number(row.spent),
+        daily_tasks_claimed_json: updatedClaimed,
+        updated_at: new Date().toISOString()
+      })
+      .eq("user_id", userId)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    res.json({ ok: true, reward, user: toClientUser(data) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/leaderboard", async (_req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("game_states")
+      .select("user_id, city_value")
+      .order("city_value", { ascending: false })
+      .limit(20);
+
+    if (error) throw error;
+
+    res.json({
+      rows: data.map((row) => ({
+        userId: row.user_id,
+        cityValue: number(row.city_value)
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/admin/summary", async (_req, res) => {
+  try {
+    const { count: users } = await supabase
+      .from("users")
+      .select("*", { count: "exact", head: true });
+
+    const { data } = await supabase
+      .from("game_states")
+      .select("coins, taps, city_value");
+
+    const totals = (data || []).reduce(
+      (acc, row) => {
+        acc.coins += number(row.coins);
+        acc.taps += number(row.taps);
+        acc.cityValue += number(row.city_value);
+        return acc;
+      },
+      { coins: 0, taps: 0, cityValue: 0 }
+    );
+
+    res.json({ users: users || 0, totals });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.listen(port, () => {
+  console.log(`Wealthia backend running on port ${port}`);
+});
