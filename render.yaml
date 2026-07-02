@@ -11,3 +11,17 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_KEY
         sync: false
+
+  - type: worker
+    name: wealthia-bot
+    runtime: node
+    rootDir: bot
+    buildCommand: echo "no build"
+    startCommand: node bot.js
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: WEBAPP_URL
+        value: https://wealthia.github.io/wealthia/v5.html
+      - key: BOT_USERNAME
+        value: WealthiaGameBot
