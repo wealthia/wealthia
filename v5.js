@@ -1,3 +1,6 @@
+const API_URL = "https://wealthia-backend.onrender.com";
+let backendUserId = "web_demo";
+let backendReady = false;
 :root {
   color-scheme: dark;
   --bg: #11151a;
