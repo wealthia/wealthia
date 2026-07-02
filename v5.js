@@ -1,6 +1,7 @@
 const API_URL = "https://wealthia-backend.onrender.com";
 let backendUserId = "web_demo";
 let backendReady = false;
+
 const storageKey = "wealthiaV5State";
 
 const defaultState = {
@@ -206,19 +207,6 @@ function updateCityVisuals() {
   els.factoryBuilding.classList.toggle("active-smoke", state.buildings.factory > 0);
 }
 
-function addCoins(amount) {
-  state.coins += amount;
-  saveState();
-  render();
-}
-
-function spendCoins(amount) {
-  state.coins -= amount;
-  state.spent += amount;
-  saveState();
-  render();
-}
-
 function showToast(message) {
   if (!els.toast) return;
 
@@ -240,90 +228,6 @@ function coinPop(x, y, amount) {
 
   document.body.appendChild(pop);
   window.setTimeout(() => pop.remove(), 720);
-}
-
-function handleLocalTap(event) {
-  if (event.cancelable) event.preventDefault();
-
-  if (state.energy < 1) {
-    showToast("Energy is empty. Wait a little.");
-    return;
-  }
-
-  const amount = tapPower();
-
-  state.energy = Math.max(0, state.energy - 1);
-  state.taps += 1;
-  addCoins(amount);
-
-  coinPop(
-    event.clientX || window.innerWidth / 2,
-    event.clientY || window.innerHeight / 2,
-    amount
-  );
-}
-
-async function connectBackend() {
-  try {
-    const response = await fetch(`${API_URL}/api/session`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ telegramUser: getTelegramUser() })
-    });
-
-    const user = await response.json();
-
-    if (!response.ok) {
-      throw new Error("Session failed");
-    }
-
-    backendUserId = user.userId;
-    syncFromBackend(user);
-
-    backendReady = true;
-    saveState();
-    render();
-    showToast("Backend connected.");
-  } catch {
-    backendReady = false;
-    showToast("Backend offline.");
-  }
-}
-
-async function backendTap(event) {
-  if (!backendReady) {
-    handleLocalTap(event);
-    return;
-  }
-
-  if (event.cancelable) event.preventDefault();
-
-  try {
-    const response = await fetch(`${API_URL}/api/tap`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: backendUserId })
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      showToast("No energy.");
-      return;
-    }
-
-    syncFromBackend(result.user);
-    saveState();
-    render();
-
-    coinPop(
-      event.clientX || window.innerWidth / 2,
-      event.clientY || window.innerHeight / 2,
-      result.amount
-    );
-  } catch {
-    showToast("Backend error.");
-  }
 }
 
 function syncFromBackend(user) {
@@ -368,23 +272,106 @@ function getTelegramUser() {
   };
 }
 
-els.tapButton.addEventListener("pointerdown", backendTap);
+async function connectBackend() {
+  try {
+    const response = await fetch(`${API_URL}/api/session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramUser: getTelegramUser() })
+    });
 
-document.querySelectorAll("[data-upgrade]").forEach((button) => {
-  button.addEventListener("click", () => {
-    const name = button.dataset.upgrade;
-    const cost = upgradeCost(name);
+    const user = await response.json();
 
-    if (state.coins < cost) {
+    if (!response.ok) {
+      throw new Error("Session failed");
+    }
+
+    backendUserId = user.userId;
+    syncFromBackend(user);
+
+    backendReady = true;
+    saveState();
+    render();
+    showToast("Backend connected.");
+  } catch {
+    backendReady = false;
+    showToast("Backend offline.");
+  }
+}
+
+async function backendTap(event) {
+  if (!backendReady) {
+    showToast("Backend offline.");
+    return;
+  }
+
+  if (event.cancelable) event.preventDefault();
+
+  try {
+    const response = await fetch(`${API_URL}/api/tap`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: backendUserId })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      showToast("No energy.");
+      return;
+    }
+
+    syncFromBackend(result.user);
+    saveState();
+    render();
+
+    coinPop(
+      event.clientX || window.innerWidth / 2,
+      event.clientY || window.innerHeight / 2,
+      result.amount
+    );
+  } catch {
+    showToast("Backend error.");
+  }
+}
+
+async function backendUpgrade(name) {
+  if (!backendReady) {
+    showToast("Backend offline.");
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/api/upgrade`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: backendUserId,
+        building: name
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
       showToast("Not enough Wealth Coin.");
       return;
     }
 
-    spendCoins(cost);
-    state.buildings[name] += 1;
+    syncFromBackend(result.user);
     saveState();
     render();
     showToast(`${name[0].toUpperCase() + name.slice(1)} upgraded.`);
+  } catch {
+    showToast("Upgrade error.");
+  }
+}
+
+els.tapButton.addEventListener("pointerdown", backendTap);
+
+document.querySelectorAll("[data-upgrade]").forEach((button) => {
+  button.addEventListener("click", () => {
+    backendUpgrade(button.dataset.upgrade);
   });
 });
 
@@ -399,109 +386,47 @@ document.querySelectorAll(".tab").forEach((tab) => {
 });
 
 document.getElementById("dailyReward").addEventListener("click", () => {
-  if (state.dailyDate === today()) return;
-
-  const amount = dailyRewardAmount();
-  state.dailyDate = today();
-  state.dailyStreak = Math.min(state.dailyStreak + 1, 7);
-
-  addCoins(amount);
-  showToast("Daily reward claimed.");
+  showToast("Tasks will connect to backend next.");
 });
 
 document.getElementById("tapTask").addEventListener("click", () => {
-  if (state.tasks.tap100 || state.taps < 100) return;
-
-  state.tasks.tap100 = true;
-  addCoins(150);
-  showToast("Task completed.");
+  showToast("Tasks will connect to backend next.");
 });
 
 document.getElementById("earnTask").addEventListener("click", () => {
-  if (state.tasks.earn500 || cityValue() < 500) return;
-
-  state.tasks.earn500 = true;
-  addCoins(250);
-  showToast("Task completed.");
+  showToast("Tasks will connect to backend next.");
 });
 
 document.getElementById("shopTask").addEventListener("click", () => {
-  if (state.tasks.shopUpgrade || state.buildings.shop < 2) return;
-
-  state.tasks.shopUpgrade = true;
-  addCoins(200);
-  showToast("Task completed.");
+  showToast("Tasks will connect to backend next.");
 });
 
 document.getElementById("bankTask").addEventListener("click", () => {
-  if (state.tasks.bankOpen || state.buildings.bank < 1) return;
-
-  state.tasks.bankOpen = true;
-  addCoins(200);
-  showToast("Task completed.");
+  showToast("Tasks will connect to backend next.");
 });
 
 document.getElementById("sponsorTask").addEventListener("click", () => {
-  if (state.tasks.sponsor) return;
-
-  state.tasks.sponsor = true;
-  addCoins(750);
-  showToast("Sponsor task completed.");
+  showToast("Earn tasks will connect next.");
 });
 
 document.getElementById("adTask").addEventListener("click", () => {
-  if (state.tasks.ad) return;
-
-  state.tasks.ad = true;
-  addCoins(300);
-  showToast("Rewarded ad completed.");
+  showToast("Ads will connect next.");
 });
 
 document.getElementById("channelTask").addEventListener("click", () => {
-  if (state.tasks.channel) return;
-
-  state.tasks.channel = true;
-  addCoins(500);
-  showToast("Partner channel reward claimed.");
+  showToast("Channels will connect next.");
 });
 
 document.getElementById("fullEnergyBoost").addEventListener("click", () => {
-  if (state.coins < 100) {
-    showToast("Not enough Wealth Coin.");
-    return;
-  }
-
-  spendCoins(100);
-  state.energy = 100;
-  saveState();
-  render();
-  showToast("Energy filled.");
+  showToast("Boosts will connect next.");
 });
 
 document.getElementById("tapBoost").addEventListener("click", () => {
-  if (state.coins < 150) {
-    showToast("Not enough Wealth Coin.");
-    return;
-  }
-
-  spendCoins(150);
-  state.boosts.tapUntil = Date.now() + 60 * 1000;
-  saveState();
-  render();
-  showToast("2x Tap active for 60 seconds.");
+  showToast("Boosts will connect next.");
 });
 
 document.getElementById("incomeBoost").addEventListener("click", () => {
-  if (state.coins < 200) {
-    showToast("Not enough Wealth Coin.");
-    return;
-  }
-
-  spendCoins(200);
-  state.boosts.incomeUntil = Date.now() + 60 * 1000;
-  saveState();
-  render();
-  showToast("2x Income active for 60 seconds.");
+  showToast("Boosts will connect next.");
 });
 
 document.getElementById("inviteButton").addEventListener("click", async () => {
@@ -509,34 +434,12 @@ document.getElementById("inviteButton").addEventListener("click", async () => {
 
   try {
     await navigator.clipboard.writeText(link);
+    showToast("Invite link copied.");
   } catch {
     showToast(link);
-    return;
   }
-
-  if (!state.tasks.invite) {
-    state.tasks.invite = true;
-    addCoins(500);
-  }
-
-  showToast("Invite link copied.");
 });
 
 document.getElementById("resetButton").addEventListener("click", () => {
-  if (!confirm("Reset Wealthia preview?")) return;
-
-  state = structuredClone(defaultState);
-  saveState();
-  render();
-  showToast("Preview reset.");
+  showToast("Reset disabled on backend version.");
 });
-
-window.setInterval(() => {
-  if (backendReady) return;
-
-  state.energy = Math.min(100, state.energy + energyRecovery());
-  state.coins += hourlyIncome() / 3600;
-
-  saveState();
-  render();
-}, 1000);
