@@ -450,11 +450,11 @@ async function loadGame(userId) {
 }
 
 app.get("/", (_req, res) => {
-  res.json({ ok: true, app: "Wealthia API", database: true, version: "full-v6" });
+  res.json({ ok: true, app: "Wealthia API", database: true, version: "full-v6-fix1" });
 });
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, app: "Wealthia API", database: true, version: "full-v6" });
+  res.json({ ok: true, app: "Wealthia API", database: true, version: "full-v6-fix1" });
 });
 
 app.post("/api/session", async (req, res) => {
