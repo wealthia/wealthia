@@ -21,6 +21,8 @@ app.use(express.json());
 const MAX_ENERGY = 100;
 const ENERGY_RECOVERY_PER_MINUTE = 2;
 const OFFLINE_INCOME_PER_BANK_LEVEL_PER_MINUTE = 3;
+const TASK_REFRESH_MS = 12 * 60 * 60 * 1000;
+const TASKS_PER_CYCLE = 4;
 
 function nowMs() {
   return Date.now();
@@ -28,6 +30,15 @@ function nowMs() {
 
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function taskCycleKey(ms = nowMs()) {
+  return String(Math.floor(ms / TASK_REFRESH_MS));
+}
+
+function nextTaskRefreshMs(ms = nowMs()) {
+  const cycle = Math.floor(ms / TASK_REFRESH_MS);
+  return (cycle + 1) * TASK_REFRESH_MS;
 }
 
 function number(value) {
@@ -65,58 +76,86 @@ function safeJson(value, fallback) {
 }
 
 function buildDailyTasks(row) {
-  const level = Math.max(1, number(row.shop_level) + number(row.bank_level) + number(row.factory_level));
-  const daySeed = Number(todayKey().replaceAll("-", ""));
+  const shop = number(row.shop_level);
+  const bank = number(row.bank_level);
+  const factory = number(row.factory_level);
+  const level = Math.max(1, shop + bank + factory);
+  const cycleSeed = Number(taskCycleKey());
 
   const pool = [
     {
       id: "tap-small",
-      title: `Tap ${50 + (daySeed % 3) * 25} times`,
+      title: `Tap ${40 + level * 15} times`,
       type: "taps",
-      target: 50 + (daySeed % 3) * 25,
-      reward: 120 + level * 20
+      target: 40 + level * 15,
+      reward: 100 + level * 25
     },
     {
       id: "tap-big",
-      title: `Tap ${120 + (daySeed % 4) * 40} times`,
+      title: `Tap ${100 + level * 30} times`,
       type: "taps",
-      target: 120 + (daySeed % 4) * 40,
-      reward: 220 + level * 35
+      target: 100 + level * 30,
+      reward: 200 + level * 40
     },
     {
       id: "earn-coins",
-      title: `Reach ${300 + level * 100} city value`,
+      title: `Reach ${Math.max(500, 200 + level * 150)} city value`,
       type: "city_value",
-      target: 300 + level * 100,
-      reward: 250 + level * 40
-    },
-    {
+      target: Math.max(500, 200 + level * 150),
+      reward: 180 + level * 45
+    }
+  ];
+
+  if (shop < 12) {
+    pool.push({
       id: "upgrade-shop",
-      title: "Upgrade Shop",
+      title: `Upgrade Shop to Lv.${shop + 1}`,
       type: "shop_level",
-      target: Math.max(2, number(row.shop_level)),
-      reward: 200 + level * 30
-    },
-    {
+      target: shop + 1,
+      reward: 150 + level * 35
+    });
+  }
+
+  if (bank < 1) {
+    pool.push({
       id: "open-bank",
       title: "Open Bank",
       type: "bank_level",
       target: 1,
-      reward: 220
-    },
-    {
+      reward: 200 + level * 20
+    });
+  } else if (bank < 10) {
+    pool.push({
+      id: "upgrade-bank",
+      title: `Upgrade Bank to Lv.${bank + 1}`,
+      type: "bank_level",
+      target: bank + 1,
+      reward: 180 + level * 30
+    });
+  }
+
+  if (factory < 1) {
+    pool.push({
       id: "grow-factory",
       title: "Build Factory",
       type: "factory_level",
       target: 1,
-      reward: 300
-    }
-  ];
+      reward: 250 + level * 35
+    });
+  } else if (factory < 10) {
+    pool.push({
+      id: "upgrade-factory",
+      title: `Upgrade Factory to Lv.${factory + 1}`,
+      type: "factory_level",
+      target: factory + 1,
+      reward: 220 + level * 40
+    });
+  }
 
-  const start = daySeed % pool.length;
+  const start = pool.length ? cycleSeed % pool.length : 0;
   const picked = [];
 
-  for (let i = 0; i < 4; i += 1) {
+  for (let i = 0; i < Math.min(TASKS_PER_CYCLE, pool.length); i += 1) {
     picked.push(pool[(start + i) % pool.length]);
   }
 
@@ -137,11 +176,11 @@ function taskReady(row, task) {
 }
 
 function refreshDailyTasks(row) {
-  const date = todayKey();
+  const cycleKey = taskCycleKey();
   const currentTasks = safeJson(row.daily_tasks_json, []);
 
   const mustCreateTasks =
-    row.daily_tasks_date !== date ||
+    row.daily_tasks_date !== cycleKey ||
     !Array.isArray(currentTasks) ||
     currentTasks.length === 0;
 
@@ -149,7 +188,7 @@ function refreshDailyTasks(row) {
     return row;
   }
 
-  row.daily_tasks_date = date;
+  row.daily_tasks_date = cycleKey;
   row.daily_tasks_json = buildDailyTasks(row);
   row.daily_tasks_claimed_json = [];
 
@@ -187,6 +226,7 @@ function toClientUser(row) {
       dailyDate: row.daily_date || "",
       dailyStreak: number(row.daily_streak),
       dailyTasksDate: row.daily_tasks_date || "",
+      dailyTasksNextRefresh: new Date(nextTaskRefreshMs()).toISOString(),
       dailyTasks: tasks.map((task) => ({
         ...task,
         progress: taskProgress(row, task),
@@ -310,11 +350,11 @@ async function loadGame(userId) {
 }
 
 app.get("/", (_req, res) => {
-  res.json({ ok: true, app: "Wealthia API", database: true, version: "daily-tasks-v4" });
+  res.json({ ok: true, app: "Wealthia API", database: true, version: "daily-tasks-12h-v5" });
 });
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, app: "Wealthia API", database: true, version: "daily-tasks-v4" });
+  res.json({ ok: true, app: "Wealthia API", database: true, version: "daily-tasks-12h-v5" });
 });
 
 app.post("/api/session", async (req, res) => {
