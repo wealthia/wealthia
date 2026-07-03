@@ -332,36 +332,32 @@ p {
   font-size: 12px;
 }
 
-.app.view-main .daily-prize--strip {
-  padding: 10px 12px;
-  border-radius: 12px;
-}
-
+.app.view-main .daily-prize--strip,
 .app.view-main .daily-prize-strip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: nowrap;
-}
-
-.app.view-main .daily-prize-strip strong {
-  font-size: 12px;
-}
-
-.app.view-main .daily-prize-strip__gain {
-  margin-left: auto;
-  font-size: 15px;
-  font-weight: 900;
-  color: var(--gold-light);
-}
-
-.app.view-main .daily-prize-strip__hint {
   display: none;
 }
 
-.app.view-main .grand-prize.daily-prize--strip .grand-prize__badge {
-  font-size: 9px;
-  padding: 3px 8px;
+.app.view-main .energy-section .grand-prize-card {
+  padding: 12px;
+  margin: 0;
+}
+
+.app.view-main .energy-section .grand-prize-card__head h3 {
+  font-size: 16px;
+}
+
+.app.view-main .energy-section .grand-prize-card__head p {
+  font-size: 12px;
+}
+
+.app.view-main .energy-section .daily-prize-card__boost-tip {
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+
+.app.view-main .energy-section .grand-prize-card__channel {
+  font-size: 11px;
+  padding: 8px 10px;
 }
 
 .app.view-main .tap-area .energy-wrap {
