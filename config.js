@@ -9,6 +9,7 @@ window.WEALTHIA_CONFIG = {
   BOT_USERNAME: "WealthiaGameBot",
 
   // AdsGram rewarded ads: https://partner.adsgram.ai
+  // Setup guide: ADSGRAM-SETUP.md
   // Leave empty for demo mode (no real ad revenue)
   ADSGRAM_BLOCK_ID: "",
 
