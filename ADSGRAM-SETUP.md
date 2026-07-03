@@ -51,7 +51,82 @@ https://wealthia.github.io/wealthia/v5.html?v=2019
 
 ---
 
-## Step 4 — Moderation (required)
+## Verification failed? (platform yaradılmır / verify etmir)
+
+AdsGram avtomatik yoxlayır: **Bot ID**, **Direct Link** və **Web App URL** BotFather ilə **tam eyni** olmalıdır.
+
+### Düzgün məlumatları BotFather-dan al
+
+1. **@BotFather** → `/myapps`
+2. **WealthiaGameBot** (və ya app adın) seç
+3. Bu 3 dəyəri **kopyala-yapışdır** (əl ilə yazma):
+
+| AdsGram sahəsi | BotFather-dan |
+|----------------|---------------|
+| Telegram direct link | **Direct Link** (məs: `https://t.me/WealthiaGameBot/wealthia`) |
+| Web app url | **Web App URL** (məs: `https://wealthia.github.io/wealthia/v5.html`) |
+| Bot ID | `/mybots` → bot → **API Token** → `:` işarəsindən **əvvəl** olan rəqəm |
+
+**Bot ID nümunəsi:** Token `7123456789:AAHxxx...` → Bot ID = `7123456789`
+
+❌ **Səhv:** `@WealthiaGameBot` və ya bot username Bot ID kimi yazmaq  
+✅ **Düzgün:** yalnız rəqəmlər
+
+### Web App URL uyğunluğu
+
+BotFather-dakı URL ilə AdsGram-dakı **simvol-simvol eyni** olmalıdır:
+
+```
+https://wealthia.github.io/wealthia/v5.html?v=2019
+```
+
+Əgər BotFather-da `?v=` yoxdursa, **BotFather-da da eyni URL-i təyin et** (Edit Web App URL).
+
+### Tez həll: Test Platform (moderasiya gözləmədən)
+
+Real verify uzun çəkirsə, əvvəlcə **Test** platform yarat:
+
+1. AdsGram → **Create...** → **Ad platform**
+2. Tip: **Test** (Production yox)
+3. Eyni BotFather məlumatlarını yapışdır
+4. Status **Active** olur — moderasiya lazım deyil
+5. Reward Ad Unit yarat → Block ID götür → `config.js`-ə yaz
+6. Telegram-da test et (real pul sayılmır, amma inteqrasiya işləyir)
+
+Sonra Production platform üçün @adsgramsupport-a moderasiya istə.
+
+### Moderasiya (Production üçün)
+
+Platform yaranır amma reklam gəlmirsə — bu **avtomatik verify deyil**, manual moderasiyadır:
+
+**@adsgramsupport**-a yaz:
+
+```
+Hello,
+
+Please moderate my Wealthia Mini App.
+
+Platform: https://partner.adsgram.ai/platforms/SENIN_PLATFORM_ID/
+
+[BotFather mesajını FORWARD et — Direct Link + Web App URL görünsün]
+
+Game is live and playable in Telegram.
+Rewarded ad is optional (+300 coins one-time in Earn tab).
+```
+
+- Moderasiya: həftə içi 4–6 saat, həftə sonu 6–10 saat (08:00–22:00 UTC)
+- Oyun **Telegram-da açıq və işlək** olmalıdır moderasiya vaxtı
+
+### Tez-tez səhvlər
+
+| Problem | Həll |
+|---------|------|
+| Verify / create error | Bot ID rəqəm deyil; URL uyğun gəlmir |
+| Platform pending | @adsgramsupport moderasiya |
+| Reklam yoxdur | Test platform + Block ID config.js-də |
+| Brauzerdə açırsan | Yalnız **Telegram içində** test et |
+
+---
 
 AdsGram must approve your app before real ads show.
 
