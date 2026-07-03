@@ -417,14 +417,6 @@ function renderEarnPanel() {
     </button>
   `;
 
-  const boostButton = (id, icon, title, cost, active, subtitle) => `
-    <button class="boost-button ${active ? "completed" : ""}" type="button" data-boost="${id}" ${active ? "disabled" : ""}>
-      <span class="boost-button__icon">${icon}</span>
-      ${title}
-      <span>${active ? `Active ${boostTimeLeft(subtitle)}` : `Cost ${cost}`}</span>
-    </button>
-  `;
-
   const starButton = (id, icon, title, stars, active, until) => `
     <button class="boost-button boost-button--star ${active ? "completed" : ""}" type="button" data-star="${id}" ${active ? "disabled" : ""}>
       <span class="boost-button__icon">${icon}</span>
@@ -437,23 +429,14 @@ function renderEarnPanel() {
     <article class="card stack earn-hero">
       <div class="earn-hero__badge">VIP Earn Center</div>
       <h2>Multiply Your Fortune</h2>
-      <p>Complete partner tasks, buy boosts with coins, or pay with Telegram Stars.</p>
+      <p>Complete partner tasks and unlock premium boosts with Telegram Stars.</p>
     </article>
     ${earnRow("sponsor", "Partner Bot", "Open sponsor bot · one-time bonus", 750, state.tasks.sponsor)}
     ${earnRow("ad", "Rewarded Ad", "Watch 30s ad for coins", 300, state.tasks.ad)}
     ${earnRow("channel", "Join Channel", "Subscribe for bonus coins", 500, state.tasks.channel)}
-    <article class="card stack">
-      <h2>Power Boosts</h2>
-      <p class="earn-note">Pay with Wealth Coins · each boost lasts 30 minutes</p>
-      <div class="boost-grid">
-        ${boostButton("fullEnergy", "&#x26A1;", "Full Energy", 100, false, 0)}
-        ${boostButton("tapBoost", "&#x1F4AA;", "2x Tap", 150, state.boosts.tapActive, state.boosts.tapUntil)}
-        ${boostButton("incomeBoost", "&#x1F4C8;", "2x Income", 200, state.boosts.incomeActive, state.boosts.incomeUntil)}
-      </div>
-    </article>
     <article class="card stack stars-shop">
       <h2>Premium Boosts</h2>
-      <p class="earn-note">Pay with Telegram Stars ⭐ · 30 minute boosts</p>
+      <p class="earn-note">Pay with Telegram Stars ⭐ · most boosts last 30 minutes</p>
       <div class="boost-grid boost-grid--stars">
         ${starButton("refill_energy", "&#x26A1;", "Refill Energy", 5, false, 0)}
         ${starButton("tap_boost_30", "&#x1F4AA;", "2x Tap", 10, state.boosts.tapActive, state.boosts.tapUntil)}
@@ -1127,32 +1110,6 @@ async function claimEarnTask(type) {
   await applyBackendUser(result.user, `Reward: +${format(result.reward)}`);
 }
 
-async function buyBoost(boost) {
-  if (!backendReady) {
-    showToast("Backend offline.");
-    return;
-  }
-
-  const { ok, result } = await apiPost("/api/buy-boost", {
-    userId: backendUserId,
-    boost
-  });
-
-  if (!ok) {
-    if (result && result.error === "NOT_ENOUGH_COINS") showToast("Not enough coins.");
-    else showToast("Boost unavailable.");
-    return;
-  }
-
-  const labels = {
-    fullEnergy: "Energy filled.",
-    tapBoost: "2x Tap activated for 30 min.",
-    incomeBoost: "2x Income activated for 30 min."
-  };
-
-  await applyBackendUser(result.user, labels[boost] || "Boost activated.");
-}
-
 const STAR_SUCCESS_LABELS = {
   refill_energy: "Energy refilled!",
   tap_boost_30: "2x Tap active for 30 min!",
@@ -1363,12 +1320,6 @@ if (els.earnPanel) {
     const earnButton = event.target.closest("[data-earn]");
     if (earnButton && !earnButton.disabled) {
       handleEarnClick(earnButton.dataset.earn);
-      return;
-    }
-
-    const boostButton = event.target.closest("[data-boost]");
-    if (boostButton && !boostButton.disabled) {
-      buyBoost(boostButton.dataset.boost);
       return;
     }
 
