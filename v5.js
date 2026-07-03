@@ -2,6 +2,7 @@ const API_URL = (window.WEALTHIA_CONFIG && window.WEALTHIA_CONFIG.API_URL) ||
   "https://wealthia-backend.onrender.com";
 const CONFIG = window.WEALTHIA_CONFIG || {};
 let backendUserId = "web_demo";
+let backendSessionToken = "";
 let backendReady = false;
 let leaderboardTop3 = [];
 let leaderboardYou = null;
@@ -282,7 +283,7 @@ async function startGoldRush() {
     return;
   }
 
-  const { ok, result } = await apiPost("/api/gold-rush/start", { userId: backendUserId });
+  const { ok, result } = await apiPost("/api/gold-rush/start");
 
   if (!ok) {
     if (result && result.error === "GOLD_RUSH_CLAIMED_TODAY") {
@@ -1119,6 +1120,11 @@ function syncFromBackend(user) {
   }
 }
 
+function getTelegramInitData() {
+  const tg = window.Telegram && window.Telegram.WebApp;
+  return tg && tg.initData ? String(tg.initData) : "";
+}
+
 function getTelegramUser() {
   const tg = window.Telegram && window.Telegram.WebApp;
 
@@ -1159,11 +1165,16 @@ function getReferrerId() {
   return String(startParam);
 }
 
-async function apiPost(path, body) {
+async function apiPost(path, body = {}) {
   try {
+    const headers = { "Content-Type": "application/json" };
+    if (backendSessionToken) {
+      headers.Authorization = `Bearer ${backendSessionToken}`;
+    }
+
     const response = await fetch(`${API_URL}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(body)
     });
 
@@ -1190,18 +1201,29 @@ async function applyBackendUser(user, message) {
 
 async function connectBackend() {
   const { ok, result } = await apiPost("/api/session", {
+    initData: getTelegramInitData(),
     telegramUser: getTelegramUser(),
     referrerId: getReferrerId()
   });
 
   if (!ok || !result) {
     backendReady = false;
+    backendSessionToken = "";
     showToast("Backend offline. Local mode.");
     render();
     return;
   }
 
+  if (result.error === "INVALID_TELEGRAM_AUTH") {
+    backendReady = false;
+    backendSessionToken = "";
+    showToast("Open the game inside Telegram.");
+    render();
+    return;
+  }
+
   backendUserId = result.userId;
+  backendSessionToken = result.token || "";
   await applyBackendUser(result, "Backend connected.");
   await loadTournament();
 }
@@ -1299,11 +1321,34 @@ function tapLocal(event) {
 
 async function backendTap(event) {
   if (event.cancelable) event.preventDefault();
+
+  const snapshot = {
+    coins: state.coins,
+    taps: state.taps,
+    energy: state.energy
+  };
+
   if (!tapLocal(event)) return;
   if (!backendReady) return;
 
-  const { ok, result } = await apiPost("/api/tap", { userId: backendUserId });
-  if (!ok || !result) return;
+  const { ok, result } = await apiPost("/api/tap");
+  if (!ok || !result || !result.user) {
+    state.coins = snapshot.coins;
+    state.taps = snapshot.taps;
+    state.energy = snapshot.energy;
+    saveState();
+    render();
+
+    if (result && result.error === "TOO_FAST") {
+      showToast("Slow down!");
+    } else if (result && result.error === "NO_ENERGY") {
+      showToast("No energy.");
+    } else if (result && result.error === "SESSION_EXPIRED") {
+      showToast("Session expired. Reconnecting...");
+      await connectBackend();
+    }
+    return;
+  }
 
   syncFromBackend(result.user);
   saveState();
@@ -1552,11 +1597,16 @@ async function refreshBackendState() {
   if (!backendReady) return;
 
   const { ok, result } = await apiPost("/api/session", {
+    initData: getTelegramInitData(),
     telegramUser: getTelegramUser(),
     referrerId: getReferrerId()
   });
 
   if (!ok || !result) return;
+
+  if (result.token) {
+    backendSessionToken = result.token;
+  }
 
   syncFromBackend(result);
   saveState();
