@@ -1789,9 +1789,13 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
     const dailyEligibleRows = (dailyCandidates || []).filter((row) =>
       dailyPrizeEligible(referralCounts.get(row.user_id) || 0)
     );
+    const topRealDailyScore = dailyEligibleRows.reduce(
+      (max, row) => Math.max(max, number(row.daily_contest_score)),
+      0
+    );
     const dailyWithSeeds = [
       ...dailyEligibleRows,
-      ...contestSeedGameRows(today)
+      ...contestSeedGameRows(today, topRealDailyScore)
     ].sort((a, b) => number(b.daily_contest_score) - number(a.daily_contest_score));
     const dailyTopData = dailyWithSeeds.slice(0, 3);
 
