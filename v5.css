@@ -1020,6 +1020,27 @@ button.completed strong {
   border-style: dashed;
 }
 
+.earn-ad-wrap {
+  display: grid;
+  gap: 8px;
+}
+
+.ad-refresh-timer {
+  margin: 0 4px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.ad-refresh-timer span {
+  color: var(--gold, #f5c842);
+  font-size: 14px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Friends */
 .friends-card {
   display: grid;

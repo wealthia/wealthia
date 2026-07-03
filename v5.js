@@ -417,25 +417,57 @@ function adRewardAvailable() {
   return Number(state.adCooldownUntil || 0) <= Date.now();
 }
 
+function adRefreshMinutesLeft() {
+  const diff = Math.max(0, Number(state.adCooldownUntil || 0) - Date.now());
+  return Math.max(1, Math.ceil(diff / 60000));
+}
+
 function adRewardSubtitle() {
-  if (!adRewardAvailable()) {
-    return `Next ad in ${boostTimeLeft(state.adCooldownUntil)}`;
-  }
+  if (!adRewardAvailable()) return "Reward collected";
 
   if (adsGramReady()) return "Watch ad for +300 coins";
   if (CONFIG.ADSGRAM_BLOCK_ID) return "Ad loading — open in Telegram";
   return "Connect AdsGram Block ID in config.js";
 }
 
+function renderAdEarnRow() {
+  const onCooldown = !adRewardAvailable();
+  const refreshMinutes = onCooldown ? adRefreshMinutesLeft() : 0;
+
+  const button = `
+    <button class="task earn-task earn-task--ad ${onCooldown ? "completed" : ""}" type="button" data-earn="ad" ${onCooldown ? "disabled" : ""}>
+      <span><b>Rewarded Ad</b><small>${adRewardSubtitle()}</small></span>
+      <strong class="${onCooldown ? "completed" : ""}">${onCooldown ? "Claimed" : "+300"}</strong>
+    </button>
+  `;
+
+  if (!onCooldown) return button;
+
+  return `
+    <div class="earn-ad-wrap">
+      ${button}
+      <p class="ad-refresh-timer" id="adRefreshTimer">Refreshing in <span>${refreshMinutes}</span></p>
+    </div>
+  `;
+}
+
 function scheduleAdCooldownRefresh() {
-  if (adCooldownTimer || adRewardAvailable()) return;
+  if (adCooldownTimer) return;
 
   adCooldownTimer = window.setInterval(() => {
+    const timer = document.getElementById("adRefreshTimer");
+    if (timer && !adRewardAvailable()) {
+      timer.innerHTML = `Refreshing in <span>${adRefreshMinutesLeft()}</span>`;
+    }
+
     if (adRewardAvailable()) {
       window.clearInterval(adCooldownTimer);
       adCooldownTimer = null;
+      renderEarnPanel();
+      return;
     }
-    renderEarnPanel();
+
+    if (!timer) renderEarnPanel();
   }, 1000);
 }
 
@@ -465,14 +497,7 @@ function renderEarnPanel() {
       <p>Complete partner tasks and unlock premium boosts with Telegram Stars.</p>
     </article>
     ${earnRow("sponsor", "Partner Bot", "Open sponsor bot · one-time bonus", 750, state.tasks.sponsor)}
-    ${earnRow(
-      "ad",
-      "Rewarded Ad",
-      adRewardSubtitle(),
-      300,
-      !adRewardAvailable(),
-      !adRewardAvailable() ? boostTimeLeft(state.adCooldownUntil) : ""
-    )}
+    ${renderAdEarnRow()}
     ${earnRow("channel", "Join Channel", "Subscribe for bonus coins", 500, state.tasks.channel)}
     ${
       CONFIG.ADSGRAM_DEBUG && (state.tasks.sponsor || state.tasks.channel || !adRewardAvailable())
@@ -1173,7 +1198,7 @@ async function handleEarnClick(type) {
 
   if (type === "ad") {
     if (!adRewardAvailable()) {
-      showToast(`Next ad in ${boostTimeLeft(state.adCooldownUntil)}`);
+      showToast(`Refreshing in ${adRefreshMinutesLeft()}`);
       return;
     }
 
@@ -1211,7 +1236,7 @@ async function claimEarnTask(type) {
       state.adCooldownUntil = Number(result.nextAt || state.adCooldownUntil);
       scheduleAdCooldownRefresh();
       renderEarnPanel();
-      showToast(`Next ad in ${boostTimeLeft(state.adCooldownUntil)}`);
+      showToast(`Refreshing in ${adRefreshMinutesLeft()}`);
     } else showToast("Task unavailable.");
     return;
   }
