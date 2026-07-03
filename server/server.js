@@ -1,6 +1,12 @@
 const express = require("express");
 const cors = require("cors");
 const { createClient } = require("@supabase/supabase-js");
+const {
+  bearerTokenFromRequest,
+  createSessionToken,
+  resolveTelegramUser,
+  verifyToken
+} = require("./auth");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -17,6 +23,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 app.use(cors());
 app.use(express.json());
+app.use(ipRateLimit);
 
 const MAX_ENERGY = 100;
 const ENERGY_RECOVERY_PER_MINUTE = 2;
@@ -33,6 +40,12 @@ const GOLD_RUSH_DURATION_MS = 15 * 60 * 1000;
 const GOLD_RUSH_MULTIPLIER = 2;
 const CRON_SECRET = process.env.CRON_SECRET || process.env.ADMIN_SECRET || "";
 const DAILY_PUSH_HOUR_UTC = Math.max(0, Math.min(23, Number(process.env.DAILY_PUSH_HOUR_UTC) || 10));
+const TAP_RATE_WINDOW_MS = 1000;
+const MAX_TAPS_PER_WINDOW = 10;
+const TAP_VIOLATION_ALERT_THRESHOLD = 25;
+const IP_RATE_WINDOW_MS = 60 * 1000;
+const IP_MAX_HITS = 240;
+const ipRateBuckets = new Map();
 
 const EARN_TASKS = {
   sponsor: { reward: 750, field: "sponsor_done" },
@@ -332,6 +345,82 @@ function requireAdmin(req, res) {
   }
 
   return true;
+}
+
+function requirePlayer(req, res, next) {
+  const userId = verifyToken(bearerTokenFromRequest(req));
+  if (!userId) {
+    res.status(401).json({ error: "SESSION_EXPIRED" });
+    return;
+  }
+
+  req.playerId = userId;
+  next();
+}
+
+function ipRateLimit(req, res, next) {
+  if (!req.path.startsWith("/api/")) {
+    next();
+    return;
+  }
+
+  if (req.path === "/api/adsgram/reward" || req.path === "/api/session") {
+    next();
+    return;
+  }
+
+  const ip = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown")
+    .split(",")[0]
+    .trim();
+  const now = nowMs();
+  let bucket = ipRateBuckets.get(ip);
+
+  if (!bucket || now - bucket.start > IP_RATE_WINDOW_MS) {
+    bucket = { start: now, count: 0 };
+  }
+
+  bucket.count += 1;
+  ipRateBuckets.set(ip, bucket);
+
+  if (bucket.count > IP_MAX_HITS) {
+    res.status(429).json({ error: "RATE_LIMITED" });
+    return;
+  }
+
+  next();
+}
+
+function nextTapRateState(row) {
+  const now = nowMs();
+  let windowStart = number(row.tap_window_start);
+  let count = number(row.tap_window_count);
+
+  if (!windowStart || now - windowStart >= TAP_RATE_WINDOW_MS) {
+    windowStart = now;
+    count = 0;
+  }
+
+  if (count >= MAX_TAPS_PER_WINDOW) {
+    return {
+      allowed: false,
+      windowStart,
+      count,
+      violations: number(row.tap_violations) + 1
+    };
+  }
+
+  return {
+    allowed: true,
+    windowStart,
+    count: count + 1,
+    violations: number(row.tap_violations)
+  };
+}
+
+async function logTapViolation(userId, violations) {
+  if (violations % 5 !== 0 && violations < TAP_VIOLATION_ALERT_THRESHOLD) return;
+
+  await logMetric("tap_rate_violation", violations, `user=${userId}`, { userId });
 }
 
 function tournamentIsLive(row, ms = nowMs()) {
@@ -791,7 +880,7 @@ app.get("/health", (_req, res) => {
     ok: true,
     app: "Wealthia API",
     database: true,
-    version: "growth-features-v1"
+    version: "anticheat-v1"
   });
 });
 
@@ -802,9 +891,23 @@ app.get("/api/adsgram/reward", (_req, res) => {
 
 app.post("/api/session", async (req, res) => {
   try {
-    const referrerId = parseReferrerId(req.body.referrerId || req.body.referralId);
-    const row = await getOrCreatePlayer(req.body.telegramUser, referrerId);
-    res.json(toClientUser(row));
+    const telegramUser = resolveTelegramUser(req);
+    if (!telegramUser) {
+      res.status(401).json({ error: "INVALID_TELEGRAM_AUTH" });
+      return;
+    }
+
+    const referrerId = parseReferrerId(
+      req.body.referrerId || req.body.referralId || telegramUser.start_param
+    );
+    const row = await getOrCreatePlayer(telegramUser, referrerId);
+    const session = createSessionToken(telegramUser.id);
+
+    res.json({
+      ...toClientUser(row),
+      token: session.token,
+      expiresAt: session.expiresAt
+    });
   } catch (error) {
     console.error("SESSION_ERROR:", error);
     res.status(500).json({
@@ -815,9 +918,9 @@ app.post("/api/session", async (req, res) => {
     });
   }
 });
-app.post("/api/gold-rush/start", async (req, res) => {
+app.post("/api/gold-rush/start", requirePlayer, async (req, res) => {
   try {
-    const userId = String(req.body.userId || "");
+    const userId = req.playerId;
     const row = await loadGame(userId);
 
     if (!goldRushCanStart(row)) {
@@ -849,11 +952,28 @@ app.post("/api/gold-rush/start", async (req, res) => {
   }
 });
 
-app.post("/api/tap", async (req, res) => {
+app.post("/api/tap", requirePlayer, async (req, res) => {
   try {
-    const userId = String(req.body.userId || "");
+    const userId = req.playerId;
     const row = await loadGame(userId);
     const endless = hasEndlessEnergy(row);
+    const rate = nextTapRateState(row);
+
+    if (!rate.allowed) {
+      await supabase
+        .from("game_states")
+        .update({
+          tap_window_start: rate.windowStart,
+          tap_window_count: rate.count,
+          tap_violations: rate.violations,
+          updated_at: new Date().toISOString()
+        })
+        .eq("user_id", userId);
+
+      await logTapViolation(userId, rate.violations);
+      res.status(429).json({ error: "TOO_FAST", retryAfterMs: TAP_RATE_WINDOW_MS });
+      return;
+    }
 
     if (!endless && number(row.energy) < 1) {
       res.status(400).json({ error: "NO_ENERGY" });
@@ -866,6 +986,9 @@ app.post("/api/tap", async (req, res) => {
       energy: endless ? number(row.energy) : Math.max(0, number(row.energy) - 1),
       taps: number(row.taps) + 1,
       city_value: number(row.coins) + amount + number(row.spent),
+      tap_window_start: rate.windowStart,
+      tap_window_count: rate.count,
+      tap_violations: rate.violations,
       updated_at: new Date().toISOString()
     };
 
@@ -886,9 +1009,9 @@ app.post("/api/tap", async (req, res) => {
   }
 });
 
-app.post("/api/upgrade", async (req, res) => {
+app.post("/api/upgrade", requirePlayer, async (req, res) => {
   try {
-    const userId = String(req.body.userId || "");
+    const userId = req.playerId;
     const building = String(req.body.building || "");
 
     if (!["shop", "bank", "factory", "casino"].includes(building)) {
@@ -929,9 +1052,9 @@ app.post("/api/upgrade", async (req, res) => {
   }
 });
 
-app.post("/api/claim-task", async (req, res) => {
+app.post("/api/claim-task", requirePlayer, async (req, res) => {
   try {
-    const userId = String(req.body.userId || "");
+    const userId = req.playerId;
     const taskId = String(req.body.task || "");
 
     const row = await loadGame(userId);
@@ -977,9 +1100,9 @@ app.post("/api/claim-task", async (req, res) => {
   }
 });
 
-app.post("/api/claim-daily", async (req, res) => {
+app.post("/api/claim-daily", requirePlayer, async (req, res) => {
   try {
-    const userId = String(req.body.userId || "");
+    const userId = req.playerId;
     const row = await loadGame(userId);
 
     if (dailyRewardClaimedToday(row)) {
@@ -1011,9 +1134,9 @@ app.post("/api/claim-daily", async (req, res) => {
   }
 });
 
-app.post("/api/claim-earn", async (req, res) => {
+app.post("/api/claim-earn", requirePlayer, async (req, res) => {
   try {
-    const userId = String(req.body.userId || "");
+    const userId = req.playerId;
     const type = String(req.body.type || "");
     const earnTask = EARN_TASKS[type];
 
@@ -1103,9 +1226,9 @@ app.post("/api/claim-earn", async (req, res) => {
   }
 });
 
-app.post("/api/buy-boost", async (req, res) => {
+app.post("/api/buy-boost", requirePlayer, async (req, res) => {
   try {
-    const userId = String(req.body.userId || "");
+    const userId = req.playerId;
     const boost = String(req.body.boost || "");
     const option = BOOST_OPTIONS[boost];
 
@@ -1165,9 +1288,9 @@ app.get("/api/stars/products", (_req, res) => {
   res.json({ ok: true, products });
 });
 
-app.post("/api/stars/invoice", async (req, res) => {
+app.post("/api/stars/invoice", requirePlayer, async (req, res) => {
   try {
-    const userId = String(req.body.userId || "");
+    const userId = req.playerId;
     const productId = String(req.body.productId || "");
     const product = STAR_PRODUCTS[productId];
 
@@ -1266,9 +1389,9 @@ app.post("/api/stars/fulfill", async (req, res) => {
   }
 });
 
-app.post("/api/casino-spin", async (req, res) => {
+app.post("/api/casino-spin", requirePlayer, async (req, res) => {
   try {
-    const userId = String(req.body.userId || "");
+    const userId = req.playerId;
     const row = await loadGame(userId);
 
     if (number(row.casino_level) < 1) {
@@ -1309,9 +1432,9 @@ app.post("/api/casino-spin", async (req, res) => {
   }
 });
 
-app.post("/api/reset", async (req, res) => {
+app.post("/api/reset", requirePlayer, async (req, res) => {
   try {
-    const userId = String(req.body.userId || "");
+    const userId = req.playerId;
     const mode = String(req.body.mode || "full");
 
     if (mode === "earn") {
@@ -1425,9 +1548,9 @@ app.post("/api/reset", async (req, res) => {
   }
 });
 
-app.post("/api/leaderboard", async (req, res) => {
+app.post("/api/leaderboard", requirePlayer, async (req, res) => {
   try {
-    const userId = String(req.body.userId || "");
+    const userId = req.playerId;
 
     const { data: topData, error } = await supabase
       .from("game_states")
@@ -1928,9 +2051,9 @@ app.get("/api/admin/metrics", async (req, res) => {
   }
 });
 
-app.post("/api/tournaments/active", async (req, res) => {
+app.post("/api/tournaments/active", requirePlayer, async (req, res) => {
   try {
-    const userId = String(req.body.userId || "");
+    const userId = req.playerId;
     const tournament = await getActiveTournament(userId);
 
     if (!tournament) {
@@ -1946,9 +2069,9 @@ app.post("/api/tournaments/active", async (req, res) => {
   }
 });
 
-app.post("/api/tournaments/join", async (req, res) => {
+app.post("/api/tournaments/join", requirePlayer, async (req, res) => {
   try {
-    const userId = String(req.body.userId || "");
+    const userId = req.playerId;
     const tournamentId = String(req.body.tournamentId || "");
 
     if (!userId || !tournamentId) {
@@ -2034,10 +2157,10 @@ app.post("/api/tournaments/join", async (req, res) => {
   }
 });
 
-app.post("/api/tournaments/leaderboard", async (req, res) => {
+app.post("/api/tournaments/leaderboard", requirePlayer, async (req, res) => {
   try {
     const tournamentId = String(req.body.tournamentId || "");
-    const userId = String(req.body.userId || "");
+    const userId = req.playerId;
 
     if (!tournamentId) {
       res.status(400).json({ error: "BAD_REQUEST" });
