@@ -332,6 +332,33 @@ function switchToFriendsTab() {
   if (friendsTab) friendsTab.click();
 }
 
+function getInviteLink() {
+  const botName = CONFIG.BOT_USERNAME || "WealthiaGameBot";
+  const userId = backendUserId || "guest";
+  return `https://t.me/${botName}?start=ref_${userId}`;
+}
+
+async function shareInviteLink() {
+  const link = getInviteLink();
+  const text = "Join my Wealthia empire — tap, build & earn coins! Use my link and we both get +500 coins.";
+  const tg = window.Telegram && window.Telegram.WebApp;
+
+  if (tg && typeof tg.openTelegramLink === "function") {
+    const shareUrl =
+      `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
+    tg.openTelegramLink(shareUrl);
+    showToast("Choose a friend to send your invite.");
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(link);
+    showToast("Invite link copied. Send it to friends!");
+  } catch {
+    showToast(link);
+  }
+}
+
 function renderDailyPrizeBanner() {
   const mount = els.grandPrizeMount;
   const prize = getDailyPrizeConfig();
@@ -355,13 +382,15 @@ function renderDailyPrizeBanner() {
         <strong>${symbol}${format(prize.prize)} today — 3 friends required</strong>
         <small>${timeLeft} left · Friends invited: ${referrals}/${required}</small>
       </div>
+      <p class="grand-prize__hint daily-prize__gain">Today's gain: <strong>+${format(score)}</strong></p>
       ${eligible
-    ? `<p class="grand-prize__hint">Your gain today: <strong>+${format(score)}</strong>${leader ? ` · Leader: ${leader.isYou ? "You" : leader.name}` : ""}</p>`
-    : `<p class="grand-prize__hint daily-prize__lock">Invite <strong>${required - referrals}</strong> more friend(s) to unlock the $10 prize race.</p>`}
+    ? `${leader ? `<p class="grand-prize__hint">Leader: <strong>${leader.isYou ? "You" : leader.name}</strong> (+${format(leader.dailyScore || leader.score || 0)})</p>` : ""}`
+    : `<p class="grand-prize__hint daily-prize__lock">Invite <strong>${Math.max(0, required - referrals)}</strong> more friend(s) to unlock the $10 race.</p>`}
       <div class="daily-prize__actions">
         ${eligible
     ? `<button class="daily-prize__boost" type="button" id="dailyPrizeBoostButton">⭐ Boosts in Earn tab</button>`
-    : `<button class="daily-prize__boost daily-prize__boost--invite" type="button" id="dailyPrizeInviteButton">👥 Invite friends</button>`}
+    : `<button class="daily-prize__boost daily-prize__boost--invite" type="button" id="dailyPrizeInviteButton">👥 Invite friends — share link</button>`}
+        ${eligible ? `<button class="daily-prize__boost daily-prize__boost--invite daily-prize__boost--secondary" type="button" id="dailyPrizeInviteButton">👥 Invite more friends</button>` : ""}
       </div>
     </article>
   `;
@@ -370,7 +399,7 @@ function renderDailyPrizeBanner() {
   if (boostBtn) boostBtn.addEventListener("click", switchToEarnTab);
 
   const inviteBtn = document.getElementById("dailyPrizeInviteButton");
-  if (inviteBtn) inviteBtn.addEventListener("click", switchToFriendsTab);
+  if (inviteBtn) inviteBtn.addEventListener("click", () => shareInviteLink());
 }
 
 function renderCampaignRankCard() {
@@ -2088,17 +2117,7 @@ if (els.earnPanel) {
 
 const inviteButton = document.getElementById("inviteButton");
 if (inviteButton) {
-  inviteButton.addEventListener("click", async () => {
-    const botName = CONFIG.BOT_USERNAME || "WealthiaGameBot";
-    const link = `https://t.me/${botName}?start=ref_${backendUserId}`;
-
-    try {
-      await navigator.clipboard.writeText(link);
-      showToast("Invite link copied. Friend joins = +500 coins.");
-    } catch {
-      showToast(link);
-    }
-  });
+  inviteButton.addEventListener("click", () => shareInviteLink());
 }
 
 const resetButton = document.getElementById("resetButton");

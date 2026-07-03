@@ -1214,6 +1214,22 @@ button.completed strong {
   background: linear-gradient(180deg, #6ee7b7, #34d399);
 }
 
+.daily-prize__gain {
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.daily-prize__gain strong {
+  color: var(--gold, #f5c842);
+  font-size: 15px;
+}
+
+.daily-prize__boost--secondary {
+  margin-top: 0;
+  color: #fff7ed;
+  background: linear-gradient(180deg, #fdba74, #f97316);
+}
+
 .daily-prize--locked {
   border-color: rgba(248, 113, 113, 0.4);
   background: linear-gradient(135deg, rgba(127, 29, 29, 0.2), rgba(245, 196, 81, 0.08));
