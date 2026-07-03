@@ -537,12 +537,33 @@ function renderTournamentPanel() {
   }
 }
 
+function ordinalRank(rank) {
+  const value = Number(rank || 0);
+  const mod100 = value % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${value}th`;
+  const mod10 = value % 10;
+  if (mod10 === 1) return `${value}st`;
+  if (mod10 === 2) return `${value}nd`;
+  if (mod10 === 3) return `${value}rd`;
+  return `${value}th`;
+}
+
+function renderRankRow(row) {
+  return `
+    <li class="${row.isYou ? "rank__you" : ""}">
+      <span class="rank__medal">${medalForRank(row.rank)}</span>
+      <span>${row.isYou ? "You" : row.name}</span>
+      <strong>${format(row.cityValue)}</strong>
+    </li>
+  `;
+}
+
 function renderRankPanel() {
   const panel = els.globalLeaderboard;
   if (!panel) return;
 
-  const rows = leaderboardRows.length
-    ? leaderboardRows
+  const top3 = leaderboardTop3.length
+    ? leaderboardTop3
     : [{
       rank: 1,
       name: "You",
@@ -550,20 +571,27 @@ function renderRankPanel() {
       isYou: true
     }];
 
+  const you = leaderboardYou;
+  const youBlock = you
+    ? `
+      <div class="rank-your-place">
+        <span class="rank-your-place__label">Your place · ${ordinalRank(you.rank)}</span>
+      </div>
+      <ol class="rank rank--you-only">
+        ${renderRankRow(you)}
+      </ol>
+    `
+    : "";
+
   panel.innerHTML = `
     <div class="panel-head">
       <h2>Global Leaderboard</h2>
       <p>Top empire builders by city value</p>
     </div>
     <ol class="rank">
-      ${rows.map((row) => `
-        <li class="${row.isYou ? "rank__you" : ""}">
-          <span class="rank__medal">${medalForRank(row.rank)}</span>
-          <span>${row.isYou ? "You" : row.name}</span>
-          <strong>${format(row.cityValue)}</strong>
-        </li>
-      `).join("")}
+      ${top3.map((row) => renderRankRow(row)).join("")}
     </ol>
+    ${youBlock}
   `;
 }
 
@@ -876,9 +904,10 @@ async function loadLeaderboard() {
   if (!backendReady) return;
 
   const { ok, result } = await apiPost("/api/leaderboard", { userId: backendUserId });
-  if (!ok || !result || !Array.isArray(result.rows)) return;
+  if (!ok || !result) return;
 
-  leaderboardRows = result.rows;
+  leaderboardTop3 = Array.isArray(result.top3) ? result.top3 : [];
+  leaderboardYou = result.you || null;
   renderRankPanel();
 }
 

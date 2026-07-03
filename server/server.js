@@ -1184,34 +1184,68 @@ app.post("/api/leaderboard", async (req, res) => {
   try {
     const userId = String(req.body.userId || "");
 
-    const { data, error } = await supabase
+    const { data: topData, error } = await supabase
       .from("game_states")
       .select("user_id, city_value")
       .order("city_value", { ascending: false })
-      .limit(20);
+      .limit(3);
 
     if (error) throw error;
 
-    const ids = data.map((row) => row.user_id);
+    const topIds = (topData || []).map((row) => row.user_id);
+    const lookupIds = [...new Set(topIds)];
+
+    let yourRank = null;
+    let yourGame = null;
+
+    if (userId) {
+      const { data: userRow } = await supabase
+        .from("game_states")
+        .select("user_id, city_value")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (userRow) {
+        yourGame = userRow;
+        const { count, error: countError } = await supabase
+          .from("game_states")
+          .select("*", { count: "exact", head: true })
+          .gt("city_value", number(userRow.city_value));
+
+        if (countError) throw countError;
+        yourRank = number(count) + 1;
+
+        if (!lookupIds.includes(userId)) {
+          lookupIds.push(userId);
+        }
+      }
+    }
+
     const { data: users } = await supabase
       .from("users")
       .select("id, first_name, username")
-      .in("id", ids);
+      .in("id", lookupIds);
 
     const userMap = new Map((users || []).map((user) => [user.id, user]));
 
-    res.json({
-      rows: data.map((row, index) => {
-        const profile = userMap.get(row.user_id) || {};
-        return {
-          rank: index + 1,
-          userId: row.user_id,
-          name: profile.first_name || profile.username || `Player ${String(row.user_id).slice(-4)}`,
-          cityValue: number(row.city_value),
-          isYou: row.user_id === userId
-        };
-      })
-    });
+    function rowFromGame(gameRow, rank) {
+      const profile = userMap.get(gameRow.user_id) || {};
+      return {
+        rank,
+        userId: gameRow.user_id,
+        name: profile.first_name || profile.username || `Player ${String(gameRow.user_id).slice(-4)}`,
+        cityValue: number(gameRow.city_value),
+        isYou: gameRow.user_id === userId
+      };
+    }
+
+    const top3 = (topData || []).map((row, index) => rowFromGame(row, index + 1));
+    const youInTop3 = top3.some((row) => row.isYou);
+    const you = yourGame && yourRank && !youInTop3
+      ? rowFromGame(yourGame, yourRank)
+      : null;
+
+    res.json({ top3, you });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
