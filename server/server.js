@@ -64,6 +64,7 @@ const BOOST_OPTIONS = {
 };
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
+const OWNER_TELEGRAM_ID = String(process.env.OWNER_TELEGRAM_ID || "").trim();
 
 const STAR_PRODUCTS = {
   refill_energy: {
@@ -87,6 +88,29 @@ const STAR_PRODUCTS = {
     description: "Double offline income for 30 minutes"
   }
 };
+
+async function notifyOwnerStarsSale(details) {
+  if (!OWNER_TELEGRAM_ID || !TELEGRAM_BOT_TOKEN) return;
+
+  const lines = [
+    "💰 Wealthia — Stars satışı!",
+    "",
+    `Oyunçu: ${details.playerName}`,
+    `Məhsul: ${details.productTitle}`,
+    `Ödənilib: ${details.stars} ⭐`,
+    "",
+    "Gəlir gəlir — əla! 🎉"
+  ];
+
+  try {
+    await telegramApi("sendMessage", {
+      chat_id: OWNER_TELEGRAM_ID,
+      text: lines.join("\n")
+    });
+  } catch (error) {
+    console.warn("OWNER_STARS_NOTIFY_FAILED:", error.message);
+  }
+}
 
 async function telegramApi(method, body) {
   if (!TELEGRAM_BOT_TOKEN) {
@@ -1554,6 +1578,18 @@ app.post("/api/stars/fulfill", async (req, res) => {
       .single();
 
     if (error) throw error;
+
+    const { data: buyer } = await supabase
+      .from("users")
+      .select("first_name, username")
+      .eq("id", userId)
+      .maybeSingle();
+
+    await notifyOwnerStarsSale({
+      playerName: buyer?.first_name || buyer?.username || `Player ${userId.slice(-4)}`,
+      productTitle: STAR_PRODUCTS[productId].title,
+      stars: starsAmount || STAR_PRODUCTS[productId].stars
+    });
 
     res.json({ ok: true, productId, user: toClientUser(data) });
   } catch (error) {
