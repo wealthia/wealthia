@@ -491,7 +491,7 @@ function renderDailyPrizeRankCard() {
       ${eligible
     ? `<p class="daily-prize-card__boost-tip">Only players with 3+ invited friends can win. Use ⭐ boosts to climb.</p>`
     : `<p class="daily-prize-card__boost-tip">Invite 3 friends from the Friends tab to join today's $10 race.</p>`}
-      ${prize.channelUrl ? `<button class="grand-prize-card__channel" type="button" data-channel="${prize.channelUrl}">Winner will be announced</button>` : ""}
+      ${prize.channelUrl ? `<button class="grand-prize-card__channel" type="button" data-channel="${prize.channelUrl}">Winner will be announced on the Telegram channel</button>` : ""}
     </article>
   `;
 }
@@ -1158,7 +1158,7 @@ function renderRankRow(row, mode = "global") {
     : Number(row.cityValue || 0);
   const display = daily ? `+${format(value)}` : format(value);
   const label = row.isYou
-    ? (rank > 3 ? `You · ${ordinalRank(rank)}` : "You")
+    ? (rank > 3 ? `Your place · ${ordinalRank(rank)}` : "You")
     : row.name;
 
   return `
@@ -1173,30 +1173,48 @@ function renderRankRow(row, mode = "global") {
 function buildDailyLeaderboardRows() {
   const rows = dailyLeaderboardTop3.length
     ? [...dailyLeaderboardTop3]
-    : [{
-      rank: 1,
-      name: "You",
-      dailyScore: todayGainScore(),
-      isYou: true
-    }];
+    : [];
 
-  let you = dailyLeaderboardYou;
   const youInList = rows.some((row) => row.isYou);
+  if (youInList) return rows.length ? rows : [{
+    rank: 1,
+    name: "You",
+    dailyScore: todayGainScore(),
+    isYou: true
+  }];
 
-  if (!you && !youInList && dailyYourRank > 3 && dailyPrizeEligible) {
-    you = {
-      rank: dailyYourRank,
-      name: "You",
-      dailyScore: dailyContestScore || todayGainScore(),
-      isYou: true
-    };
+  const score = Math.max(
+    Number(dailyContestScore || 0),
+    Number(state.dailyContest?.score || 0),
+    todayGainScore()
+  );
+
+  let rank = Number(dailyYourRank || dailyLeaderboardYou?.rank || 0);
+  if (!rank) {
+    rank = 1 + rows.filter((row) => Number(row.dailyScore || row.score || 0) > score).length;
   }
 
-  if (you && !youInList) {
-    rows.push({ ...you, rank: Number(you.rank || dailyYourRank || 0) });
+  const you = dailyLeaderboardYou || (backendReady ? {
+    rank,
+    name: "You",
+    dailyScore: score,
+    isYou: true
+  } : null);
+
+  if (you && rank > 3) {
+    rows.push({
+      ...you,
+      rank,
+      dailyScore: Number(you.dailyScore || you.score || score)
+    });
   }
 
-  return rows;
+  return rows.length ? rows : [{
+    rank: 1,
+    name: "You",
+    dailyScore: score,
+    isYou: true
+  }];
 }
 
 function renderRankPanel() {
