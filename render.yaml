@@ -21,6 +21,8 @@ services:
         value: https://wealthia.github.io/wealthia/v5.html?v=2012
       - key: CHANNEL_URL
         sync: false
+      - key: ALLOW_EARN_RESET
+        value: "true"
 
   - type: worker
     name: wealthia-bot

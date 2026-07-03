@@ -450,6 +450,11 @@ function renderEarnPanel() {
       state.tasks.ad
     )}
     ${earnRow("channel", "Join Channel", "Subscribe for bonus coins", 500, state.tasks.channel)}
+    ${
+      CONFIG.ADSGRAM_DEBUG && (state.tasks.ad || state.tasks.sponsor || state.tasks.channel)
+        ? `<button class="task earn-reset" type="button" id="resetEarnTasks">Reset earn tasks (test)</button>`
+        : ""
+    }
     <article class="card stack stars-shop">
       <h2>Premium Boosts</h2>
       <p class="earn-note">Pay with Telegram Stars ⭐ · most boosts last 30 minutes</p>
@@ -1229,6 +1234,30 @@ async function buyStarsProduct(productId) {
   });
 }
 
+async function resetEarnTasks(type) {
+  if (!backendReady) {
+    showToast("Backend offline.");
+    return;
+  }
+
+  const { ok, result } = await apiPost("/api/reset", {
+    userId: backendUserId,
+    mode: "earn",
+    type: type || ""
+  });
+
+  if (!ok) {
+    if (result && result.error === "EARN_RESET_DISABLED") {
+      showToast("Earn reset disabled on server.");
+    } else {
+      showToast("Reset failed.");
+    }
+    return;
+  }
+
+  await applyBackendUser(result.user, "Earn tasks reset.");
+}
+
 async function resetGame() {
   if (!backendReady) {
     showToast("Backend offline.");
@@ -1381,6 +1410,11 @@ if (els.tasksPanel) {
 
 if (els.earnPanel) {
   els.earnPanel.addEventListener("click", (event) => {
+    if (event.target.closest("#resetEarnTasks")) {
+      resetEarnTasks("ad");
+      return;
+    }
+
     const earnButton = event.target.closest("[data-earn]");
     if (earnButton && !earnButton.disabled) {
       handleEarnClick(earnButton.dataset.earn);

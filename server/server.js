@@ -1130,6 +1130,50 @@ app.post("/api/casino-spin", async (req, res) => {
 app.post("/api/reset", async (req, res) => {
   try {
     const userId = String(req.body.userId || "");
+    const mode = String(req.body.mode || "full");
+
+    if (mode === "earn") {
+      if (process.env.ALLOW_EARN_RESET === "false") {
+        res.status(403).json({ error: "EARN_RESET_DISABLED" });
+        return;
+      }
+
+      const row = await loadGame(userId);
+      let coins = number(row.coins);
+      const onlyType = String(req.body.type || "").trim();
+
+      if (!onlyType || onlyType === "ad") {
+        if (Boolean(row.ad_done)) coins = Math.max(0, coins - EARN_TASKS.ad.reward);
+      }
+      if (!onlyType || onlyType === "sponsor") {
+        if (Boolean(row.sponsor_done)) coins = Math.max(0, coins - EARN_TASKS.sponsor.reward);
+      }
+      if (!onlyType || onlyType === "channel") {
+        if (Boolean(row.channel_done)) coins = Math.max(0, coins - EARN_TASKS.channel.reward);
+      }
+
+      const update = {
+        coins,
+        city_value: coins + number(row.spent),
+        updated_at: new Date().toISOString()
+      };
+
+      if (!onlyType || onlyType === "ad") update.ad_done = false;
+      if (!onlyType || onlyType === "sponsor") update.sponsor_done = false;
+      if (!onlyType || onlyType === "channel") update.channel_done = false;
+
+      const { data, error } = await supabase
+        .from("game_states")
+        .update(update)
+        .eq("user_id", userId)
+        .select("*")
+        .single();
+
+      if (error) throw error;
+
+      res.json({ ok: true, user: toClientUser(data) });
+      return;
+    }
 
     const { data, error } = await supabase
       .from("game_states")

@@ -1012,6 +1012,14 @@ button.completed strong {
   font-weight: 500;
 }
 
+.earn-reset {
+  justify-content: center;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  border-style: dashed;
+}
+
 /* Friends */
 .friends-card {
   display: grid;
