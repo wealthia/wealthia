@@ -1001,14 +1001,38 @@ function initTelegramWebApp() {
 function setupTapControls() {
   if (!els.tapButton) return;
 
+  const tapArea = document.querySelector(".tap-area");
+  let tapping = false;
+
   const blockTouchScroll = (event) => {
     if (event.cancelable) event.preventDefault();
   };
 
-  els.tapButton.addEventListener("pointerdown", backendTap);
+  const onTapStart = (event) => {
+    tapping = true;
+    backendTap(event);
+  };
+
+  const onTapEnd = () => {
+    tapping = false;
+  };
+
+  els.tapButton.addEventListener("pointerdown", onTapStart);
+  els.tapButton.addEventListener("pointerup", onTapEnd);
+  els.tapButton.addEventListener("pointercancel", onTapEnd);
+  els.tapButton.addEventListener("pointerleave", onTapEnd);
   els.tapButton.addEventListener("touchstart", blockTouchScroll, { passive: false });
   els.tapButton.addEventListener("touchmove", blockTouchScroll, { passive: false });
+  els.tapButton.addEventListener("touchend", onTapEnd, { passive: false });
   els.tapButton.addEventListener("contextmenu", (event) => event.preventDefault());
+
+  if (tapArea) {
+    tapArea.addEventListener("touchmove", blockTouchScroll, { passive: false });
+  }
+
+  document.addEventListener("touchmove", (event) => {
+    if (tapping && event.cancelable) event.preventDefault();
+  }, { passive: false });
 }
 
 document.querySelectorAll("[data-upgrade]").forEach((button) => {
