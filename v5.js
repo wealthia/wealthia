@@ -406,6 +406,11 @@ function bindDailyRewardButton() {
   button.addEventListener("click", () => claimDailyReward());
 }
 
+function starPrice(productId) {
+  const prices = CONFIG.STAR_PRICES || {};
+  return Number(prices[productId] || 0);
+}
+
 function renderEarnPanel() {
   const panel = els.earnPanel;
   if (!panel) return;
@@ -438,10 +443,10 @@ function renderEarnPanel() {
       <h2>Premium Boosts</h2>
       <p class="earn-note">Pay with Telegram Stars ⭐ · most boosts last 30 minutes</p>
       <div class="boost-grid boost-grid--stars">
-        ${starButton("refill_energy", "&#x26A1;", "Refill Energy", 5, false, 0)}
-        ${starButton("tap_boost_30", "&#x1F4AA;", "2x Tap", 10, state.boosts.tapActive, state.boosts.tapUntil)}
-        ${starButton("endless_energy_30", "&#x1F525;", "Endless Energy", 15, state.boosts.endlessActive, state.boosts.endlessUntil)}
-        ${starButton("income_boost_30", "&#x1F4C8;", "2x Income", 15, state.boosts.incomeActive, state.boosts.incomeUntil)}
+        ${starButton("refill_energy", "&#x26A1;", "Refill Energy", starPrice("refill_energy"), false, 0)}
+        ${starButton("tap_boost_30", "&#x1F4AA;", "2x Tap", starPrice("tap_boost_30"), state.boosts.tapActive, state.boosts.tapUntil)}
+        ${starButton("endless_energy_30", "&#x1F525;", "Endless Energy", starPrice("endless_energy_30"), state.boosts.endlessActive, state.boosts.endlessUntil)}
+        ${starButton("income_boost_30", "&#x1F4C8;", "2x Income", starPrice("income_boost_30"), state.boosts.incomeActive, state.boosts.incomeUntil)}
       </div>
     </article>
   `;
