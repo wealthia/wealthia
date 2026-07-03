@@ -8,6 +8,7 @@ let leaderboardTop3 = [];
 let leaderboardYou = null;
 let dailyLeaderboardTop3 = [];
 let dailyLeaderboardYou = null;
+let dailyYourRank = 0;
 let dailyContestResetsAt = "";
 let dailyContestScore = 0;
 let dailyReferralCount = 0;
@@ -1045,6 +1046,14 @@ function renderEarnPanel() {
   `;
 }
 
+function rankMark(rank) {
+  const value = Number(rank || 0);
+  if (value === 1) return "&#x1F947;";
+  if (value === 2) return "&#x1F948;";
+  if (value === 3) return "&#x1F949;";
+  return `${value}.`;
+}
+
 function medalForRank(rank) {
   if (rank === 1) return "&#x1F947;";
   if (rank === 2) return "&#x1F948;";
@@ -1141,19 +1150,20 @@ function ordinalRank(rank) {
   return `${value}th`;
 }
 
-function renderRankRow(row, mode = "global", options = {}) {
+function renderRankRow(row, mode = "global") {
   const daily = mode === "daily";
+  const rank = Number(row.rank || 0);
   const value = daily
     ? Number(row.dailyScore || row.score || 0)
     : Number(row.cityValue || 0);
   const display = daily ? `+${format(value)}` : format(value);
   const label = row.isYou
-    ? (options.showYouRank ? `You · ${ordinalRank(row.rank)}` : "You")
+    ? (rank > 3 ? `You · ${ordinalRank(rank)}` : "You")
     : row.name;
 
   return `
     <li class="${row.isYou ? "rank__you" : ""}">
-      <span class="rank__medal">${medalForRank(row.rank)}</span>
+      <span class="rank__medal">${rankMark(rank)}</span>
       <span>${label}</span>
       <strong>${display}</strong>
     </li>
@@ -1170,10 +1180,20 @@ function buildDailyLeaderboardRows() {
       isYou: true
     }];
 
-  const you = dailyLeaderboardYou;
+  let you = dailyLeaderboardYou;
   const youInList = rows.some((row) => row.isYou);
+
+  if (!you && !youInList && dailyYourRank > 3 && dailyPrizeEligible) {
+    you = {
+      rank: dailyYourRank,
+      name: "You",
+      dailyScore: dailyContestScore || todayGainScore(),
+      isYou: true
+    };
+  }
+
   if (you && !youInList) {
-    rows.push(you);
+    rows.push({ ...you, rank: Number(you.rank || dailyYourRank || 0) });
   }
 
   return rows;
@@ -1215,11 +1235,7 @@ function renderRankPanel() {
       <p>${dailyMode ? "Top players by today's gain" : "Top empire builders by city value"}</p>
     </div>
     <ol class="rank">
-      ${top3.map((row) => renderRankRow(
-        row,
-        dailyMode ? "daily" : "global",
-        { showYouRank: dailyMode && row.isYou && row.rank > 3 }
-      )).join("")}
+      ${top3.map((row) => renderRankRow(row, dailyMode ? "daily" : "global")).join("")}
     </ol>
     ${youBlock}
   `;
@@ -1672,6 +1688,7 @@ async function loadLeaderboard() {
   leaderboardYou = result.you || null;
   dailyLeaderboardTop3 = Array.isArray(result.daily?.top3) ? result.daily.top3 : [];
   dailyLeaderboardYou = result.daily?.you || null;
+  dailyYourRank = Number(result.daily?.yourRank || dailyLeaderboardYou?.rank || 0);
   dailyContestResetsAt = result.daily?.resetsAt || state.dailyContest?.resetsAt || "";
   dailyReferralsRequired = Number(result.daily?.minReferrals || 3);
   dailyReferralCount = Number(result.daily?.yourReferrals || state.referrals?.count || 0);
