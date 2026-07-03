@@ -29,8 +29,7 @@
     }
     .app {
       height: 100%;
-      overflow-y: auto;
-      overflow-x: hidden;
+      overflow: hidden;
       overscroll-behavior: contain;
     }
     .city { height: 170px !important; }
@@ -61,7 +60,7 @@
     .energy-wrap { width: 100%; }
     [hidden] { display: none !important; }
   </style>
-  <link rel="stylesheet" href="./v5.css?v=2025" />
+  <link rel="stylesheet" href="./v5.css?v=2026" />
 </head>
 <body>
   <div class="ambient" aria-hidden="true">
@@ -70,7 +69,8 @@
     <div class="ambient__grid"></div>
   </div>
 
-  <main class="app">
+  <main class="app view-city" id="appRoot">
+    <div class="app-scroll" id="appScroll">
     <header class="header">
       <div class="brand">
         <div class="brand__mark">W</div>
@@ -86,6 +86,7 @@
       </button>
     </header>
 
+    <div class="game-shell" id="gameShell">
     <section class="stats">
       <article class="stat stat--coins">
         <div class="stat__icon">&#x1F4B0;</div>
@@ -154,29 +155,7 @@
         </button>
       </div>
     </section>
-
-    <nav class="tabs">
-      <button class="tab active" type="button" data-tab="cityPanel">
-        <span class="tab__icon">&#x1F3D9;</span>
-        City
-      </button>
-      <button class="tab" type="button" data-tab="tasksPanel">
-        <span class="tab__icon">&#x1F3C6;</span>
-        Tasks
-      </button>
-      <button class="tab" type="button" data-tab="earnPanel">
-        <span class="tab__icon">&#x1F4B8;</span>
-        Earn
-      </button>
-      <button class="tab" type="button" data-tab="friendsPanel">
-        <span class="tab__icon">&#x1F465;</span>
-        Friends
-      </button>
-      <button class="tab" type="button" data-tab="rankPanel">
-        <span class="tab__icon">&#x1F451;</span>
-        Rank
-      </button>
-    </nav>
+    </div>
 
     <section class="panel active" id="cityPanel">
       <div class="panel-head">
@@ -254,6 +233,30 @@
       <div id="tournamentPanel"></div>
       <div id="globalLeaderboard"></div>
     </section>
+    </div>
+
+    <nav class="tabs" id="mainTabs">
+      <button class="tab active" type="button" data-tab="cityPanel" data-view="city">
+        <span class="tab__icon">&#x1F3D9;</span>
+        City
+      </button>
+      <button class="tab" type="button" data-tab="tasksPanel" data-view="tasks">
+        <span class="tab__icon">&#x1F3C6;</span>
+        Tasks
+      </button>
+      <button class="tab" type="button" data-tab="earnPanel" data-view="earn">
+        <span class="tab__icon">&#x1F4B8;</span>
+        Earn
+      </button>
+      <button class="tab" type="button" data-tab="friendsPanel" data-view="friends">
+        <span class="tab__icon">&#x1F465;</span>
+        Friends
+      </button>
+      <button class="tab" type="button" data-tab="rankPanel" data-view="rank">
+        <span class="tab__icon">&#x1F451;</span>
+        Rank
+      </button>
+    </nav>
   </main>
 
   <div class="toast" id="toast"></div>
@@ -285,6 +288,5 @@
   </div>
 
   <script src="./config.js?v=14"></script>
-  <script src="./v5.js?v=10045"></script>
-</body>
+  <script src="./v5.js?v=10046"></script></body>
 </html>
