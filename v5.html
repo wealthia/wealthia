@@ -59,8 +59,9 @@
     .tap-button__hint { font-size: 7px !important; }
     .tap-button:active { transform: scale(0.94) !important; }
     .energy-wrap { width: 100%; }
+    [hidden] { display: none !important; }
   </style>
-  <link rel="stylesheet" href="./v5.css?v=2007" />
+  <link rel="stylesheet" href="./v5.css?v=2008" />
 </head>
 <body>
   <div class="ambient" aria-hidden="true">
@@ -100,6 +101,11 @@
         <div class="stat__icon">&#x1F3D9;&#xFE0F;</div>
         <span>City Value</span>
         <strong id="cityValue">0</strong>
+      </article>
+      <article class="stat stat--empire">
+        <div class="stat__icon">&#x1F451;</div>
+        <span>Empire Level</span>
+        <strong id="empireLevelStat">1</strong>
       </article>
     </section>
 
@@ -213,7 +219,7 @@
         <div class="card__icon">&#x1F3B0;</div>
         <div class="card__body">
           <h2>Casino</h2>
-          <p>Daily lucky spin &middot; Level <span id="casinoLevel">0</span></p>
+          <p id="casinoCardDesc">Build to unlock daily Lucky Spin &middot; +1 Empire Level</p>
         </div>
         <button class="buy-button" type="button" data-upgrade="casino" id="casinoUpgradeButton">
           Build <span id="casinoCost">300</span>
@@ -282,6 +288,6 @@
   </div>
 
   <script src="./config.js?v=1"></script>
-  <script src="./v5.js?v=10010"></script>
+  <script src="./v5.js?v=10011"></script>
 </body>
 </html>

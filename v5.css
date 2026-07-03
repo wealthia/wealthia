@@ -25,6 +25,10 @@
   --font-display: "Syne", "Outfit", sans-serif;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 *,
 *::before,
 *::after {
@@ -208,7 +212,7 @@ h1 {
 /* Stats */
 .stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 16px;
 }
@@ -277,6 +281,11 @@ h1 {
   color: #a8c4ff;
 }
 
+.stat--empire strong {
+  color: var(--gold-light);
+  text-shadow: 0 0 20px rgba(245, 196, 81, 0.35);
+}
+
 /* City scene */
 .city {
   position: relative;
@@ -304,16 +313,17 @@ h1 {
   top: 12px;
   left: 14px;
   z-index: 5;
-  padding: 5px 10px;
+  padding: 6px 12px;
   border-radius: 999px;
-  border: 1px solid var(--line);
-  background: rgba(6, 8, 15, 0.55);
+  border: 1px solid var(--line-bright);
+  background: rgba(6, 8, 15, 0.72);
   backdrop-filter: blur(8px);
   color: var(--gold-light);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
 .sky {

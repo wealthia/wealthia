@@ -67,13 +67,14 @@ const els = {
   shopCost: document.getElementById("shopCost"),
   bankCost: document.getElementById("bankCost"),
   factoryCost: document.getElementById("factoryCost"),
-  casinoLevel: document.getElementById("casinoLevel"),
+  casinoCardDesc: document.getElementById("casinoCardDesc"),
   casinoCost: document.getElementById("casinoCost"),
   casinoSpinCard: document.getElementById("casinoSpinCard"),
   casinoSpinButton: document.getElementById("casinoSpinButton"),
   casinoSpinHint: document.getElementById("casinoSpinHint"),
   casinoUpgradeButton: document.getElementById("casinoUpgradeButton"),
   empireLevel: document.getElementById("empireLevel"),
+  empireLevelStat: document.getElementById("empireLevelStat"),
   toast: document.getElementById("toast"),
   shopBuilding: document.getElementById("shopBuilding"),
   bankBuilding: document.getElementById("bankBuilding"),
@@ -156,6 +157,14 @@ function empireLevel() {
   );
 }
 
+function casinoRewardRange(level) {
+  const lv = Math.max(1, Number(level || 1));
+  return {
+    small: 80 + lv * 40,
+    jackpot: 2000 + lv * 500
+  };
+}
+
 function upgradeCost(name) {
   const base = { shop: 50, bank: 120, factory: 200, casino: 300 }[name];
   const level = Number(state.buildings[name] || 0);
@@ -181,8 +190,10 @@ function render() {
   if (els.shopLevel) els.shopLevel.textContent = state.buildings.shop;
   if (els.bankLevel) els.bankLevel.textContent = state.buildings.bank;
   if (els.factoryLevel) els.factoryLevel.textContent = state.buildings.factory;
-  if (els.casinoLevel) els.casinoLevel.textContent = state.buildings.casino;
-  if (els.empireLevel) els.empireLevel.textContent = empireLevel();
+
+  const level = empireLevel();
+  if (els.empireLevel) els.empireLevel.textContent = level;
+  if (els.empireLevelStat) els.empireLevelStat.textContent = level;
 
   if (els.shopCost) els.shopCost.textContent = format(upgradeCost("shop"));
   if (els.bankCost) els.bankCost.textContent = format(upgradeCost("bank"));
@@ -196,6 +207,7 @@ function render() {
         : `Upgrade ${format(upgradeCost("casino"))}`;
   }
 
+  renderCasinoCard();
   renderCasinoSpin();
 
   renderDailyTasks();
@@ -205,13 +217,30 @@ function render() {
   updateCityVisuals();
 }
 
+function renderCasinoCard() {
+  const level = Number(state.buildings.casino || 0);
+
+  if (els.casinoCardDesc) {
+    if (level < 1) {
+      els.casinoCardDesc.textContent =
+        "Build to unlock daily Lucky Spin. Each casino level adds +1 Empire Level.";
+    } else {
+      const { small, jackpot } = casinoRewardRange(level);
+      els.casinoCardDesc.textContent =
+        `Level ${level} · Daily spin rewards ${format(small)}–${format(jackpot)} coins`;
+    }
+  }
+}
+
 function renderCasinoSpin() {
   const level = Number(state.buildings.casino || 0);
   const canSpin = Boolean(state.casino && state.casino.canSpin);
   const spunToday = Boolean(state.casino && state.casino.spunToday);
+  const showSpin = level >= 1;
 
   if (els.casinoSpinCard) {
-    els.casinoSpinCard.hidden = level < 1;
+    els.casinoSpinCard.hidden = !showSpin;
+    els.casinoSpinCard.style.display = showSpin ? "" : "none";
   }
 
   if (els.casinoSpinButton) {
@@ -220,12 +249,12 @@ function renderCasinoSpin() {
   }
 
   if (els.casinoSpinHint) {
-    if (level < 1) {
-      els.casinoSpinHint.textContent = "Build the Casino to unlock daily spins.";
-    } else if (spunToday) {
+    if (spunToday) {
       els.casinoSpinHint.textContent = "Come back tomorrow for another spin.";
     } else {
-      els.casinoSpinHint.textContent = "Free daily spin — win up to jackpot coins!";
+      const { small, jackpot } = casinoRewardRange(level);
+      els.casinoSpinHint.textContent =
+        `Free daily spin · Win ${format(small)} to ${format(jackpot)} coins (5% jackpot)`;
     }
   }
 }
