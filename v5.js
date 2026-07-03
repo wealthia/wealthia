@@ -438,7 +438,17 @@ function renderEarnPanel() {
       <p>Complete partner tasks and unlock premium boosts with Telegram Stars.</p>
     </article>
     ${earnRow("sponsor", "Partner Bot", "Open sponsor bot · one-time bonus", 750, state.tasks.sponsor)}
-    ${earnRow("ad", "Rewarded Ad", "Watch 30s ad for coins", 300, state.tasks.ad)}
+    ${earnRow(
+      "ad",
+      "Rewarded Ad",
+      adsGramReady()
+        ? "Watch ad for +300 coins"
+        : CONFIG.ADSGRAM_BLOCK_ID
+          ? "Ad loading — open in Telegram"
+          : "Connect AdsGram Block ID in config.js",
+      300,
+      state.tasks.ad
+    )}
     ${earnRow("channel", "Join Channel", "Subscribe for bonus coins", 500, state.tasks.channel)}
     <article class="card stack stars-shop">
       <h2>Premium Boosts</h2>
@@ -624,9 +634,12 @@ function openPartnerLink(url) {
 }
 
 function initAdsGram() {
-  const blockId = CONFIG.ADSGRAM_BLOCK_ID;
+  const blockId = String(CONFIG.ADSGRAM_BLOCK_ID || "").trim();
 
-  if (!blockId || !window.Adsgram) return;
+  if (!blockId || !window.Adsgram) {
+    adsgramController = null;
+    return;
+  }
 
   try {
     adsgramController = window.Adsgram.init({ blockId, debug: false });
@@ -635,17 +648,28 @@ function initAdsGram() {
   }
 }
 
+function adsGramReady() {
+  return Boolean(String(CONFIG.ADSGRAM_BLOCK_ID || "").trim() && adsgramController);
+}
+
 async function showRewardedAd() {
-  if (!adsgramController) {
-    showToast("Demo ad mode — reward granted.");
+  if (!adsGramReady()) {
+    if (CONFIG.ADSGRAM_BLOCK_ID) {
+      showToast("Ad not ready. Open game in Telegram and try again.");
+      return false;
+    }
+
+    showToast("Demo mode — add AdsGram Block ID in config.js");
     return true;
   }
 
   try {
-    await adsgramController.show();
-    return true;
-  } catch {
+    const result = await adsgramController.show();
+    if (result && result.done) return true;
     showToast("Watch the full ad to get reward.");
+    return false;
+  } catch {
+    showToast("Ad skipped or unavailable.");
     return false;
   }
 }
