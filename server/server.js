@@ -27,10 +27,11 @@ const BOOST_DURATION_MS = 30 * 60 * 1000;
 const REFERRAL_BONUS = 500;
 const NEW_PLAYER_BONUS = 100;
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
+const AD_REWARD_COOLDOWN_MS = 5 * 60 * 1000;
 
 const EARN_TASKS = {
   sponsor: { reward: 750, field: "sponsor_done" },
-  ad: { reward: 300, field: "ad_done" },
+  ad: { reward: 300, cooldown: true },
   channel: { reward: 500, field: "channel_done" }
 };
 
@@ -90,6 +91,16 @@ function extendBoostUntil(currentUntil) {
 
 function hasEndlessEnergy(row) {
   return number(row.endless_energy_until) > nowMs();
+}
+
+function adRewardNextAt(row) {
+  const last = number(row.ad_last_claimed_at);
+  if (!last) return 0;
+  return last + AD_REWARD_COOLDOWN_MS;
+}
+
+function adRewardOnCooldown(row) {
+  return adRewardNextAt(row) > nowMs();
 }
 
 function applyStarProduct(row, productId) {
@@ -540,8 +551,12 @@ function toClientUser(row) {
         bankOpen: Boolean(row.bank_open_done),
         invite: Boolean(row.invite_done),
         sponsor: Boolean(row.sponsor_done),
-        ad: Boolean(row.ad_done),
         channel: Boolean(row.channel_done)
+      },
+      adReward: {
+        nextAt: adRewardNextAt(row),
+        reward: EARN_TASKS.ad.reward,
+        cooldownMs: AD_REWARD_COOLDOWN_MS
       },
       buildings: {
         shop: number(row.shop_level),
@@ -894,6 +909,32 @@ app.post("/api/claim-earn", async (req, res) => {
 
     const row = await loadGame(userId);
 
+    if (type === "ad") {
+      if (adRewardOnCooldown(row)) {
+        res.status(400).json({ error: "AD_COOLDOWN", nextAt: adRewardNextAt(row) });
+        return;
+      }
+
+      const reward = EARN_TASKS.ad.reward;
+
+      const { data, error } = await supabase
+        .from("game_states")
+        .update({
+          coins: number(row.coins) + reward,
+          city_value: number(row.coins) + reward + number(row.spent),
+          ad_last_claimed_at: nowMs(),
+          updated_at: new Date().toISOString()
+        })
+        .eq("user_id", userId)
+        .select("*")
+        .single();
+
+      if (error) throw error;
+
+      res.json({ ok: true, reward, user: toClientUser(data) });
+      return;
+    }
+
     if (Boolean(row[earnTask.field])) {
       res.status(400).json({ error: "ALREADY_CLAIMED" });
       return;
@@ -1143,7 +1184,10 @@ app.post("/api/reset", async (req, res) => {
       const onlyType = String(req.body.type || "").trim();
 
       if (!onlyType || onlyType === "ad") {
-        if (Boolean(row.ad_done)) coins = Math.max(0, coins - EARN_TASKS.ad.reward);
+        if (number(row.ad_last_claimed_at) > 0 && adRewardOnCooldown(row)) {
+          coins = Math.max(0, coins - EARN_TASKS.ad.reward);
+        }
+        update.ad_last_claimed_at = 0;
       }
       if (!onlyType || onlyType === "sponsor") {
         if (Boolean(row.sponsor_done)) coins = Math.max(0, coins - EARN_TASKS.sponsor.reward);
@@ -1158,7 +1202,7 @@ app.post("/api/reset", async (req, res) => {
         updated_at: new Date().toISOString()
       };
 
-      if (!onlyType || onlyType === "ad") update.ad_done = false;
+      if (!onlyType || onlyType === "ad") update.ad_last_claimed_at = 0;
       if (!onlyType || onlyType === "sponsor") update.sponsor_done = false;
       if (!onlyType || onlyType === "channel") update.channel_done = false;
 
@@ -1193,7 +1237,7 @@ app.post("/api/reset", async (req, res) => {
         daily_tasks_json: [],
         daily_tasks_claimed_json: [],
         sponsor_done: false,
-        ad_done: false,
+        ad_last_claimed_at: 0,
         channel_done: false,
         casino_date: "",
         endless_energy_until: 0,

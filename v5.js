@@ -9,6 +9,7 @@ let tournamentData = null;
 let tournamentLeaderboard = [];
 let adsgramController = null;
 let onboardingStep = 1;
+let adCooldownTimer = null;
 
 const onboardingKey = `wealthia_onboarding_${CONFIG.ONBOARDING_VERSION || "v1"}`;
 
@@ -31,9 +32,9 @@ const defaultState = {
   },
   tasks: {
     sponsor: false,
-    ad: false,
     channel: false
   },
+  adCooldownUntil: 0,
   boosts: {
     tapActive: false,
     incomeActive: false,
@@ -412,14 +413,40 @@ function starPrice(productId) {
   return Number(prices[productId] || 0);
 }
 
+function adRewardAvailable() {
+  return Number(state.adCooldownUntil || 0) <= Date.now();
+}
+
+function adRewardSubtitle() {
+  if (!adRewardAvailable()) {
+    return `Next ad in ${boostTimeLeft(state.adCooldownUntil)}`;
+  }
+
+  if (adsGramReady()) return "Watch ad for +300 coins";
+  if (CONFIG.ADSGRAM_BLOCK_ID) return "Ad loading — open in Telegram";
+  return "Connect AdsGram Block ID in config.js";
+}
+
+function scheduleAdCooldownRefresh() {
+  if (adCooldownTimer || adRewardAvailable()) return;
+
+  adCooldownTimer = window.setInterval(() => {
+    if (adRewardAvailable()) {
+      window.clearInterval(adCooldownTimer);
+      adCooldownTimer = null;
+    }
+    renderEarnPanel();
+  }, 1000);
+}
+
 function renderEarnPanel() {
   const panel = els.earnPanel;
   if (!panel) return;
 
-  const earnRow = (id, title, subtitle, reward, done) => `
+  const earnRow = (id, title, subtitle, reward, done, doneLabel) => `
     <button class="task earn-task ${done ? "completed" : ""}" type="button" data-earn="${id}" ${done ? "disabled" : ""}>
-      <span><b>${title}</b><small>${done ? "Reward collected" : subtitle}</small></span>
-      <strong class="${done ? "completed" : ""}">${done ? "Claimed" : `+${reward}`}</strong>
+      <span><b>${title}</b><small>${done ? subtitle : subtitle}</small></span>
+      <strong class="${done ? "completed" : ""}">${done ? (doneLabel || "Claimed") : `+${reward}`}</strong>
     </button>
   `;
 
@@ -441,17 +468,14 @@ function renderEarnPanel() {
     ${earnRow(
       "ad",
       "Rewarded Ad",
-      adsGramReady()
-        ? "Watch ad for +300 coins"
-        : CONFIG.ADSGRAM_BLOCK_ID
-          ? "Ad loading — open in Telegram"
-          : "Connect AdsGram Block ID in config.js",
+      adRewardSubtitle(),
       300,
-      state.tasks.ad
+      !adRewardAvailable(),
+      !adRewardAvailable() ? boostTimeLeft(state.adCooldownUntil) : ""
     )}
     ${earnRow("channel", "Join Channel", "Subscribe for bonus coins", 500, state.tasks.channel)}
     ${
-      CONFIG.ADSGRAM_DEBUG && (state.tasks.ad || state.tasks.sponsor || state.tasks.channel)
+      CONFIG.ADSGRAM_DEBUG && (state.tasks.sponsor || state.tasks.channel || !adRewardAvailable())
         ? `<button class="task earn-reset" type="button" id="resetEarnTasks">Reset earn tasks (test)</button>`
         : ""
     }
@@ -825,9 +849,15 @@ function syncFromBackend(user) {
   if (game.tasks) {
     state.tasks = {
       sponsor: Boolean(game.tasks.sponsor),
-      ad: Boolean(game.tasks.ad),
       channel: Boolean(game.tasks.channel)
     };
+  }
+
+  if (game.adReward) {
+    state.adCooldownUntil = Number(game.adReward.nextAt || 0);
+    scheduleAdCooldownRefresh();
+  } else {
+    state.adCooldownUntil = 0;
   }
 
   if (game.buildings) {
@@ -1136,12 +1166,17 @@ async function claimDailyReward() {
 }
 
 async function handleEarnClick(type) {
-  if (state.tasks[type]) {
+  if (type !== "ad" && state.tasks[type]) {
     showToast("Already claimed.");
     return;
   }
 
   if (type === "ad") {
+    if (!adRewardAvailable()) {
+      showToast(`Next ad in ${boostTimeLeft(state.adCooldownUntil)}`);
+      return;
+    }
+
     const watched = await showRewardedAd();
     if (!watched) return;
   }
@@ -1172,7 +1207,12 @@ async function claimEarnTask(type) {
 
   if (!ok) {
     if (result && result.error === "ALREADY_CLAIMED") showToast("Already claimed.");
-    else showToast("Task unavailable.");
+    else if (result && result.error === "AD_COOLDOWN") {
+      state.adCooldownUntil = Number(result.nextAt || state.adCooldownUntil);
+      scheduleAdCooldownRefresh();
+      renderEarnPanel();
+      showToast(`Next ad in ${boostTimeLeft(state.adCooldownUntil)}`);
+    } else showToast("Task unavailable.");
     return;
   }
 
