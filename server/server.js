@@ -347,8 +347,7 @@ function buildCityValue(row) {
 }
 
 function computeDailyRank(rows, userId, userScore) {
-  const score = number(userScore);
-  if (!userId || score <= 0) return 0;
+  if (!userId) return 0;
 
   const sorted = [...rows].sort(
     (a, b) => number(b.daily_contest_score) - number(a.daily_contest_score)
@@ -356,7 +355,7 @@ function computeDailyRank(rows, userId, userScore) {
   const index = sorted.findIndex((row) => row.user_id === userId);
   if (index >= 0) return index + 1;
 
-  return 1 + sorted.filter((row) => number(row.daily_contest_score) > score).length;
+  return 1 + sorted.filter((row) => number(row.daily_contest_score) > number(userScore)).length;
 }
 
 function syncDailyContest(row) {
@@ -1831,7 +1830,7 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
 
       const { data: userRow } = await supabase
         .from("game_states")
-        .select("user_id, city_value, daily_contest_score, contest_date")
+        .select("user_id, city_value, daily_contest_score, contest_date, coins, spent, contest_baseline_city")
         .eq("user_id", userId)
         .maybeSingle();
 
@@ -1849,21 +1848,18 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
           lookupIds.push(userId);
         }
 
-        if (userRow.contest_date === today) {
-          yourDailyGame = userRow;
+        const contest = syncDailyContest(userRow);
+        yourDailyGame = { ...userRow, ...contest };
 
-          if (yourDailyEligible && number(userRow.daily_contest_score) > 0) {
-            const rankRows = [...dailyWithSeeds];
-            if (!rankRows.some((row) => row.user_id === userId)) {
-              rankRows.push(userRow);
-            }
-            yourDailyRank = computeDailyRank(
-              rankRows,
-              userId,
-              number(userRow.daily_contest_score)
-            );
-          }
+        const rankRows = [...dailyWithSeeds];
+        if (!rankRows.some((row) => row.user_id === userId)) {
+          rankRows.push(yourDailyGame);
         }
+        yourDailyRank = computeDailyRank(
+          rankRows,
+          userId,
+          number(contest.daily_contest_score)
+        );
       }
     }
 
@@ -1906,7 +1902,7 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
     const dailyTop3 = dailyTopData.map((row, index) => rowFromGame(row, index + 1, "dailyScore"));
 
     const youInDailyTop3 = dailyTop3.some((row) => row.isYou);
-    const dailyYou = yourDailyGame && yourDailyRank && yourDailyEligible && !youInDailyTop3
+    const dailyYou = yourDailyGame && yourDailyRank > 3 && !youInDailyTop3
       ? rowFromGame(yourDailyGame, yourDailyRank, "dailyScore")
       : null;
 
