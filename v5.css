@@ -953,6 +953,26 @@ button.completed strong {
   color: var(--green);
 }
 
+.boost-button--star {
+  border-color: rgba(124, 92, 255, 0.35);
+  background: linear-gradient(145deg, rgba(124, 92, 255, 0.16), rgba(18, 24, 42, 0.95));
+}
+
+.boost-button--star span:last-child {
+  color: var(--gold-light);
+}
+
+.stars-shop {
+  border-color: rgba(124, 92, 255, 0.28);
+}
+
+.earn-note {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
 /* Friends */
 .friends-card {
   display: grid;

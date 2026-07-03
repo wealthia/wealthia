@@ -36,8 +36,10 @@ const defaultState = {
   boosts: {
     tapActive: false,
     incomeActive: false,
+    endlessActive: false,
     tapUntil: 0,
-    incomeUntil: 0
+    incomeUntil: 0,
+    endlessUntil: 0
   },
   buildings: {
     shop: 1,
@@ -158,6 +160,18 @@ function empireLevel() {
   );
 }
 
+function isEndlessEnergy() {
+  return Number(state.boosts.endlessUntil || 0) > Date.now();
+}
+
+function boostTimeLeft(until) {
+  const diff = Math.max(0, Number(until || 0) - Date.now());
+  const minutes = Math.ceil(diff / 60000);
+  if (diff <= 0) return "";
+  if (minutes >= 60) return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+  return `${minutes}m`;
+}
+
 function casinoRewardRange(level) {
   const lv = Math.max(1, Number(level || 1));
   return {
@@ -184,9 +198,13 @@ function render() {
 
   if (els.tapPower) els.tapPower.textContent = tapPower();
   if (els.tapLabel) {
-    els.tapLabel.textContent = state.energy < 1 ? "No Energy" : state.boosts.tapActive ? "2x Tap" : "Tap";
+    if (isEndlessEnergy()) {
+      els.tapLabel.textContent = state.boosts.tapActive ? "2x · ∞" : "∞ Energy";
+    } else {
+      els.tapLabel.textContent = state.energy < 1 ? "No Energy" : state.boosts.tapActive ? "2x Tap" : "Tap";
+    }
   }
-  if (els.tapButton) els.tapButton.classList.toggle("no-energy", state.energy < 1);
+  if (els.tapButton) els.tapButton.classList.toggle("no-energy", !isEndlessEnergy() && state.energy < 1);
 
   if (els.shopLevel) els.shopLevel.textContent = state.buildings.shop;
   if (els.bankLevel) els.bankLevel.textContent = state.buildings.bank;
@@ -399,11 +417,19 @@ function renderEarnPanel() {
     </button>
   `;
 
-  const boostButton = (id, icon, title, cost, active) => `
+  const boostButton = (id, icon, title, cost, active, subtitle) => `
     <button class="boost-button ${active ? "completed" : ""}" type="button" data-boost="${id}" ${active ? "disabled" : ""}>
       <span class="boost-button__icon">${icon}</span>
       ${title}
-      <span>${active ? "Active" : `Cost ${cost}`}</span>
+      <span>${active ? `Active ${boostTimeLeft(subtitle)}` : `Cost ${cost}`}</span>
+    </button>
+  `;
+
+  const starButton = (id, icon, title, stars, active, until) => `
+    <button class="boost-button boost-button--star ${active ? "completed" : ""}" type="button" data-star="${id}" ${active ? "disabled" : ""}>
+      <span class="boost-button__icon">${icon}</span>
+      ${title}
+      <span>${active ? `Active ${boostTimeLeft(until)}` : `${stars} ⭐`}</span>
     </button>
   `;
 
@@ -411,17 +437,28 @@ function renderEarnPanel() {
     <article class="card stack earn-hero">
       <div class="earn-hero__badge">VIP Earn Center</div>
       <h2>Multiply Your Fortune</h2>
-      <p>Complete partner tasks and buy power boosts to grow faster.</p>
+      <p>Complete partner tasks, buy boosts with coins, or pay with Telegram Stars.</p>
     </article>
     ${earnRow("sponsor", "Partner Bot", "Open sponsor bot · one-time bonus", 750, state.tasks.sponsor)}
     ${earnRow("ad", "Rewarded Ad", "Watch 30s ad for coins", 300, state.tasks.ad)}
     ${earnRow("channel", "Join Channel", "Subscribe for bonus coins", 500, state.tasks.channel)}
     <article class="card stack">
       <h2>Power Boosts</h2>
+      <p class="earn-note">Pay with Wealth Coins · each boost lasts 30 minutes</p>
       <div class="boost-grid">
-        ${boostButton("fullEnergy", "&#x26A1;", "Full Energy", 100, false)}
-        ${boostButton("tapBoost", "&#x1F4AA;", "2x Tap", 150, state.boosts.tapActive)}
-        ${boostButton("incomeBoost", "&#x1F4C8;", "2x Income", 200, state.boosts.incomeActive)}
+        ${boostButton("fullEnergy", "&#x26A1;", "Full Energy", 100, false, 0)}
+        ${boostButton("tapBoost", "&#x1F4AA;", "2x Tap", 150, state.boosts.tapActive, state.boosts.tapUntil)}
+        ${boostButton("incomeBoost", "&#x1F4C8;", "2x Income", 200, state.boosts.incomeActive, state.boosts.incomeUntil)}
+      </div>
+    </article>
+    <article class="card stack stars-shop">
+      <h2>Premium Boosts</h2>
+      <p class="earn-note">Pay with Telegram Stars ⭐ · 30 minute boosts</p>
+      <div class="boost-grid boost-grid--stars">
+        ${starButton("refill_energy", "&#x26A1;", "Refill Energy", 5, false, 0)}
+        ${starButton("tap_boost_30", "&#x1F4AA;", "2x Tap", 10, state.boosts.tapActive, state.boosts.tapUntil)}
+        ${starButton("endless_energy_30", "&#x1F525;", "Endless Energy", 15, state.boosts.endlessActive, state.boosts.endlessUntil)}
+        ${starButton("income_boost_30", "&#x1F4C8;", "2x Income", 10, state.boosts.incomeActive, state.boosts.incomeUntil)}
       </div>
     </article>
   `;
@@ -727,8 +764,10 @@ function syncFromBackend(user) {
     state.boosts = {
       tapActive: Boolean(game.boosts.tapActive),
       incomeActive: Boolean(game.boosts.incomeActive),
+      endlessActive: Boolean(game.boosts.endlessActive),
       tapUntil: Number(game.boosts.tapUntil || 0),
-      incomeUntil: Number(game.boosts.incomeUntil || 0)
+      incomeUntil: Number(game.boosts.incomeUntil || 0),
+      endlessUntil: Number(game.boosts.endlessUntil || 0)
     };
   }
 
@@ -907,7 +946,7 @@ async function joinTournament() {
 }
 
 function tapLocal(event) {
-  if (state.energy < 1) {
+  if (!isEndlessEnergy() && state.energy < 1) {
     showToast("No energy.");
     render();
     return false;
@@ -916,7 +955,9 @@ function tapLocal(event) {
   const amount = tapPower();
   state.coins = Number(state.coins || 0) + amount;
   state.taps = Number(state.taps || 0) + 1;
-  state.energy = Math.max(0, Number(state.energy || 0) - 1);
+  if (!isEndlessEnergy()) {
+    state.energy = Math.max(0, Number(state.energy || 0) - 1);
+  }
 
   saveState();
   render();
@@ -1112,6 +1153,61 @@ async function buyBoost(boost) {
   await applyBackendUser(result.user, labels[boost] || "Boost activated.");
 }
 
+const STAR_SUCCESS_LABELS = {
+  refill_energy: "Energy refilled!",
+  tap_boost_30: "2x Tap active for 30 min!",
+  endless_energy_30: "Endless Energy for 30 min!",
+  income_boost_30: "2x Income active for 30 min!"
+};
+
+async function buyStarsProduct(productId) {
+  const tg = window.Telegram && window.Telegram.WebApp;
+
+  if (!tg || typeof tg.openInvoice !== "function") {
+    showToast("Open in Telegram to pay with Stars.");
+    return;
+  }
+
+  if (!backendReady) {
+    showToast("Backend offline.");
+    return;
+  }
+
+  const { ok, result } = await apiPost("/api/stars/invoice", {
+    userId: backendUserId,
+    productId
+  });
+
+  if (!ok || !result || !result.invoiceLink) {
+    if (result && result.error === "STARS_NOT_CONFIGURED") {
+      showToast("Stars payments not configured yet.");
+    } else {
+      showToast("Could not open Stars payment.");
+    }
+    return;
+  }
+
+  tg.openInvoice(result.invoiceLink, async (status) => {
+    if (status === "paid") {
+      await refreshBackendState();
+      showToast(STAR_SUCCESS_LABELS[productId] || "Premium boost activated!");
+      if (tg.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === "function") {
+        tg.HapticFeedback.notificationOccurred("success");
+      }
+      return;
+    }
+
+    if (status === "failed") {
+      showToast("Payment failed.");
+      return;
+    }
+
+    if (status === "cancelled") {
+      showToast("Payment cancelled.");
+    }
+  });
+}
+
 async function resetGame() {
   if (!backendReady) {
     showToast("Backend offline.");
@@ -1273,6 +1369,12 @@ if (els.earnPanel) {
     const boostButton = event.target.closest("[data-boost]");
     if (boostButton && !boostButton.disabled) {
       buyBoost(boostButton.dataset.boost);
+      return;
+    }
+
+    const starButton = event.target.closest("[data-star]");
+    if (starButton && !starButton.disabled) {
+      buyStarsProduct(starButton.dataset.star);
     }
   });
 }
@@ -1309,6 +1411,9 @@ window.setInterval(() => {
   if (state.boosts.incomeUntil && state.boosts.incomeUntil <= now) {
     state.boosts.incomeActive = false;
   }
+  if (state.boosts.endlessUntil && state.boosts.endlessUntil <= now) {
+    state.boosts.endlessActive = false;
+  }
 
   const next = Date.parse(state.dailyTasksNextRefresh || "");
   if (next && Date.now() >= next) {
@@ -1317,7 +1422,7 @@ window.setInterval(() => {
 }, 60000);
 
 setInterval(() => {
-  if (state.energy >= 100) return;
+  if (isEndlessEnergy() || state.energy >= 100) return;
 
   state.energy = Math.min(
     100,

@@ -40,6 +40,97 @@ const BOOST_OPTIONS = {
   incomeBoost: { cost: 200, type: "income" }
 };
 
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
+
+const STAR_PRODUCTS = {
+  refill_energy: {
+    stars: 5,
+    title: "Full Energy Refill",
+    description: "Instantly refill your energy to 100%"
+  },
+  tap_boost_30: {
+    stars: 10,
+    title: "2x Tap Boost",
+    description: "Double tap income for 30 minutes"
+  },
+  endless_energy_30: {
+    stars: 15,
+    title: "Endless Energy",
+    description: "Tapping costs no energy for 30 minutes"
+  },
+  income_boost_30: {
+    stars: 10,
+    title: "2x Income Boost",
+    description: "Double offline income for 30 minutes"
+  }
+};
+
+async function telegramApi(method, body) {
+  if (!TELEGRAM_BOT_TOKEN) {
+    throw new Error("TELEGRAM_BOT_TOKEN_MISSING");
+  }
+
+  const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/${method}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+
+  const data = await response.json();
+  if (!data.ok) {
+    throw new Error(data.description || "Telegram API error");
+  }
+
+  return data.result;
+}
+
+function extendBoostUntil(currentUntil) {
+  return Math.max(nowMs(), number(currentUntil)) + BOOST_DURATION_MS;
+}
+
+function hasEndlessEnergy(row) {
+  return number(row.endless_energy_until) > nowMs();
+}
+
+function applyStarProduct(row, productId) {
+  const updated = {
+    updated_at: new Date().toISOString()
+  };
+
+  if (productId === "refill_energy") {
+    updated.energy = MAX_ENERGY;
+    return updated;
+  }
+
+  if (productId === "tap_boost_30") {
+    updated.tap_boost_until = extendBoostUntil(row.tap_boost_until);
+    return updated;
+  }
+
+  if (productId === "endless_energy_30") {
+    updated.endless_energy_until = extendBoostUntil(row.endless_energy_until);
+    updated.energy = MAX_ENERGY;
+    return updated;
+  }
+
+  if (productId === "income_boost_30") {
+    updated.income_boost_until = extendBoostUntil(row.income_boost_until);
+    return updated;
+  }
+
+  return null;
+}
+
+function starPayload(userId, productId) {
+  return `w|${userId}|${productId}`;
+}
+
+function parseStarPayload(payload) {
+  const parts = String(payload || "").split("|");
+  if (parts.length !== 3 || parts[0] !== "w") return null;
+  return { userId: parts[1], productId: parts[2] };
+}
+
 function nowMs() {
   return Date.now();
 }
@@ -431,8 +522,10 @@ function toClientUser(row) {
       boosts: {
         tapActive: number(row.tap_boost_until) > nowMs(),
         incomeActive: number(row.income_boost_until) > nowMs(),
+        endlessActive: hasEndlessEnergy(row),
         tapUntil: number(row.tap_boost_until),
-        incomeUntil: number(row.income_boost_until)
+        incomeUntil: number(row.income_boost_until),
+        endlessUntil: number(row.endless_energy_until)
       },
       dailyTasks: tasks.map((task) => ({
         ...task,
@@ -599,11 +692,11 @@ async function loadGame(userId) {
 }
 
 app.get("/", (_req, res) => {
-  res.json({ ok: true, app: "Wealthia API", database: true, version: "level-casino-v1" });
+  res.json({ ok: true, app: "Wealthia API", database: true, version: "stars-boosts-v1" });
 });
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, app: "Wealthia API", database: true, version: "level-casino-v1" });
+  res.json({ ok: true, app: "Wealthia API", database: true, version: "stars-boosts-v1" });
 });
 
 app.post("/api/session", async (req, res) => {
@@ -625,8 +718,9 @@ app.post("/api/tap", async (req, res) => {
   try {
     const userId = String(req.body.userId || "");
     const row = await loadGame(userId);
+    const endless = hasEndlessEnergy(row);
 
-    if (number(row.energy) < 1) {
+    if (!endless && number(row.energy) < 1) {
       res.status(400).json({ error: "NO_ENERGY" });
       return;
     }
@@ -634,7 +728,7 @@ app.post("/api/tap", async (req, res) => {
     const amount = tapPower(row);
     const updated = {
       coins: number(row.coins) + amount,
-      energy: Math.max(0, number(row.energy) - 1),
+      energy: endless ? number(row.energy) : Math.max(0, number(row.energy) - 1),
       taps: number(row.taps) + 1,
       city_value: number(row.coins) + amount + number(row.spent),
       updated_at: new Date().toISOString()
@@ -873,6 +967,118 @@ app.post("/api/buy-boost", async (req, res) => {
   }
 });
 
+app.get("/api/stars/products", (_req, res) => {
+  const products = Object.entries(STAR_PRODUCTS).map(([id, product]) => ({
+    id,
+    stars: product.stars,
+    title: product.title,
+    description: product.description
+  }));
+
+  res.json({ ok: true, products });
+});
+
+app.post("/api/stars/invoice", async (req, res) => {
+  try {
+    const userId = String(req.body.userId || "");
+    const productId = String(req.body.productId || "");
+    const product = STAR_PRODUCTS[productId];
+
+    if (!userId || !product) {
+      res.status(400).json({ error: "BAD_PRODUCT" });
+      return;
+    }
+
+    if (!TELEGRAM_BOT_TOKEN) {
+      res.status(503).json({ error: "STARS_NOT_CONFIGURED" });
+      return;
+    }
+
+    const invoiceLink = await telegramApi("createInvoiceLink", {
+      title: product.title,
+      description: product.description,
+      payload: starPayload(userId, productId),
+      provider_token: "",
+      currency: "XTR",
+      prices: [{ label: product.title, amount: product.stars }]
+    });
+
+    res.json({
+      ok: true,
+      invoiceLink,
+      product: {
+        id: productId,
+        stars: product.stars,
+        title: product.title
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/stars/fulfill", async (req, res) => {
+  try {
+    const secret = String(req.body.secret || "");
+    if (!ADMIN_SECRET || secret !== ADMIN_SECRET) {
+      res.status(401).json({ error: "UNAUTHORIZED" });
+      return;
+    }
+
+    const userId = String(req.body.userId || "");
+    const productId = String(req.body.productId || "");
+    const chargeId = String(req.body.chargeId || "");
+    const starsAmount = number(req.body.stars);
+
+    if (!userId || !productId || !chargeId || !STAR_PRODUCTS[productId]) {
+      res.status(400).json({ error: "BAD_REQUEST" });
+      return;
+    }
+
+    const { data: existing } = await supabase
+      .from("star_payments")
+      .select("id")
+      .eq("charge_id", chargeId)
+      .maybeSingle();
+
+    if (existing) {
+      const row = await loadGame(userId);
+      res.json({ ok: true, duplicate: true, user: toClientUser(row) });
+      return;
+    }
+
+    const row = await loadGame(userId);
+    const productUpdate = applyStarProduct(row, productId);
+
+    if (!productUpdate) {
+      res.status(400).json({ error: "BAD_PRODUCT" });
+      return;
+    }
+
+    const { error: paymentError } = await supabase.from("star_payments").insert({
+      user_id: userId,
+      product_id: productId,
+      stars_amount: starsAmount || STAR_PRODUCTS[productId].stars,
+      charge_id: chargeId
+    });
+
+    if (paymentError) throw paymentError;
+
+    const { data, error } = await supabase
+      .from("game_states")
+      .update(productUpdate)
+      .eq("user_id", userId)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    res.json({ ok: true, productId, user: toClientUser(data) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post("/api/casino-spin", async (req, res) => {
   try {
     const userId = String(req.body.userId || "");
@@ -941,6 +1147,7 @@ app.post("/api/reset", async (req, res) => {
         ad_done: false,
         channel_done: false,
         casino_date: "",
+        endless_energy_until: 0,
         tap_boost_until: 0,
         income_boost_until: 0,
         updated_at: new Date().toISOString()
