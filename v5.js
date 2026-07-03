@@ -433,7 +433,6 @@ function renderDailyPrizeBanner() {
   const eligible = dailyPrizeEligible || Boolean(state.referrals?.eligible);
   const timeLeft = dailyPrizeTimeLeft(dailyContestResetsAt || state.dailyContest?.resetsAt);
   const symbol = prize.currency === "USD" ? "$" : "";
-  const leader = dailyLeaderboardTop3[0];
 
   mount.innerHTML = `
     <article class="grand-prize daily-prize ${eligible ? "daily-prize--eligible" : "daily-prize--locked"}">
@@ -447,7 +446,7 @@ function renderDailyPrizeBanner() {
         <strong class="daily-prize__gain-value">+${format(score)}</strong>
       </div>
       ${eligible
-    ? `${leader ? `<p class="grand-prize__hint">Leader: <strong>${leader.isYou ? "You" : leader.name}</strong> (+${format(leader.dailyScore || leader.score || 0)})</p>` : ""}`
+    ? `<p class="grand-prize__hint">Check the <strong>Rank</strong> tab for the daily leaderboard.</p>`
     : `<p class="grand-prize__hint daily-prize__lock">Invite <strong>${Math.max(0, required - referrals)}</strong> more friend(s) to unlock the $10 race.</p>`}
       <div class="daily-prize__actions">
         ${eligible
@@ -480,28 +479,6 @@ function renderDailyPrizeRankCard() {
   const required = prize.minReferrals || 3;
   const eligible = dailyPrizeEligible || Boolean(state.referrals?.eligible);
   const timeLeft = dailyPrizeTimeLeft(dailyContestResetsAt || state.dailyContest?.resetsAt);
-  const leaders = dailyLeaderboardTop3.length ? dailyLeaderboardTop3 : [];
-
-  const leaderRows = leaders.length
-    ? leaders.map((row) => `
-        <li class="${row.isYou ? "rank__you" : ""}">
-          <span>${medalForRank(row.rank)} ${row.isYou ? "You" : row.name}</span>
-          <strong>+${format(row.dailyScore || row.score || 0)}</strong>
-        </li>
-      `).join("")
-    : `<li class="grand-prize__empty">${eligible ? "No eligible leaders yet" : "Invite 3 friends to qualify"}</li>`;
-
-  const youRow = dailyLeaderboardYou && eligible
-    ? `
-      <ol class="rank rank--you-only">
-        <li class="rank__you">
-          <span class="rank__medal">${medalForRank(dailyLeaderboardYou.rank)}</span>
-          <span>You · ${ordinalRank(dailyLeaderboardYou.rank)}</span>
-          <strong>+${format(dailyLeaderboardYou.dailyScore || dailyLeaderboardYou.score || 0)}</strong>
-        </li>
-      </ol>
-    `
-    : "";
 
   return `
     <article class="grand-prize-card daily-prize-card ${eligible ? "" : "daily-prize-card--locked"}">
@@ -513,11 +490,7 @@ function renderDailyPrizeRankCard() {
       ${eligible
     ? `<p class="daily-prize-card__boost-tip">Only players with 3+ invited friends can win. Use ⭐ boosts to climb.</p>`
     : `<p class="daily-prize-card__boost-tip">Invite 3 friends from the Friends tab to join today's $10 race.</p>`}
-      <ol class="grand-prize-card__leaders">
-        ${leaderRows}
-      </ol>
-      ${youRow}
-      ${prize.channelUrl ? `<button class="grand-prize-card__channel" type="button" data-channel="${prize.channelUrl}">Winner announced on channel</button>` : ""}
+      ${prize.channelUrl ? `<button class="grand-prize-card__channel" type="button" data-channel="${prize.channelUrl}">Winner will be announced</button>` : ""}
     </article>
   `;
 }
@@ -1168,12 +1141,18 @@ function ordinalRank(rank) {
   return `${value}th`;
 }
 
-function renderRankRow(row) {
+function renderRankRow(row, mode = "global") {
+  const daily = mode === "daily";
+  const value = daily
+    ? Number(row.dailyScore || row.score || 0)
+    : Number(row.cityValue || 0);
+  const display = daily ? `+${format(value)}` : format(value);
+
   return `
     <li class="${row.isYou ? "rank__you" : ""}">
       <span class="rank__medal">${medalForRank(row.rank)}</span>
       <span>${row.isYou ? "You" : row.name}</span>
-      <strong>${format(row.cityValue)}</strong>
+      <strong>${display}</strong>
     </li>
   `;
 }
@@ -1182,23 +1161,33 @@ function renderRankPanel() {
   const panel = els.globalLeaderboard;
   if (!panel) return;
 
-  const top3 = leaderboardTop3.length
-    ? leaderboardTop3
-    : [{
-      rank: 1,
-      name: "You",
-      cityValue: cityValue(),
-      isYou: true
-    }];
+  const dailyMode = Boolean(getDailyPrizeConfig());
+  const top3 = dailyMode
+    ? (dailyLeaderboardTop3.length
+      ? dailyLeaderboardTop3
+      : [{
+        rank: 1,
+        name: "You",
+        dailyScore: todayGainScore(),
+        isYou: true
+      }])
+    : (leaderboardTop3.length
+      ? leaderboardTop3
+      : [{
+        rank: 1,
+        name: "You",
+        cityValue: cityValue(),
+        isYou: true
+      }]);
 
-  const you = leaderboardYou;
+  const you = dailyMode ? dailyLeaderboardYou : leaderboardYou;
   const youBlock = you
     ? `
       <div class="rank-your-place">
         <span class="rank-your-place__label">Your place · ${ordinalRank(you.rank)}</span>
       </div>
       <ol class="rank rank--you-only">
-        ${renderRankRow(you)}
+        ${renderRankRow(you, dailyMode ? "daily" : "global")}
       </ol>
     `
     : "";
@@ -1206,11 +1195,11 @@ function renderRankPanel() {
   panel.innerHTML = `
     ${renderCampaignRankCard()}
     <div class="panel-head">
-      <h2>Global Leaderboard</h2>
-      <p>Top empire builders by city value</p>
+      <h2>${dailyMode ? "Daily Leaderboard" : "Global Leaderboard"}</h2>
+      <p>${dailyMode ? "Top players by today's gain" : "Top empire builders by city value"}</p>
     </div>
     <ol class="rank">
-      ${top3.map((row) => renderRankRow(row)).join("")}
+      ${top3.map((row) => renderRankRow(row, dailyMode ? "daily" : "global")).join("")}
     </ol>
     ${youBlock}
   `;

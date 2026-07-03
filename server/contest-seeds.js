@@ -3,8 +3,8 @@
 // Disable with CONTEST_SEEDS_ENABLED=false on Render.
 
 const SEED_PLAYERS = [
-  { userId: "contest_seed_1", name: "Rəşad", referralCount: 4 },
-  { userId: "contest_seed_2", name: "Nərgiz", referralCount: 3 }
+  { userId: "contest_seed_1", name: "Resad", referralCount: 4 },
+  { userId: "contest_seed_2", name: "Nergiz", referralCount: 3 }
 ];
 
 const SLOT_MINUTES = 20;
