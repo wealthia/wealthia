@@ -1214,6 +1214,33 @@ button.completed strong {
   background: linear-gradient(180deg, #6ee7b7, #34d399);
 }
 
+.daily-prize--locked {
+  border-color: rgba(248, 113, 113, 0.4);
+  background: linear-gradient(135deg, rgba(127, 29, 29, 0.2), rgba(245, 196, 81, 0.08));
+}
+
+.daily-prize--eligible {
+  border-color: rgba(52, 211, 153, 0.55);
+}
+
+.daily-prize__lock {
+  color: #fecaca !important;
+}
+
+.daily-prize__actions {
+  display: grid;
+  gap: 8px;
+}
+
+.daily-prize__boost--invite {
+  color: #fff7ed;
+  background: linear-gradient(180deg, #fb923c, #ea580c);
+}
+
+.daily-prize-card--locked {
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
 .daily-prize-card__boost-tip {
   margin: 0 0 12px;
   font-size: 12px;

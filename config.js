@@ -64,6 +64,7 @@ window.WEALTHIA_CONFIG = {
     title: "Daily Prize",
     prize: 10,
     currency: "USD",
+    minReferrals: 3,
     channelUrl: "https://t.me/weathia_official"
   }
 };
