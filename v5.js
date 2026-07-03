@@ -2199,6 +2199,15 @@ document.querySelectorAll(".tab").forEach((tab) => {
     const panel = document.getElementById(tab.dataset.tab);
     if (panel) panel.classList.add("active");
 
+    const view = tab.dataset.view || "city";
+    const appRoot = document.getElementById("appRoot");
+    const appScroll = document.getElementById("appScroll");
+    if (appRoot) {
+      appRoot.classList.remove("view-city", "view-tasks", "view-earn", "view-friends", "view-rank");
+      appRoot.classList.add(`view-${view}`);
+    }
+    if (appScroll) appScroll.scrollTop = 0;
+
     if (tab.dataset.tab === "rankPanel") {
       loadLeaderboard();
       loadTournament();
