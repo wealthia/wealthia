@@ -338,24 +338,84 @@ function getInviteLink() {
   return `https://t.me/${botName}?start=ref_${userId}`;
 }
 
-async function shareInviteLink() {
-  const link = getInviteLink();
-  const text = "Join my Wealthia empire — tap, build & earn coins! Use my link and we both get +500 coins.";
-  const tg = window.Telegram && window.Telegram.WebApp;
-
-  if (tg && typeof tg.openTelegramLink === "function") {
-    const shareUrl =
-      `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
-    tg.openTelegramLink(shareUrl);
-    showToast("Choose a friend to send your invite.");
-    return;
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    await navigator.clipboard.writeText(text);
+    return true;
   }
 
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const ok = document.execCommand("copy");
+  textarea.remove();
+  return ok;
+}
+
+function todayGainBaselineKey() {
+  return `wealthia_daily_gain_baseline_${CONFIG.ONBOARDING_VERSION || "v1"}`;
+}
+
+function getTodayGainBaseline() {
+  const today = new Date().toISOString().slice(0, 10);
+
   try {
-    await navigator.clipboard.writeText(link);
-    showToast("Invite link copied. Send it to friends!");
+    const parsed = JSON.parse(localStorage.getItem(todayGainBaselineKey()) || "{}");
+    if (parsed.date !== today) return null;
+    return Number(parsed.value);
   } catch {
-    showToast(link);
+    return null;
+  }
+}
+
+function ensureTodayGainBaseline() {
+  const today = new Date().toISOString().slice(0, 10);
+  const current = cityValue();
+
+  if (getTodayGainBaseline() === null) {
+    localStorage.setItem(todayGainBaselineKey(), JSON.stringify({
+      date: today,
+      value: current
+    }));
+  }
+}
+
+function todayGainScore() {
+  ensureTodayGainBaseline();
+
+  const serverScore = dailyContestScore || Number(state.dailyContest?.score || 0);
+  const baseline = getTodayGainBaseline();
+
+  if (baseline === null) return serverScore;
+
+  const localGain = Math.max(0, cityValue() - baseline);
+  return Math.max(serverScore, localGain);
+}
+
+function updateFriendsInvitePanel(link = getInviteLink()) {
+  const box = document.getElementById("friendsInviteLinkBox");
+  const text = document.getElementById("friendsInviteLinkText");
+
+  if (text) text.textContent = link;
+  if (box) box.hidden = false;
+}
+
+async function shareInviteLink() {
+  const link = getInviteLink();
+
+  try {
+    const copied = await copyTextToClipboard(link);
+    updateFriendsInvitePanel(link);
+    switchToFriendsTab();
+    showToast(copied ? "Link copied! Send it to your friends." : "Your invite link is ready below.");
+  } catch {
+    updateFriendsInvitePanel(link);
+    switchToFriendsTab();
+    showToast("Copy the link below and send to friends.");
   }
 }
 
@@ -367,7 +427,7 @@ function renderDailyPrizeBanner() {
     return;
   }
 
-  const score = dailyContestScore || Number(state.dailyContest?.score || 0);
+  const score = todayGainScore();
   const referrals = dailyReferralCount || Number(state.referrals?.count || 0);
   const required = prize.minReferrals || dailyReferralsRequired || 3;
   const eligible = dailyPrizeEligible || Boolean(state.referrals?.eligible);
@@ -382,14 +442,17 @@ function renderDailyPrizeBanner() {
         <strong>${symbol}${format(prize.prize)} today — 3 friends required</strong>
         <small>${timeLeft} left · Friends invited: ${referrals}/${required}</small>
       </div>
-      <p class="grand-prize__hint daily-prize__gain">Today's gain: <strong>+${format(score)}</strong></p>
+      <div class="daily-prize__gain-box">
+        <span class="daily-prize__gain-label">Today's gain</span>
+        <strong class="daily-prize__gain-value">+${format(score)}</strong>
+      </div>
       ${eligible
     ? `${leader ? `<p class="grand-prize__hint">Leader: <strong>${leader.isYou ? "You" : leader.name}</strong> (+${format(leader.dailyScore || leader.score || 0)})</p>` : ""}`
     : `<p class="grand-prize__hint daily-prize__lock">Invite <strong>${Math.max(0, required - referrals)}</strong> more friend(s) to unlock the $10 race.</p>`}
       <div class="daily-prize__actions">
         ${eligible
     ? `<button class="daily-prize__boost" type="button" id="dailyPrizeBoostButton">⭐ Boosts in Earn tab</button>`
-    : `<button class="daily-prize__boost daily-prize__boost--invite" type="button" id="dailyPrizeInviteButton">👥 Invite friends — share link</button>`}
+    : `<button class="daily-prize__boost daily-prize__boost--invite" type="button" id="dailyPrizeInviteButton">👥 Invite friends</button>`}
         ${eligible ? `<button class="daily-prize__boost daily-prize__boost--invite daily-prize__boost--secondary" type="button" id="dailyPrizeInviteButton">👥 Invite more friends</button>` : ""}
       </div>
     </article>
@@ -412,7 +475,7 @@ function renderDailyPrizeRankCard() {
   if (!prize) return "";
 
   const symbol = prize.currency === "USD" ? "$" : "";
-  const score = dailyContestScore || Number(state.dailyContest?.score || 0);
+  const score = todayGainScore();
   const referrals = dailyReferralCount || Number(state.referrals?.count || 0);
   const required = prize.minReferrals || 3;
   const eligible = dailyPrizeEligible || Boolean(state.referrals?.eligible);
@@ -1550,6 +1613,8 @@ async function applyBackendUser(user, message) {
 
   syncFromBackend(user);
   backendReady = true;
+  ensureTodayGainBaseline();
+  updateFriendsInvitePanel();
   saveState();
   render();
   await loadLeaderboard();
