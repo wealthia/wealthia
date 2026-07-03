@@ -1929,7 +1929,7 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
     const dailyTop3 = dailyTopData.map((row, index) => rowFromGame(row, index + 1, "dailyScore"));
 
     const youInDailyTop3 = dailyTop3.some((row) => row.isYou);
-    const dailyYou = yourDailyGame && !youInDailyTop3 && yourDailyRank > 3
+    const dailyYou = yourDailyGame && !youInDailyTop3 && number(yourDailyRank) > 3
       ? rowFromGame(yourDailyGame, yourDailyRank, "dailyScore")
       : null;
 

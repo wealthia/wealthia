@@ -1093,10 +1093,10 @@ function renderEarnPanel() {
   `;
 
   const starButton = (id, icon, title, stars, active, until) => `
-    <button class="boost-button boost-button--star boost-button--compact ${active ? "completed" : ""}" type="button" data-star="${id}" ${active ? "disabled" : ""}>
-      <span class="boost-button__icon">${icon}</span>
-      ${title}
-      <span>${active ? boostTimeLeft(until) : `${stars} ⭐`}</span>
+    <button class="earn-boost" type="button" data-star="${id}" ${active ? "disabled" : ""}>
+      <span class="earn-boost__icon">${icon}</span>
+      <span class="earn-boost__title">${title}</span>
+      <span class="earn-boost__price">${active ? boostTimeLeft(until) : `${stars} ⭐`}</span>
     </button>
   `;
 
@@ -1110,16 +1110,18 @@ function renderEarnPanel() {
       ${renderAdEarnRow()}
       ${earnRow("channel", "Join Channel", "Subscribe for bonus coins", 500, state.tasks.channel)}
     </div>
-    <article class="card stack stars-shop stars-shop--compact">
-      <h2>Premium Boosts</h2>
-      <p class="earn-note">Telegram Stars ⭐ · 30 min</p>
-      <div class="boost-grid boost-grid--stars boost-grid--compact">
+    <section class="earn-boosts">
+      <div class="earn-boosts__head">
+        <span>Premium Boosts</span>
+        <small>Telegram Stars · 30 min</small>
+      </div>
+      <div class="earn-boosts__grid">
         ${starButton("refill_energy", "&#x26A1;", "Refill", starPrice("refill_energy"), false, 0)}
         ${starButton("tap_boost_30", "&#x1F4AA;", "2x Tap", starPrice("tap_boost_30"), state.boosts.tapActive, state.boosts.tapUntil)}
         ${starButton("endless_energy_30", "&#x1F525;", "Endless", starPrice("endless_energy_30"), state.boosts.endlessActive, state.boosts.endlessUntil)}
         ${starButton("income_boost_30", "&#x1F4C8;", "2x Income", starPrice("income_boost_30"), state.boosts.incomeActive, state.boosts.incomeUntil)}
       </div>
-    </article>
+    </section>
   `;
 }
 
@@ -1347,43 +1349,53 @@ function buildDailyLeaderboardView() {
     todayGainScore()
   );
 
-  let top3 = dailyLeaderboardTop3.length
-    ? dailyLeaderboardTop3.filter((row) => !row.isYou).slice(0, 3)
-    : [];
+  const candidates = [];
+  const seen = new Set();
 
-  if (!top3.length && getDailyPrizeConfig()) {
-    top3 = getContestSeedPreview();
+  const addCandidate = (row) => {
+    if (!row) return;
+    const key = row.isYou ? "__you__" : String(row.userId || row.name || "");
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    candidates.push({
+      ...row,
+      dailyScore: Number(row.dailyScore || row.score || 0),
+      name: row.isYou ? "You" : (row.name || "Player")
+    });
+  };
+
+  for (const row of dailyLeaderboardTop3) addCandidate(row);
+  if (dailyLeaderboardYou) addCandidate({ ...dailyLeaderboardYou, isYou: true });
+
+  if (getDailyPrizeConfig()) {
+    for (const seed of getContestSeedPreview()) addCandidate(seed);
   }
 
-  const youInTop3 = dailyLeaderboardTop3.some((row) => row.isYou);
-  let yourPlace = null;
-
-  if (!youInTop3) {
-    if (dailyLeaderboardYou && Number(dailyLeaderboardYou.rank || 0) > 0) {
-      yourPlace = {
-        ...dailyLeaderboardYou,
-        rank: Number(dailyLeaderboardYou.rank),
-        dailyScore: Number(dailyLeaderboardYou.dailyScore || dailyLeaderboardYou.score || yourScore),
-        isYou: true,
-        isYourPlaceRow: true
-      };
-    } else {
-      const rank = Number(dailyYourRank) || (
-        1 + top3.filter((row) => Number(row.dailyScore || row.score || 0) > yourScore).length
-      );
-      yourPlace = {
-        rank,
-        dailyScore: yourScore,
-        isYou: true,
-        isYourPlaceRow: true
-      };
-    }
+  const youRow = candidates.find((row) => row.isYou);
+  if (youRow) {
+    youRow.dailyScore = Math.max(youRow.dailyScore, yourScore);
+  } else {
+    addCandidate({ name: "You", dailyScore: yourScore, isYou: true });
   }
+
+  candidates.sort((a, b) => Number(b.dailyScore || 0) - Number(a.dailyScore || 0));
+
+  const ranked = candidates.map((row, index) => ({
+    ...row,
+    rank: index + 1
+  }));
+
+  const top3 = ranked.slice(0, 3);
+  const youInTop3 = top3.some((row) => row.isYou);
+  const yourPlace = !youInTop3
+    ? ranked.find((row) => row.isYou) || null
+    : null;
 
   if (!top3.length) {
-    top3 = getDailyPrizeConfig()
-      ? getContestSeedPreview()
-      : [{ rank: 1, name: "You", dailyScore: yourScore, isYou: true }];
+    return {
+      top3: [{ rank: 1, name: "You", dailyScore: yourScore, isYou: true }],
+      yourPlace: null
+    };
   }
 
   return { top3, yourPlace };
@@ -1430,8 +1442,8 @@ function renderRankPanel() {
     `
     : "";
 
-  const offlineBanner = !backendReady
-    ? `<p class="rank-offline-note">Open in Telegram for live sync. Leaderboard preview below.</p>`
+  const offlineBanner = !backendReady && !getTelegramInitData()
+    ? `<p class="rank-offline-note">Open in Telegram for live sync.</p>`
     : "";
 
   panel.innerHTML = `
@@ -1850,7 +1862,6 @@ async function applyBackendUser(user, message) {
   syncFromBackend(user);
   backendReady = true;
   ensureTodayGainBaseline();
-  updateFriendsInvitePanel();
   saveState();
   render();
   await loadLeaderboard();
@@ -1860,33 +1871,62 @@ async function applyBackendUser(user, message) {
   return true;
 }
 
-async function connectBackend() {
-  const { ok, result } = await apiPost("/api/session", {
-    initData: getTelegramInitData(),
-    telegramUser: getTelegramUser(),
-    referrerId: getReferrerId()
-  });
+let backendReconnectTimer = null;
 
-  if (!ok || !result) {
-    backendReady = false;
-    backendSessionToken = "";
+function scheduleBackendReconnect() {
+  if (backendReconnectTimer || !getTelegramInitData()) return;
+
+  backendReconnectTimer = window.setTimeout(async () => {
+    backendReconnectTimer = null;
+    await connectBackend(2);
+  }, 8000);
+}
+
+async function sleep(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function connectBackend(retries = 3) {
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const { ok, result, status } = await apiPost("/api/session", {
+      initData: getTelegramInitData(),
+      telegramUser: getTelegramUser(),
+      referrerId: getReferrerId()
+    });
+
+    if (ok && result && !result.error) {
+      backendUserId = result.userId;
+      backendSessionToken = result.token || "";
+      await applyBackendUser(result, attempt > 0 ? "Backend reconnected." : "Backend connected.");
+      await loadTournament();
+      return true;
+    }
+
+    if (result && result.error === "INVALID_TELEGRAM_AUTH") {
+      backendReady = false;
+      backendSessionToken = "";
+      showToast("Open the game inside Telegram.");
+      render();
+      return false;
+    }
+
+    if (attempt < retries && (status === 0 || status >= 500)) {
+      await sleep(1500 * (attempt + 1));
+      continue;
+    }
+
+    break;
+  }
+
+  backendReady = false;
+  backendSessionToken = "";
+  if (!getTelegramInitData()) {
     showToast("Backend offline. Local mode.");
-    render();
-    return;
+  } else {
+    scheduleBackendReconnect();
   }
-
-  if (result.error === "INVALID_TELEGRAM_AUTH") {
-    backendReady = false;
-    backendSessionToken = "";
-    showToast("Open the game inside Telegram.");
-    render();
-    return;
-  }
-
-  backendUserId = result.userId;
-  backendSessionToken = result.token || "";
-  await applyBackendUser(result, "Backend connected.");
-  await loadTournament();
+  render();
+  return false;
 }
 
 async function loadLeaderboard() {
@@ -1896,8 +1936,15 @@ async function loadLeaderboard() {
     return;
   }
 
-  const { ok, result } = await apiPost("/api/leaderboard");
-  if (!ok || !result) return;
+  const { ok, result, status } = await apiPost("/api/leaderboard");
+  if (!ok || !result) {
+    if (status === 401) {
+      backendSessionToken = "";
+      await connectBackend(1);
+    }
+    renderRankPanel();
+    return;
+  }
 
   leaderboardTop3 = Array.isArray(result.top3) ? result.top3 : [];
   leaderboardYou = result.you || null;
@@ -2272,15 +2319,24 @@ async function resetGame() {
 }
 
 async function refreshBackendState() {
-  if (!backendReady) return;
+  if (!backendReady) {
+    await connectBackend(1);
+    return;
+  }
 
-  const { ok, result } = await apiPost("/api/session", {
+  const { ok, result, status } = await apiPost("/api/session", {
     initData: getTelegramInitData(),
     telegramUser: getTelegramUser(),
     referrerId: getReferrerId()
   });
 
-  if (!ok || !result) return;
+  if (!ok || !result) {
+    if (status === 401 || status === 0) {
+      backendSessionToken = "";
+      await connectBackend(1);
+    }
+    return;
+  }
 
   if (result.token) {
     backendSessionToken = result.token;
