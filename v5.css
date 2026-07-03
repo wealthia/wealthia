@@ -169,49 +169,51 @@ p {
   font-size: 22px;
 }
 
-/* Main tab — tap, stats, city scene */
+/* Main tab — full-screen play layout */
+.app.view-main {
+  padding: max(8px, env(safe-area-inset-top)) 12px 0;
+}
+
 .app.view-main .app-scroll {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding-bottom: 4px;
+  padding-bottom: 0;
+  flex: 1;
+  min-height: 0;
 }
 
 .app.view-main .header {
-  margin-bottom: 6px;
+  flex-shrink: 0;
+  margin-bottom: 8px;
 }
 
 .app.view-main .brand__mark {
-  width: 36px;
-  height: 36px;
-  font-size: 18px;
-  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  font-size: 20px;
+  border-radius: 13px;
 }
 
 .app.view-main .header h1 {
-  font-size: 20px;
+  font-size: 22px;
 }
 
 .app.view-main .brand__eyebrow {
-  font-size: 8px;
+  font-size: 9px;
 }
 
 .app.view-main .round-button {
-  width: 36px;
-  height: 36px;
-}
-
-.app.view-main .header,
-.app.view-main .game-shell {
-  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
 }
 
 .app.view-main .game-shell {
   flex: 1;
   min-height: 0;
-  display: grid;
-  gap: 4px;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .app.view-main #mainPanel {
@@ -219,84 +221,91 @@ p {
 }
 
 .app.view-main .stats {
+  flex-shrink: 0;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 4px;
-  margin-bottom: 4px;
+  gap: 6px;
+  margin-bottom: 0;
 }
 
 .app.view-main .stat {
-  min-height: 44px;
-  padding: 5px 4px 4px;
+  min-height: 54px;
+  padding: 8px 6px 6px;
   text-align: center;
+  border-radius: 12px;
 }
 
 .app.view-main .stat__icon {
-  display: none;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 3px;
+  line-height: 1;
 }
 
 .app.view-main .stat span {
-  font-size: 7px;
-  letter-spacing: 0.02em;
-  line-height: 1.1;
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
 }
 
 .app.view-main .stat strong {
-  font-size: 12px;
-  margin-top: 2px;
+  font-size: 14px;
+  margin-top: 3px;
 }
 
 .app.view-main .stat strong small {
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .app.view-main .city {
-  height: 88px !important;
+  flex-shrink: 0;
+  height: 102px !important;
 }
 
 .app.view-main .city .sky {
-  bottom: 22px;
+  bottom: 26px;
 }
 
 .app.view-main .city .street {
-  height: 22px;
+  height: 26px;
 }
 
 .app.view-main .city .street::after {
-  top: 10px;
+  top: 12px;
 }
 
 .app.view-main .city .building {
-  transform: scale(0.62);
+  transform: scale(0.72);
   transform-origin: bottom center;
 }
 
 .app.view-main .city-icon {
-  bottom: 24px;
-  font-size: 14px;
+  bottom: 28px;
+  font-size: 16px;
 }
 
 .app.view-main .city .sun {
-  width: 32px;
-  height: 32px;
-  top: 10px;
-  right: 12px;
+  width: 36px;
+  height: 36px;
+  top: 12px;
+  right: 14px;
 }
 
 .app.view-main .city .cloud {
-  transform: scale(0.7);
+  transform: scale(0.8);
 }
 
 .app.view-main .city__label {
-  top: 6px;
-  left: 8px;
-  padding: 4px 8px;
-  font-size: 8px;
+  top: 8px;
+  left: 10px;
+  padding: 5px 10px;
+  font-size: 9px;
 }
 
 .app.view-main .energy-section {
+  flex-shrink: 0;
   padding: 0;
   display: grid;
-  gap: 4px;
+  gap: 6px;
 }
 
 .app.view-main .energy-section .grand-prize,
@@ -305,42 +314,45 @@ p {
 }
 
 .app.view-main .gold-rush {
-  padding: 6px 10px;
-  border-radius: 10px;
-  min-height: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
 }
 
 .app.view-main .gold-rush strong {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .app.view-main .gold-rush small {
-  font-size: 10px;
+  font-size: 11px;
+}
+
+.app.view-main .gold-rush__button {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 12px;
 }
 
 .app.view-main .daily-prize--strip {
-  padding: 6px 10px;
-  margin-bottom: 0;
-  min-height: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
 }
 
 .app.view-main .daily-prize-strip {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: nowrap;
 }
 
 .app.view-main .daily-prize-strip strong {
-  font-size: 11px;
-  white-space: nowrap;
+  font-size: 12px;
 }
 
 .app.view-main .daily-prize-strip__gain {
   margin-left: auto;
-  color: var(--gold-light);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 900;
+  color: var(--gold-light);
 }
 
 .app.view-main .daily-prize-strip__hint {
@@ -348,29 +360,69 @@ p {
 }
 
 .app.view-main .grand-prize.daily-prize--strip .grand-prize__badge {
-  font-size: 8px;
-  padding: 2px 6px;
+  font-size: 9px;
+  padding: 3px 8px;
 }
 
 .app.view-main .energy-wrap {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 8px;
+  display: block;
+  width: 100%;
 }
 
 .app.view-main .energy-bar {
-  height: 8px;
+  height: 10px;
 }
 
 .app.view-main .energy-label {
-  margin: 0;
-  font-size: 8px;
-  white-space: nowrap;
+  margin-top: 4px;
+  font-size: 9px;
+  text-align: center;
 }
 
 .app.view-main .tap-area {
-  padding: 0;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 4px 0 8px;
+  touch-action: none;
+  border-radius: 18px;
+  background:
+    radial-gradient(ellipse 80% 70% at 50% 55%, rgba(245, 196, 81, 0.1), transparent 65%),
+    rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(245, 196, 81, 0.1);
+}
+
+.app.view-main .tap-button-wrap {
+  width: 100px;
+  height: 100px;
+}
+
+.app.view-main .tap-button {
+  width: 92px;
+  height: 92px;
+  box-shadow:
+    0 0 28px rgba(245, 196, 81, 0.5),
+    0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.app.view-main .tap-button span {
+  font-size: 13px;
+}
+
+.app.view-main .tap-button strong {
+  font-size: 15px;
+}
+
+.app.view-main .tap-button__hint {
+  font-size: 8px;
+}
+
+.app.view-main .tabs {
+  margin-top: 6px;
 }
 
 /* City tab — building upgrades only */
