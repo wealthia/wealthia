@@ -263,7 +263,7 @@ function ensureCasinoSpinCard() {
       <h2>Lucky Spin</h2>
       <p id="casinoSpinHint">Spin once per day for bonus coins.</p>
     </div>
-    <button class="wide-button casino-spin-button" type="button" id="casinoSpinButton">
+    <button class="buy-button casino-spin-button" type="button" id="casinoSpinButton">
       Spin Now
     </button>
   `;

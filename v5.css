@@ -763,6 +763,11 @@ h1 {
   background: linear-gradient(135deg, rgba(124, 92, 255, 0.12), rgba(18, 24, 42, 0.9));
 }
 .card--casino-spin .card__icon { background: rgba(245, 196, 81, 0.15); }
+.card--casino-spin .casino-spin-button {
+  min-height: 42px;
+  padding: 0 12px;
+  font-size: 12px;
+}
 .casino-spin-button:disabled {
   opacity: 0.55;
   filter: grayscale(0.4);
