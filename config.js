@@ -13,7 +13,7 @@ window.WEALTHIA_CONFIG = {
   // Leave empty for demo mode (no real ad revenue)
   ADSGRAM_BLOCK_ID: "37147",
   // Production bonus block — update when created on Production platform
-  ADSGRAM_BONUS_BLOCK_ID: "37140",
+  ADSGRAM_BONUS_BLOCK_ID: "37148",
   ADSGRAM_DEBUG: false,
   // Repeatable every 5 minutes (server: AD_REWARD_COOLDOWN_MS)
   AD_REWARD_COOLDOWN_MINUTES: 5,
