@@ -32,35 +32,35 @@
       overflow: hidden;
       overscroll-behavior: contain;
     }
-    .city { height: 150px !important; }
+    .city { height: 88px !important; }
     .energy-section {
       width: 100%;
-      padding: 0 0 12px;
+      padding: 0 0 4px;
     }
     .tap-area {
       touch-action: none;
-      padding: 0 0 10px;
+      padding: 0 0 4px;
       min-height: 0;
     }
     .tap-button-wrap {
-      width: 64px !important;
-      height: 64px !important;
+      width: 52px !important;
+      height: 52px !important;
       overflow: hidden;
     }
     .tap-ring { display: none !important; }
     .tap-button {
-      width: 58px !important;
-      height: 58px !important;
-      box-shadow: 0 0 12px rgba(245, 196, 81, 0.4) !important;
+      width: 48px !important;
+      height: 48px !important;
+      box-shadow: 0 0 10px rgba(245, 196, 81, 0.4) !important;
     }
-    .tap-button span { font-size: 11px !important; }
-    .tap-button strong { font-size: 11px !important; }
-    .tap-button__hint { font-size: 7px !important; }
+    .tap-button span { font-size: 9px !important; }
+    .tap-button strong { font-size: 10px !important; }
+    .tap-button__hint { font-size: 6px !important; }
     .tap-button:active { transform: scale(0.94) !important; }
     .energy-wrap { width: 100%; }
     [hidden] { display: none !important; }
   </style>
-  <link rel="stylesheet" href="./v5.css?v=2044" />
+  <link rel="stylesheet" href="./v5.css?v=2046" />
 </head>
 <body>
   <div class="ambient" aria-hidden="true">
@@ -69,7 +69,7 @@
     <div class="ambient__grid"></div>
   </div>
 
-  <main class="app view-city" id="appRoot">
+  <main class="app view-main" id="appRoot">
     <div class="app-scroll" id="appScroll">
     <header class="header">
       <div class="brand">
@@ -157,7 +157,9 @@
     </section>
     </div>
 
-    <section class="panel active" id="cityPanel">
+    <section class="panel panel--main active" id="mainPanel" aria-hidden="true"></section>
+
+    <section class="panel" id="cityPanel">
       <div class="panel-head">
         <h2>Build Your City</h2>
         <p>Upgrade buildings to multiply your wealth</p>
@@ -223,8 +225,12 @@
     </div>
 
     <nav class="tabs" id="mainTabs">
-      <button class="tab active" type="button" data-tab="cityPanel" data-view="city">
-        <span class="tab__icon">&#x1F3D9;</span>
+      <button class="tab active" type="button" data-tab="mainPanel" data-view="main">
+        <span class="tab__icon">&#x1F446;</span>
+        Main
+      </button>
+      <button class="tab" type="button" data-tab="cityPanel" data-view="city">
+        <span class="tab__icon">&#x1F3D7;&#xFE0F;</span>
         City
       </button>
       <button class="tab" type="button" data-tab="tasksPanel" data-view="tasks">
@@ -259,7 +265,7 @@
       <div class="onboarding__step" data-step="2" hidden>
         <span class="onboarding__badge">Step 2 / 3</span>
         <h2>Upgrade Your City</h2>
-        <p>Go to City tab and upgrade Shop, Bank and Factory to grow faster.</p>
+        <p>Go to the <strong>City</strong> tab and upgrade Shop, Bank and Factory.</p>
       </div>
       <div class="onboarding__step" data-step="3" hidden>
         <span class="onboarding__badge">Step 3 / 3</span>
@@ -275,5 +281,5 @@
   </div>
 
   <script src="./config.js?v=14"></script>
-  <script src="./v5.js?v=10049"></script></body>
+  <script src="./v5.js?v=10051"></script></body>
 </html>

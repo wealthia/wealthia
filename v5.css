@@ -156,29 +156,228 @@ p {
   border-bottom: none;
 }
 
-/* Menu tabs: hide tap/city scene — only that tab's content */
-.app:not(.view-city) .game-shell {
+/* Menu tabs: hide tap/city scene — only Main tab */
+.app:not(.view-main) .game-shell {
   display: none !important;
 }
 
-.app:not(.view-city) .header {
+.app:not(.view-main):not(.view-city) .header {
   margin-bottom: 12px;
 }
 
-.app:not(.view-city) .header h1 {
+.app:not(.view-main) .header h1 {
   font-size: 22px;
 }
 
-/* City tab: tap stays on top, upgrades scroll separately */
+/* Main tab — tap, stats, city scene */
+.app.view-main .app-scroll {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 4px;
+}
+
+.app.view-main .header {
+  margin-bottom: 6px;
+}
+
+.app.view-main .brand__mark {
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  border-radius: 12px;
+}
+
+.app.view-main .header h1 {
+  font-size: 20px;
+}
+
+.app.view-main .brand__eyebrow {
+  font-size: 8px;
+}
+
+.app.view-main .round-button {
+  width: 36px;
+  height: 36px;
+}
+
+.app.view-main .header,
+.app.view-main .game-shell {
+  flex-shrink: 0;
+}
+
+.app.view-main .game-shell {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+
+.app.view-main #mainPanel {
+  display: none !important;
+}
+
+.app.view-main .stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.app.view-main .stat {
+  min-height: 44px;
+  padding: 5px 4px 4px;
+  text-align: center;
+}
+
+.app.view-main .stat__icon {
+  display: none;
+}
+
+.app.view-main .stat span {
+  font-size: 7px;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+}
+
+.app.view-main .stat strong {
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.app.view-main .stat strong small {
+  font-size: 9px;
+}
+
+.app.view-main .city {
+  height: 88px !important;
+}
+
+.app.view-main .city .sky {
+  bottom: 22px;
+}
+
+.app.view-main .city .street {
+  height: 22px;
+}
+
+.app.view-main .city .street::after {
+  top: 10px;
+}
+
+.app.view-main .city .building {
+  transform: scale(0.62);
+  transform-origin: bottom center;
+}
+
+.app.view-main .city-icon {
+  bottom: 24px;
+  font-size: 14px;
+}
+
+.app.view-main .city .sun {
+  width: 32px;
+  height: 32px;
+  top: 10px;
+  right: 12px;
+}
+
+.app.view-main .city .cloud {
+  transform: scale(0.7);
+}
+
+.app.view-main .city__label {
+  top: 6px;
+  left: 8px;
+  padding: 4px 8px;
+  font-size: 8px;
+}
+
+.app.view-main .energy-section {
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.app.view-main .energy-section .grand-prize,
+.app.view-main .energy-section .gold-rush {
+  margin: 0;
+}
+
+.app.view-main .gold-rush {
+  padding: 6px 10px;
+  border-radius: 10px;
+  min-height: 0;
+}
+
+.app.view-main .gold-rush strong {
+  font-size: 13px;
+}
+
+.app.view-main .gold-rush small {
+  font-size: 10px;
+}
+
+.app.view-main .daily-prize--strip {
+  padding: 6px 10px;
+  margin-bottom: 0;
+  min-height: 0;
+}
+
+.app.view-main .daily-prize-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.app.view-main .daily-prize-strip strong {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.app.view-main .daily-prize-strip__gain {
+  margin-left: auto;
+  color: var(--gold-light);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.app.view-main .daily-prize-strip__hint {
+  display: none;
+}
+
+.app.view-main .grand-prize.daily-prize--strip .grand-prize__badge {
+  font-size: 8px;
+  padding: 2px 6px;
+}
+
+.app.view-main .energy-wrap {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.app.view-main .energy-bar {
+  height: 8px;
+}
+
+.app.view-main .energy-label {
+  margin: 0;
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.app.view-main .tap-area {
+  padding: 0;
+}
+
+/* City tab — building upgrades only */
 .app.view-city .app-scroll {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-
-.app.view-city .header,
-.app.view-city .game-shell {
-  flex-shrink: 0;
 }
 
 .app.view-city #cityPanel.panel.active {
@@ -187,100 +386,26 @@ p {
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  padding-right: 2px;
-}
-
-.app.view-city .stats {
-  gap: 6px;
-  margin-bottom: 8px;
-}
-
-.app.view-city .stat {
-  min-height: 64px;
-  padding: 8px 8px 6px;
-}
-
-.app.view-city .stat__icon {
-  font-size: 14px;
-  margin-bottom: 4px;
-}
-
-.app.view-city .stat span {
-  font-size: 9px;
-}
-
-.app.view-city .stat strong {
-  font-size: 15px;
-  margin-top: 4px;
-}
-
-.app.view-city .city {
-  height: 140px !important;
-}
-
-.app.view-city .energy-section {
-  padding: 0 0 4px;
-  display: grid;
-  gap: 6px;
-}
-
-.app.view-city .energy-section .grand-prize,
-.app.view-city .energy-section .gold-rush {
-  margin: 0;
-}
-
-.app.view-city .gold-rush {
-  padding: 10px 12px;
-  border-radius: 12px;
-  min-height: 52px;
-}
-
-.app.view-city .daily-prize--strip {
-  padding: 8px 12px;
-  margin-bottom: 0;
-  min-height: 52px;
-}
-
-.app.view-city .daily-prize-strip {
-  display: flex;
-  align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
-}
-
-.app.view-city .daily-prize-strip strong {
-  font-size: 13px;
-}
-
-.app.view-city .daily-prize-strip__gain {
-  margin-left: auto;
-  color: var(--gold-light);
-  font-size: 16px;
-  font-weight: 900;
-}
-
-.app.view-city .daily-prize-strip__hint {
-  margin: 6px 0 0;
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.app.view-city .grand-prize.daily-prize--strip .grand-prize__badge {
-  font-size: 9px;
-  padding: 3px 8px;
-}
-
-.app.view-city #cityPanel .panel-head {
-  margin-bottom: 6px;
+  align-content: start;
 }
 
 .app.view-city #cityPanel .panel-head h2 {
-  font-size: 18px;
+  font-size: 20px;
 }
 
 .app.view-city #cityPanel .card {
-  min-height: 68px;
+  min-height: 64px;
   padding: 12px;
+}
+
+.app.view-city #cityPanel .card h2 {
+  font-size: 15px;
+}
+
+.app.view-city #cityPanel .buy-button {
+  min-height: 38px;
+  font-size: 11px;
 }
 
 /* Tasks tab — fill screen, large cards */
@@ -1264,10 +1389,10 @@ h1 {
 /* Tabs */
 .tabs {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 6px;
-  margin: 8px 0 14px;
-  padding: 5px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+  margin: 6px 0 10px;
+  padding: 4px;
   border: 1px solid var(--line);
   border-radius: 18px;
   background: rgba(8, 12, 24, 0.92);

@@ -433,9 +433,9 @@ async function shareInviteLink() {
   }
 }
 
-function isCityView() {
+function isMainView() {
   const appRoot = document.getElementById("appRoot");
-  return !appRoot || appRoot.classList.contains("view-city");
+  return !appRoot || appRoot.classList.contains("view-main");
 }
 
 function renderDailyPrizeBanner() {
@@ -446,7 +446,7 @@ function renderDailyPrizeBanner() {
     return;
   }
 
-  const compact = isCityView();
+  const compact = isMainView();
   const score = todayGainScore();
   const referrals = dailyReferralCount || Number(state.referrals?.count || 0);
   const required = prize.minReferrals || dailyReferralsRequired || 3;
@@ -2443,11 +2443,11 @@ document.querySelectorAll(".tab").forEach((tab) => {
     const panel = document.getElementById(tab.dataset.tab);
     if (panel) panel.classList.add("active");
 
-    const view = tab.dataset.view || "city";
+    const view = tab.dataset.view || "main";
     const appRoot = document.getElementById("appRoot");
     const appScroll = document.getElementById("appScroll");
     if (appRoot) {
-      appRoot.classList.remove("view-city", "view-tasks", "view-earn", "view-friends", "view-rank");
+      appRoot.classList.remove("view-main", "view-city", "view-tasks", "view-earn", "view-friends", "view-rank");
       appRoot.classList.add(`view-${view}`);
     }
     if (appScroll) appScroll.scrollTop = 0;
