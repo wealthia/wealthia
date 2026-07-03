@@ -47,6 +47,7 @@ function verifyTelegramInitData(initData, botToken) {
       id: String(user.id),
       first_name: user.first_name || "Player",
       username: user.username || "",
+      is_bot: Boolean(user.is_bot),
       start_param: params.get("start_param") || ""
     };
   } catch {
@@ -108,6 +109,7 @@ function resolveTelegramUser(req) {
       id: "web_demo",
       first_name: demoUser.first_name || "Web Demo",
       username: demoUser.username || "",
+      is_bot: false,
       start_param: ""
     };
   }
