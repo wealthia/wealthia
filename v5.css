@@ -190,6 +190,437 @@ p {
   padding-right: 2px;
 }
 
+.app.view-city .stats {
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.app.view-city .stat {
+  min-height: 76px;
+  padding: 10px 8px 8px;
+}
+
+.app.view-city .stat strong {
+  font-size: 17px;
+}
+
+.app.view-city .energy-section {
+  padding: 0 0 6px;
+}
+
+.app.view-city .daily-prize--strip {
+  padding: 10px 12px;
+  margin-bottom: 4px;
+}
+
+.app.view-city .daily-prize-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.app.view-city .daily-prize-strip strong {
+  font-size: 13px;
+}
+
+.app.view-city .daily-prize-strip__gain {
+  margin-left: auto;
+  color: var(--gold-light);
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.app.view-city .daily-prize-strip__hint {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.app.view-city .grand-prize.daily-prize--strip .grand-prize__badge {
+  font-size: 9px;
+  padding: 3px 8px;
+}
+
+.app.view-city #cityPanel .panel-head {
+  margin-bottom: 6px;
+}
+
+.app.view-city #cityPanel .panel-head h2 {
+  font-size: 18px;
+}
+
+.app.view-city #cityPanel .card {
+  min-height: 68px;
+  padding: 12px;
+}
+
+/* Tasks tab — fill screen, large cards */
+.app.view-tasks .app-scroll {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.app.view-tasks .header {
+  margin-bottom: 10px;
+}
+
+.app.view-tasks #tasksPanel.panel.active {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.app.view-tasks .panel-head--tasks {
+  flex-shrink: 0;
+  margin-bottom: 0;
+}
+
+.app.view-tasks .panel-head--tasks h2 {
+  font-size: 22px;
+}
+
+.app.view-tasks .panel-head--tasks p {
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.app.view-tasks .task-refresh-clock {
+  margin-top: 8px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(245, 196, 81, 0.35);
+  background: rgba(245, 196, 81, 0.08);
+  text-align: center;
+}
+
+.app.view-tasks .task-refresh-clock span {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--gold-light);
+  font-variant-numeric: tabular-nums;
+}
+
+.app.view-tasks .tasks-list {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.app.view-tasks .tasks-list .task {
+  flex: 1;
+  min-height: 58px;
+  padding: 16px 14px;
+}
+
+.app.view-tasks .tasks-list .task b {
+  font-size: 15px;
+}
+
+.app.view-tasks .tasks-list .task strong {
+  min-width: 72px;
+  font-size: 15px;
+}
+
+/* Earn tab — compact, no scroll */
+.app.view-earn .app-scroll {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.app.view-earn .header {
+  margin-bottom: 8px;
+}
+
+.app.view-earn #earnPanel.panel.active {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.app.view-earn .earn-compact-head {
+  flex-shrink: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-bright);
+  background: linear-gradient(145deg, rgba(124, 92, 255, 0.14), rgba(245, 196, 81, 0.06));
+}
+
+.app.view-earn .earn-compact-head h2 {
+  margin-top: 6px;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.app.view-earn .earn-rows {
+  flex-shrink: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.app.view-earn .earn-task--compact {
+  min-height: 56px;
+  padding: 10px 12px;
+}
+
+.app.view-earn .earn-task--compact b {
+  font-size: 14px;
+}
+
+.app.view-earn .earn-task--compact strong {
+  min-width: 56px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.app.view-earn .earn-ad-wrap {
+  gap: 4px;
+}
+
+.app.view-earn .ad-refresh-timer {
+  font-size: 11px;
+  margin: 0;
+}
+
+.app.view-earn .stars-shop--compact {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  min-height: auto;
+}
+
+.app.view-earn .stars-shop--compact h2 {
+  font-size: 15px;
+}
+
+.app.view-earn .stars-shop--compact .earn-note {
+  font-size: 11px;
+  margin: 2px 0 6px;
+}
+
+.app.view-earn .boost-grid--compact {
+  margin-top: 4px;
+  gap: 6px;
+}
+
+.app.view-earn .boost-button--compact {
+  min-height: 64px;
+  padding: 8px 4px;
+  font-size: 10px;
+}
+
+.app.view-earn .boost-button--compact .boost-button__icon {
+  font-size: 18px;
+}
+
+/* Friends tab — fill screen */
+.app.view-friends .app-scroll {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.app.view-friends #friendsPanel.panel.active {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  gap: 8px;
+}
+
+.friends-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.friends-stat {
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  text-align: center;
+}
+
+.friends-stat span {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.friends-stat strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 18px;
+  color: var(--gold-light);
+}
+
+.friends-progress-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  min-height: auto;
+}
+
+.friends-progress-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.friends-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.friends-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--gold-dark), var(--gold-light));
+}
+
+.friends-progress-card p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.friends-tips {
+  padding: 14px 16px;
+  min-height: auto;
+  align-items: stretch;
+  text-align: left;
+}
+
+.friends-tips h2 {
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+.friends-tips ol {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.app.view-friends .friends-card {
+  padding: 16px;
+}
+
+.app.view-friends .friends-card h2 {
+  font-size: 16px;
+}
+
+/* Rank tab — compact */
+.app.view-rank .app-scroll {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.app.view-rank #rankPanel.panel.active {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  gap: 8px;
+}
+
+.app.view-rank .panel-head--rank h2 {
+  font-size: 18px;
+}
+
+.app.view-rank .panel-head--rank p {
+  font-size: 12px;
+}
+
+.app.view-rank .grand-prize-card {
+  padding: 12px;
+}
+
+.app.view-rank .grand-prize-card__head h3 {
+  font-size: 16px;
+}
+
+.app.view-rank .tournament-card {
+  margin-bottom: 8px;
+  padding: 12px;
+}
+
+.app.view-rank .tournament-card h2 {
+  font-size: 16px;
+}
+
+.app.view-rank .rank--compact li {
+  min-height: 52px;
+  padding: 10px 12px;
+}
+
+.rank-offline-note {
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(245, 196, 81, 0.25);
+  background: rgba(245, 196, 81, 0.08);
+  color: var(--gold-light);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.daily-prize--strip {
+  padding: 12px 14px;
+}
+
+.daily-prize-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.daily-prize-strip strong {
+  font-size: 14px;
+}
+
+.daily-prize-strip__gain {
+  color: var(--gold-light);
+  font-weight: 900;
+}
+
+.daily-prize-strip__hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 /* Header */
 .header {
   display: flex;

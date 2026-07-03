@@ -21,7 +21,10 @@ let adsgramBonusController = null;
 let onboardingStep = 1;
 let adCooldownTimer = null;
 let goldRushTimer = null;
+let taskCountdownTimer = null;
 let lastGrandPrizeMilestone = 0;
+
+const TASK_REFRESH_MS = 12 * 60 * 60 * 1000;
 
 const onboardingKey = `wealthia_onboarding_${CONFIG.ONBOARDING_VERSION || "v1"}`;
 
@@ -121,6 +124,7 @@ const els = {
   factoryBuilding: document.getElementById("factoryBuilding"),
   tasksPanel: document.getElementById("tasksPanel"),
   earnPanel: document.getElementById("earnPanel"),
+  friendsPanel: document.getElementById("friendsPanel"),
   rankPanel: document.getElementById("rankPanel"),
   tournamentPanel: document.getElementById("tournamentPanel"),
   globalLeaderboard: document.getElementById("globalLeaderboard")
@@ -420,6 +424,11 @@ async function shareInviteLink() {
   }
 }
 
+function isCityView() {
+  const appRoot = document.getElementById("appRoot");
+  return !appRoot || appRoot.classList.contains("view-city");
+}
+
 function renderDailyPrizeBanner() {
   const mount = els.grandPrizeMount;
   const prize = getDailyPrizeConfig();
@@ -428,12 +437,27 @@ function renderDailyPrizeBanner() {
     return;
   }
 
+  const compact = isCityView();
   const score = todayGainScore();
   const referrals = dailyReferralCount || Number(state.referrals?.count || 0);
   const required = prize.minReferrals || dailyReferralsRequired || 3;
   const eligible = dailyPrizeEligible || Boolean(state.referrals?.eligible);
   const timeLeft = dailyPrizeTimeLeft(dailyContestResetsAt || state.dailyContest?.resetsAt);
   const symbol = prize.currency === "USD" ? "$" : "";
+
+  if (compact) {
+    mount.innerHTML = `
+      <article class="grand-prize daily-prize daily-prize--strip ${eligible ? "daily-prize--eligible" : "daily-prize--locked"}">
+        <div class="daily-prize-strip">
+          <span class="grand-prize__badge">⚡ ${prize.title}</span>
+          <strong>${symbol}${format(prize.prize)} · ${referrals}/${required} friends</strong>
+          <span class="daily-prize-strip__gain">+${format(score)}</span>
+        </div>
+        <p class="daily-prize-strip__hint">${eligible ? `${timeLeft} left · Rank tab` : `Invite ${Math.max(0, required - referrals)} more · Friends tab`}</p>
+      </article>
+    `;
+    return;
+  }
 
   mount.innerHTML = `
     <article class="grand-prize daily-prize ${eligible ? "daily-prize--eligible" : "daily-prize--locked"}">
@@ -709,6 +733,7 @@ function render() {
 
   renderDailyTasks();
   renderEarnPanel();
+  renderFriendsPanel();
   renderTournamentPanel();
   renderRankPanel();
   updateCityVisuals();
@@ -797,24 +822,52 @@ function renderCasinoSpin() {
   }
 }
 
+function getTaskRefreshTargetMs() {
+  const stored = Date.parse(state.dailyTasksNextRefresh || "");
+  if (stored && !Number.isNaN(stored)) return stored;
+
+  const now = Date.now();
+  const cycle = Math.floor(now / TASK_REFRESH_MS);
+  return (cycle + 1) * TASK_REFRESH_MS;
+}
+
+function formatTaskCountdown(ms) {
+  const total = Math.max(0, ms);
+  const hours = Math.floor(total / 3600000);
+  const minutes = Math.floor((total % 3600000) / 60000);
+  const seconds = Math.floor((total % 60000) / 1000);
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function getTaskRefreshCountdown() {
+  return formatTaskCountdown(getTaskRefreshTargetMs() - Date.now());
+}
+
 function getTaskRefreshLabel() {
-  const next = Date.parse(state.dailyTasksNextRefresh || "");
-  if (!next || Number.isNaN(next)) {
-    return "Tasks refresh every 12 hours based on your level";
-  }
-
-  const diff = Math.max(0, next - Date.now());
-  const hours = Math.floor(diff / 3600000);
-  const minutes = Math.floor((diff % 3600000) / 60000);
-
-  if (diff <= 0) return "New tasks loading soon...";
-  if (hours > 0) return `New level-based tasks in ${hours}h ${minutes}m`;
-  return `New level-based tasks in ${minutes}m`;
+  return `Next tasks in ${getTaskRefreshCountdown()}`;
 }
 
 function updateTaskRefreshLabel() {
   const note = document.getElementById("taskRefreshNote");
-  if (note) note.textContent = getTaskRefreshLabel();
+  const timer = document.getElementById("taskRefreshTimer");
+  const label = getTaskRefreshLabel();
+  const countdown = getTaskRefreshCountdown();
+
+  if (note) note.textContent = label;
+  if (timer) timer.textContent = countdown;
+}
+
+function startTaskCountdownTimer() {
+  if (taskCountdownTimer) return;
+
+  taskCountdownTimer = window.setInterval(() => {
+    updateTaskRefreshLabel();
+
+    const next = getTaskRefreshTargetMs();
+    if (Date.now() >= next && backendReady) {
+      refreshBackendState();
+    }
+  }, 1000);
 }
 
 function renderDailyTasks() {
@@ -836,25 +889,35 @@ function renderDailyTasks() {
 
   if (tasks.length === 0) {
     panel.innerHTML = `
-      <div class="panel-head">
+      <div class="panel-head panel-head--tasks">
         <h2>Daily Missions</h2>
         <p id="taskRefreshNote">${getTaskRefreshLabel()}</p>
+        <div class="task-refresh-clock" aria-live="polite">
+          <span id="taskRefreshTimer">${getTaskRefreshCountdown()}</span>
+        </div>
       </div>
+      <div class="tasks-list">
       ${dailyButton}
       <button class="task" type="button" disabled>
         <span><b>&#127873; Daily tasks preparing</b><small>Connect to backend for missions.</small></span>
         <strong>Soon</strong>
       </button>
+      </div>
     `;
     bindDailyRewardButton();
+    startTaskCountdownTimer();
     return;
   }
 
   panel.innerHTML = `
-    <div class="panel-head">
+    <div class="panel-head panel-head--tasks">
       <h2>Daily Missions</h2>
       <p id="taskRefreshNote">${getTaskRefreshLabel()}</p>
+      <div class="task-refresh-clock" aria-live="polite">
+        <span id="taskRefreshTimer">${getTaskRefreshCountdown()}</span>
+      </div>
     </div>
+    <div class="tasks-list">
     ${dailyButton}
     ${tasks.map((task) => {
       const title = task.title || "Daily Task";
@@ -873,9 +936,11 @@ function renderDailyTasks() {
         </button>
       `;
     }).join("")}
+    </div>
   `;
 
   bindDailyRewardButton();
+  startTaskCountdownTimer();
 }
 
 function bindDailyRewardButton() {
@@ -1010,48 +1075,154 @@ function renderEarnPanel() {
   if (!panel) return;
 
   const earnRow = (id, title, subtitle, reward, done, doneLabel) => `
-    <button class="task earn-task ${done ? "completed" : ""}" type="button" data-earn="${id}" ${done ? "disabled" : ""}>
-      <span><b>${title}</b><small>${done ? subtitle : subtitle}</small></span>
+    <button class="task earn-task earn-task--compact ${done ? "completed" : ""}" type="button" data-earn="${id}" ${done ? "disabled" : ""}>
+      <span><b>${title}</b><small>${subtitle}</small></span>
       <strong class="${done ? "completed" : ""}">${done ? (doneLabel || "Claimed") : `+${reward}`}</strong>
     </button>
   `;
 
   const starButton = (id, icon, title, stars, active, until) => `
-    <button class="boost-button boost-button--star ${active ? "completed" : ""}" type="button" data-star="${id}" ${active ? "disabled" : ""}>
+    <button class="boost-button boost-button--star boost-button--compact ${active ? "completed" : ""}" type="button" data-star="${id}" ${active ? "disabled" : ""}>
       <span class="boost-button__icon">${icon}</span>
       ${title}
-      <span>${active ? `Active ${boostTimeLeft(until)}` : `${stars} ⭐`}</span>
+      <span>${active ? boostTimeLeft(until) : `${stars} ⭐`}</span>
     </button>
   `;
 
   panel.innerHTML = `
-    <article class="card stack earn-hero">
-      <div class="earn-hero__badge">VIP Earn Center</div>
+    <div class="earn-compact-head">
+      <span class="earn-hero__badge">VIP Earn</span>
       <h2>Multiply Your Fortune</h2>
-      <p>Watch ads for coins and unlock premium boosts with Telegram Stars.</p>
-    </article>
-    ${renderBonusAdEarnRow()}
-    ${renderAdEarnRow()}
-    ${earnRow("channel", "Join Channel", "Subscribe for bonus coins", 500, state.tasks.channel)}
-    <article class="card stack stars-shop">
+    </div>
+    <div class="earn-rows">
+      ${renderBonusAdEarnRow()}
+      ${renderAdEarnRow()}
+      ${earnRow("channel", "Join Channel", "Subscribe for bonus coins", 500, state.tasks.channel)}
+    </div>
+    <article class="card stack stars-shop stars-shop--compact">
       <h2>Premium Boosts</h2>
-      <p class="earn-note">Pay with Telegram Stars ⭐ · most boosts last 30 minutes</p>
-      <div class="boost-grid boost-grid--stars">
-        ${starButton("refill_energy", "&#x26A1;", "Refill Energy", starPrice("refill_energy"), false, 0)}
+      <p class="earn-note">Telegram Stars ⭐ · 30 min</p>
+      <div class="boost-grid boost-grid--stars boost-grid--compact">
+        ${starButton("refill_energy", "&#x26A1;", "Refill", starPrice("refill_energy"), false, 0)}
         ${starButton("tap_boost_30", "&#x1F4AA;", "2x Tap", starPrice("tap_boost_30"), state.boosts.tapActive, state.boosts.tapUntil)}
-        ${starButton("endless_energy_30", "&#x1F525;", "Endless Energy", starPrice("endless_energy_30"), state.boosts.endlessActive, state.boosts.endlessUntil)}
+        ${starButton("endless_energy_30", "&#x1F525;", "Endless", starPrice("endless_energy_30"), state.boosts.endlessActive, state.boosts.endlessUntil)}
         ${starButton("income_boost_30", "&#x1F4C8;", "2x Income", starPrice("income_boost_30"), state.boosts.incomeActive, state.boosts.incomeUntil)}
       </div>
     </article>
   `;
 }
 
-function rankMark(rank) {
-  const value = Number(rank || 0);
-  if (value === 1) return "&#x1F947;";
-  if (value === 2) return "&#x1F948;";
-  if (value === 3) return "&#x1F949;";
-  return `${value}.`;
+function getContestSeedPreview() {
+  const now = new Date();
+  const hour = now.getUTCHours();
+  const minute = now.getUTCMinutes();
+  const frozen = hour >= 23;
+  const totalMinutes = frozen ? (22 * 60 + 59) : hour * 60 + minute;
+  const slotIndex = Math.floor(totalMinutes / 20);
+  const base = slotIndex * 14;
+  const noonMinutes = 12 * 60;
+  const endMinutes = 22 * 60 + 59;
+  let postNoonBlend = 0;
+  if (totalMinutes >= noonMinutes) {
+    postNoonBlend = Math.min(1, (totalMinutes - noonMinutes) / (endMinutes - noonMinutes));
+  }
+
+  const morningSecond = Math.floor(base * 0.3);
+  const morningFirst = morningSecond > 0 ? morningSecond + 520 : 0;
+  const morningThird = morningSecond > 0 ? Math.max(0, morningSecond - 520) : 0;
+  const endSecond = base + 180;
+  const endFirst = endSecond + 520;
+  const endThird = Math.max(0, endSecond - 520);
+  const climb = Math.pow(postNoonBlend, 0.55);
+
+  const scores = [
+    { name: "Marcus", dailyScore: Math.floor(morningFirst + (endFirst - morningFirst) * climb) },
+    { name: "Emma", dailyScore: Math.floor(morningSecond + (endSecond - morningSecond) * climb) },
+    { name: "Ryan", dailyScore: Math.floor(morningThird + (endThird - morningThird) * climb) }
+  ];
+
+  return scores
+    .sort((a, b) => b.dailyScore - a.dailyScore)
+    .map((row, index) => ({ ...row, rank: index + 1, isYou: false }));
+}
+
+function renderFriendsPanel() {
+  const panel = els.friendsPanel;
+  if (!panel) return;
+
+  const prize = getDailyPrizeConfig();
+  const referrals = dailyReferralCount || Number(state.referrals?.count || 0);
+  const required = prize?.minReferrals || dailyReferralsRequired || 3;
+  const eligible = dailyPrizeEligible || Boolean(state.referrals?.eligible);
+  const referralCoins = referrals * 500;
+  const link = getInviteLink();
+  const progressPct = Math.min(100, Math.round((referrals / required) * 100));
+
+  panel.innerHTML = `
+    <div class="panel-head">
+      <h2>Invite Allies</h2>
+      <p>Unlock the $10 Daily Prize and earn coins per friend</p>
+    </div>
+
+    <article class="friends-stat-grid">
+      <div class="friends-stat">
+        <span>Friends invited</span>
+        <strong>${referrals}/${required}</strong>
+      </div>
+      <div class="friends-stat">
+        <span>Coins earned</span>
+        <strong>+${format(referralCoins)}</strong>
+      </div>
+      <div class="friends-stat">
+        <span>Daily Prize</span>
+        <strong>${eligible ? "Unlocked" : "Locked"}</strong>
+      </div>
+      <div class="friends-stat">
+        <span>Per friend</span>
+        <strong>+500</strong>
+      </div>
+    </article>
+
+    <article class="card friends-progress-card">
+      <div class="friends-progress-card__head">
+        <span>⚡ $10 Daily Race</span>
+        <strong>${eligible ? "Qualified" : `${required - referrals} more needed`}</strong>
+      </div>
+      <div class="friends-progress" role="progressbar" aria-valuenow="${progressPct}" aria-valuemin="0" aria-valuemax="100">
+        <span style="width:${progressPct}%"></span>
+      </div>
+      <p>${eligible
+    ? "You can compete on the Rank tab. Winner announced on Telegram."
+    : `Invite ${Math.max(0, required - referrals)} more friend(s) to join today's $10 contest.`}</p>
+    </article>
+
+    <article class="card stack friends-card">
+      <div class="friends-card__icon">&#x1F91D;</div>
+      <h2>Your invite link</h2>
+      <p>Share this link — friends must open the game in Telegram.</p>
+      <div class="friends-invite-link" id="friendsInviteLinkBox">
+        <code id="friendsInviteLinkText">${link}</code>
+      </div>
+      <button class="wide-button" id="inviteButton" type="button">
+        Copy link &amp; share with friends
+      </button>
+    </article>
+
+    <article class="friends-tips card stack">
+      <h2>How it works</h2>
+      <ol>
+        <li>Copy your link and send to friends</li>
+        <li>They tap Start in Telegram — you get +500 coins</li>
+        <li>With 3 friends you unlock the $10 daily leaderboard</li>
+        <li>Top gain today wins — check the Rank tab</li>
+      </ol>
+    </article>
+  `;
+
+  const inviteButton = document.getElementById("inviteButton");
+  if (inviteButton) {
+    inviteButton.addEventListener("click", () => shareInviteLink());
+  }
 }
 
 function medalForRank(rank) {
@@ -1178,6 +1349,10 @@ function buildDailyLeaderboardRows() {
     todayGainScore()
   );
 
+  if (!rows.length && getDailyPrizeConfig()) {
+    rows = getContestSeedPreview();
+  }
+
   if (!rows.some((row) => row.isYou) && yourScore > 0) {
     const insertRank = 1 + rows.filter(
       (row) => Number(row.dailyScore || row.score || 0) > yourScore
@@ -1211,6 +1386,9 @@ function buildDailyLeaderboardRows() {
   }
 
   if (!rows.length) {
+    if (getDailyPrizeConfig()) {
+      return getContestSeedPreview();
+    }
     return [{
       rank: 1,
       name: "You",
@@ -1220,6 +1398,14 @@ function buildDailyLeaderboardRows() {
   }
 
   return rows;
+}
+
+function rankMark(rank) {
+  const value = Number(rank || 0);
+  if (value === 1) return "&#x1F947;";
+  if (value === 2) return "&#x1F948;";
+  if (value === 3) return "&#x1F949;";
+  return `${value}.`;
 }
 
 function renderRankPanel() {
@@ -1251,19 +1437,37 @@ function renderRankPanel() {
     `
     : "";
 
+  const offlineBanner = !backendReady
+    ? `<p class="rank-offline-note">Open in Telegram for live sync. Leaderboard preview below.</p>`
+    : "";
+
+  const yourScore = todayGainScore();
+  const yourPlaceBlock = dailyMode && yourScore > 0 && !top3.some((row) => row.isYou)
+    ? `
+      <div class="rank-your-place">
+        <span class="rank-your-place__label">Your gain today</span>
+      </div>
+      <ol class="rank rank--you-only">
+        ${renderRankRow({ rank: dailyYourRank || 4, dailyScore: yourScore, isYou: true }, "daily")}
+      </ol>
+    `
+    : "";
+
   panel.innerHTML = `
+    ${offlineBanner}
     ${renderCampaignRankCard()}
-    <div class="panel-head">
+    <div class="panel-head panel-head--rank">
       <h2>${dailyMode ? "Daily Leaderboard" : "Global Leaderboard"}</h2>
       <p>${dailyMode ? "Top players by today's gain" : "Top empire builders by city value"}</p>
     </div>
-    <ol class="rank">
+    <ol class="rank rank--compact">
       ${top3.map((row) => renderRankRow(
         row,
         dailyMode ? "daily" : "global",
         { isYourPlaceRow: Boolean(row.isYourPlaceRow) }
       )).join("")}
     </ol>
+    ${yourPlaceBlock}
     ${youBlock}
   `;
 
@@ -1706,7 +1910,11 @@ async function connectBackend() {
 }
 
 async function loadLeaderboard() {
-  if (!backendReady) return;
+  if (!backendReady) {
+    renderRankPanel();
+    renderCampaignBanner();
+    return;
+  }
 
   const { ok, result } = await apiPost("/api/leaderboard");
   if (!ok || !result) return;
@@ -2207,6 +2415,9 @@ document.querySelectorAll(".tab").forEach((tab) => {
       appRoot.classList.add(`view-${view}`);
     }
     if (appScroll) appScroll.scrollTop = 0;
+
+    renderCampaignBanner();
+    renderFriendsPanel();
 
     if (tab.dataset.tab === "rankPanel") {
       loadLeaderboard();
