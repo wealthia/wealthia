@@ -40,6 +40,7 @@ const GOLD_RUSH_DURATION_MS = 15 * 60 * 1000;
 const GOLD_RUSH_MULTIPLIER = 2;
 const CRON_SECRET = process.env.CRON_SECRET || process.env.ADMIN_SECRET || "";
 const DAILY_PUSH_HOUR_UTC = Math.max(0, Math.min(23, Number(process.env.DAILY_PUSH_HOUR_UTC) || 10));
+const DAILY_PRIZE_MIN_REFERRALS = Math.max(0, Number(process.env.DAILY_PRIZE_MIN_REFERRALS) || 3);
 const TAP_RATE_WINDOW_MS = 1000;
 const MAX_TAPS_PER_WINDOW = 10;
 const TAP_VIOLATION_ALERT_THRESHOLD = 25;
@@ -698,10 +699,11 @@ function applyPassive(row) {
   return row;
 }
 
-function toClientUser(row) {
+function toClientUser(row, extra = {}) {
   const tasks = safeJson(row.daily_tasks_json, []);
   const claimed = safeJson(row.daily_tasks_claimed_json, []);
   const contest = syncDailyContest(row);
+  const referralCount = number(extra.referralCount);
 
   return {
     userId: row.user_id,
@@ -776,7 +778,14 @@ function toClientUser(row) {
       dailyContest: {
         score: contest.daily_contest_score,
         date: contest.contest_date,
-        resetsAt: utcDayEndIso()
+        resetsAt: utcDayEndIso(),
+        minReferrals: DAILY_PRIZE_MIN_REFERRALS,
+        eligible: dailyPrizeEligible(referralCount)
+      },
+      referrals: {
+        count: referralCount,
+        required: DAILY_PRIZE_MIN_REFERRALS,
+        eligible: dailyPrizeEligible(referralCount)
       }
     }
   };
@@ -787,6 +796,8 @@ async function creditReferrer(referrerId, newUserId) {
   const newbie = String(newUserId || "");
 
   if (!referrer || !newbie || referrer === newbie) return;
+
+  await recordReferral(referrer, newbie);
 
   const { data: refRow } = await supabase
     .from("game_states")
@@ -807,6 +818,74 @@ async function creditReferrer(referrerId, newUserId) {
       updated_at: new Date().toISOString()
     })
     .eq("user_id", referrer);
+}
+
+async function recordReferral(referrerId, referredUserId) {
+  const referrer = String(referrerId || "");
+  const referred = String(referredUserId || "");
+
+  if (!referrer || !referred || referrer === referred) return false;
+
+  const { error } = await supabase.from("referrals").insert({
+    referrer_id: referrer,
+    referred_user_id: referred
+  });
+
+  if (error) {
+    if (error.code === "23505") return false;
+    throw error;
+  }
+
+  const { data: userRow } = await supabase
+    .from("users")
+    .select("referral_count")
+    .eq("id", referrer)
+    .maybeSingle();
+
+  await supabase
+    .from("users")
+    .update({
+      referral_count: number(userRow?.referral_count) + 1
+    })
+    .eq("id", referrer);
+
+  return true;
+}
+
+async function getReferralCount(userId) {
+  const { data, error } = await supabase
+    .from("users")
+    .select("referral_count")
+    .eq("id", String(userId))
+    .maybeSingle();
+
+  if (error) throw error;
+  return number(data?.referral_count);
+}
+
+async function getReferralCounts(userIds) {
+  const ids = [...new Set((userIds || []).map((id) => String(id)).filter(Boolean))];
+  const counts = new Map();
+
+  for (const id of ids) counts.set(id, 0);
+  if (!ids.length) return counts;
+
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, referral_count")
+    .in("id", ids);
+
+  if (error) throw error;
+
+  for (const row of data || []) {
+    counts.set(row.id, number(row.referral_count));
+  }
+
+  return counts;
+}
+
+function dailyPrizeEligible(referralCount) {
+  return number(referralCount) >= DAILY_PRIZE_MIN_REFERRALS;
 }
 
 async function getOrCreatePlayer(telegramUser, referrerId = "") {
@@ -927,7 +1006,7 @@ app.get("/health", (_req, res) => {
     ok: true,
     app: "Wealthia API",
     database: true,
-    version: "daily-contest-v1"
+    version: "daily-contest-v2"
   });
 });
 
@@ -949,9 +1028,10 @@ app.post("/api/session", async (req, res) => {
     );
     const row = await getOrCreatePlayer(telegramUser, referrerId);
     const session = createSessionToken(telegramUser.id);
+    const referralCount = await getReferralCount(telegramUser.id);
 
     res.json({
-      ...toClientUser(row),
+      ...toClientUser(row, { referralCount }),
       token: session.token,
       expiresAt: session.expiresAt
     });
@@ -1608,25 +1688,38 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
 
     if (error) throw error;
 
-    const { data: dailyTopData, error: dailyError } = await supabase
+    const { data: dailyCandidates, error: dailyError } = await supabase
       .from("game_states")
       .select("user_id, daily_contest_score, contest_date")
       .eq("contest_date", today)
+      .gt("daily_contest_score", 0)
       .order("daily_contest_score", { ascending: false })
-      .limit(3);
+      .limit(100);
 
     if (dailyError) throw dailyError;
 
+    const candidateIds = (dailyCandidates || []).map((row) => row.user_id);
+    const referralCounts = await getReferralCounts(candidateIds);
+    const dailyEligibleRows = (dailyCandidates || []).filter((row) =>
+      dailyPrizeEligible(referralCounts.get(row.user_id) || 0)
+    );
+    const dailyTopData = dailyEligibleRows.slice(0, 3);
+
     const topIds = (topData || []).map((row) => row.user_id);
-    const dailyIds = (dailyTopData || []).map((row) => row.user_id);
+    const dailyIds = dailyEligibleRows.map((row) => row.user_id);
     const lookupIds = [...new Set([...topIds, ...dailyIds])];
 
     let yourRank = null;
     let yourGame = null;
     let yourDailyRank = null;
     let yourDailyGame = null;
+    let yourReferrals = 0;
+    let yourDailyEligible = false;
 
     if (userId) {
+      yourReferrals = await getReferralCount(userId);
+      yourDailyEligible = dailyPrizeEligible(yourReferrals);
+
       const { data: userRow } = await supabase
         .from("game_states")
         .select("user_id, city_value, daily_contest_score, contest_date")
@@ -1649,14 +1742,13 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
 
         if (userRow.contest_date === today) {
           yourDailyGame = userRow;
-          const { count: dailyCount, error: dailyCountError } = await supabase
-            .from("game_states")
-            .select("*", { count: "exact", head: true })
-            .eq("contest_date", today)
-            .gt("daily_contest_score", number(userRow.daily_contest_score));
 
-          if (dailyCountError) throw dailyCountError;
-          yourDailyRank = number(dailyCount) + 1;
+          if (yourDailyEligible && number(userRow.daily_contest_score) > 0) {
+            yourDailyRank = dailyEligibleRows.findIndex((row) => row.user_id === userId) + 1;
+            if (yourDailyRank <= 0) {
+              yourDailyRank = dailyEligibleRows.length + 1;
+            }
+          }
         }
       }
     }
@@ -1673,6 +1765,7 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
       const value = valueKey === "dailyScore"
         ? number(gameRow.daily_contest_score)
         : number(gameRow.city_value);
+      const refCount = referralCounts.get(gameRow.user_id) || 0;
 
       return {
         rank,
@@ -1680,6 +1773,8 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
         name: profile.first_name || profile.username || `Player ${String(gameRow.user_id).slice(-4)}`,
         cityValue: number(gameRow.city_value),
         dailyScore: number(gameRow.daily_contest_score),
+        referralCount: refCount,
+        prizeEligible: dailyPrizeEligible(refCount),
         score: value,
         isYou: gameRow.user_id === userId
       };
@@ -1691,12 +1786,10 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
       ? rowFromGame(yourGame, yourRank)
       : null;
 
-    const dailyTop3 = (dailyTopData || [])
-      .filter((row) => number(row.daily_contest_score) > 0)
-      .map((row, index) => rowFromGame(row, index + 1, "dailyScore"));
+    const dailyTop3 = dailyTopData.map((row, index) => rowFromGame(row, index + 1, "dailyScore"));
 
     const youInDailyTop3 = dailyTop3.some((row) => row.isYou);
-    const dailyYou = yourDailyGame && yourDailyRank && !youInDailyTop3
+    const dailyYou = yourDailyGame && yourDailyRank && yourDailyEligible && !youInDailyTop3
       ? rowFromGame(yourDailyGame, yourDailyRank, "dailyScore")
       : null;
 
@@ -1706,6 +1799,9 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
       daily: {
         date: today,
         resetsAt: utcDayEndIso(),
+        minReferrals: DAILY_PRIZE_MIN_REFERRALS,
+        yourReferrals,
+        eligible: yourDailyEligible,
         top3: dailyTop3,
         you: dailyYou,
         yourScore: yourDailyGame ? number(yourDailyGame.daily_contest_score) : 0
