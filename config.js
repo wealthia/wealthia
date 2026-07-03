@@ -2,7 +2,7 @@
 // Full monetization guide: MONETIZATION.md
 window.WEALTHIA_CONFIG = {
   API_URL: "https://wealthia-backend.onrender.com",
-  GAME_URL: "https://wealthia.github.io/wealthia/v5.html?v=2020",
+  GAME_URL: "https://wealthia.github.io/wealthia/v5.html?v=2021",
   ADMIN_URL: "https://wealthia.github.io/wealthia/admin.html",
 
   // Your bot username without @ — used for invite links
@@ -34,5 +34,36 @@ window.WEALTHIA_CONFIG = {
   },
 
   // Onboarding version — change to show tutorial again
-  ONBOARDING_VERSION: "v1"
+  ONBOARDING_VERSION: "v1",
+
+  // Monthly Grand Prize campaign (config-only — no fake bots)
+  // Highest City Value when endDate passes wins prizePool (paid manually via admin)
+  GRAND_PRIZE: {
+    enabled: false,
+    title: "Grand Prize",
+    prizePool: 1000,
+    currency: "USD",
+    // UTC date YYYY-MM-DD — contest ends at 23:59:59 UTC on this day
+    endDate: "2026-08-03",
+    // Show progress toward this City Value (coins + spent on upgrades)
+    qualifyCityValue: 50000,
+    // Milestone markers on the progress bar
+    milestones: [10000, 25000, 50000, 100000],
+    // Prizes for top 3 (display only — you pay manually)
+    prizes: {
+      first: 500,
+      second: 300,
+      third: 200
+    },
+    channelUrl: "https://t.me/weathia_official"
+  },
+
+  // Daily contest — highest City Value gained today (UTC) wins prize (paid manually)
+  DAILY_PRIZE: {
+    enabled: true,
+    title: "Daily Prize",
+    prize: 10,
+    currency: "USD",
+    channelUrl: "https://t.me/weathia_official"
+  }
 };

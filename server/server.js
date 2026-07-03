@@ -313,6 +313,43 @@ function buildCityValue(row) {
   return number(row.coins) + number(row.spent);
 }
 
+function syncDailyContest(row) {
+  const today = todayKey();
+  const cityValueNow = buildCityValue(row);
+  let contestDate = String(row.contest_date || "");
+  let baseline = number(row.contest_baseline_city);
+
+  if (contestDate !== today) {
+    contestDate = today;
+    baseline = cityValueNow;
+  }
+
+  return {
+    contest_date: contestDate,
+    contest_baseline_city: baseline,
+    daily_contest_score: Math.max(0, cityValueNow - baseline)
+  };
+}
+
+function mergeDailyContest(row, patch) {
+  const merged = { ...row, ...patch };
+  return { ...patch, ...syncDailyContest(merged) };
+}
+
+function utcDayEndIso() {
+  const now = new Date();
+  const end = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+    23,
+    59,
+    59,
+    999
+  );
+  return new Date(end).toISOString();
+}
+
 function safeJson(value, fallback) {
   if (Array.isArray(value)) return value;
   if (value && typeof value === "object") return value;
@@ -664,6 +701,7 @@ function applyPassive(row) {
 function toClientUser(row) {
   const tasks = safeJson(row.daily_tasks_json, []);
   const claimed = safeJson(row.daily_tasks_claimed_json, []);
+  const contest = syncDailyContest(row);
 
   return {
     userId: row.user_id,
@@ -734,6 +772,11 @@ function toClientUser(row) {
         canStart: goldRushCanStart(row),
         multiplier: GOLD_RUSH_MULTIPLIER,
         durationMinutes: Math.round(GOLD_RUSH_DURATION_MS / 60000)
+      },
+      dailyContest: {
+        score: contest.daily_contest_score,
+        date: contest.contest_date,
+        resetsAt: utcDayEndIso()
       }
     }
   };
@@ -850,6 +893,7 @@ async function loadGame(userId) {
   if (error) throw error;
 
   let row = refreshDailyTasks(applyPassive(data));
+  const contest = syncDailyContest(row);
 
   const { data: saved, error: saveError } = await supabase
     .from("game_states")
@@ -861,6 +905,9 @@ async function loadGame(userId) {
       daily_tasks_date: row.daily_tasks_date,
       daily_tasks_json: row.daily_tasks_json,
       daily_tasks_claimed_json: row.daily_tasks_claimed_json,
+      contest_date: contest.contest_date,
+      contest_baseline_city: contest.contest_baseline_city,
+      daily_contest_score: contest.daily_contest_score,
       updated_at: new Date().toISOString()
     })
     .eq("user_id", String(userId))
@@ -880,7 +927,7 @@ app.get("/health", (_req, res) => {
     ok: true,
     app: "Wealthia API",
     database: true,
-    version: "anticheat-v1"
+    version: "daily-contest-v1"
   });
 });
 
@@ -981,7 +1028,7 @@ app.post("/api/tap", requirePlayer, async (req, res) => {
     }
 
     const amount = tapPower(row);
-    const updated = {
+    const updated = mergeDailyContest(row, {
       coins: number(row.coins) + amount,
       energy: endless ? number(row.energy) : Math.max(0, number(row.energy) - 1),
       taps: number(row.taps) + 1,
@@ -990,7 +1037,7 @@ app.post("/api/tap", requirePlayer, async (req, res) => {
       tap_window_count: rate.count,
       tap_violations: rate.violations,
       updated_at: new Date().toISOString()
-    };
+    });
 
     const { data, error } = await supabase
       .from("game_states")
@@ -1029,13 +1076,13 @@ app.post("/api/upgrade", requirePlayer, async (req, res) => {
       return;
     }
 
-    const updated = {
+    const updated = mergeDailyContest(row, {
       coins: number(row.coins) - cost,
       spent: number(row.spent) + cost,
       [column]: level + 1,
       city_value: number(row.coins) - cost + number(row.spent) + cost,
       updated_at: new Date().toISOString()
-    };
+    });
 
     const { data, error } = await supabase
       .from("game_states")
@@ -1551,6 +1598,7 @@ app.post("/api/reset", requirePlayer, async (req, res) => {
 app.post("/api/leaderboard", requirePlayer, async (req, res) => {
   try {
     const userId = req.playerId;
+    const today = todayKey();
 
     const { data: topData, error } = await supabase
       .from("game_states")
@@ -1560,16 +1608,28 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
 
     if (error) throw error;
 
+    const { data: dailyTopData, error: dailyError } = await supabase
+      .from("game_states")
+      .select("user_id, daily_contest_score, contest_date")
+      .eq("contest_date", today)
+      .order("daily_contest_score", { ascending: false })
+      .limit(3);
+
+    if (dailyError) throw dailyError;
+
     const topIds = (topData || []).map((row) => row.user_id);
-    const lookupIds = [...new Set(topIds)];
+    const dailyIds = (dailyTopData || []).map((row) => row.user_id);
+    const lookupIds = [...new Set([...topIds, ...dailyIds])];
 
     let yourRank = null;
     let yourGame = null;
+    let yourDailyRank = null;
+    let yourDailyGame = null;
 
     if (userId) {
       const { data: userRow } = await supabase
         .from("game_states")
-        .select("user_id, city_value")
+        .select("user_id, city_value, daily_contest_score, contest_date")
         .eq("user_id", userId)
         .maybeSingle();
 
@@ -1586,6 +1646,18 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
         if (!lookupIds.includes(userId)) {
           lookupIds.push(userId);
         }
+
+        if (userRow.contest_date === today) {
+          yourDailyGame = userRow;
+          const { count: dailyCount, error: dailyCountError } = await supabase
+            .from("game_states")
+            .select("*", { count: "exact", head: true })
+            .eq("contest_date", today)
+            .gt("daily_contest_score", number(userRow.daily_contest_score));
+
+          if (dailyCountError) throw dailyCountError;
+          yourDailyRank = number(dailyCount) + 1;
+        }
       }
     }
 
@@ -1596,13 +1668,19 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
 
     const userMap = new Map((users || []).map((user) => [user.id, user]));
 
-    function rowFromGame(gameRow, rank) {
+    function rowFromGame(gameRow, rank, valueKey = "cityValue") {
       const profile = userMap.get(gameRow.user_id) || {};
+      const value = valueKey === "dailyScore"
+        ? number(gameRow.daily_contest_score)
+        : number(gameRow.city_value);
+
       return {
         rank,
         userId: gameRow.user_id,
         name: profile.first_name || profile.username || `Player ${String(gameRow.user_id).slice(-4)}`,
         cityValue: number(gameRow.city_value),
+        dailyScore: number(gameRow.daily_contest_score),
+        score: value,
         isYou: gameRow.user_id === userId
       };
     }
@@ -1613,7 +1691,26 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
       ? rowFromGame(yourGame, yourRank)
       : null;
 
-    res.json({ top3, you });
+    const dailyTop3 = (dailyTopData || [])
+      .filter((row) => number(row.daily_contest_score) > 0)
+      .map((row, index) => rowFromGame(row, index + 1, "dailyScore"));
+
+    const youInDailyTop3 = dailyTop3.some((row) => row.isYou);
+    const dailyYou = yourDailyGame && yourDailyRank && !youInDailyTop3
+      ? rowFromGame(yourDailyGame, yourDailyRank, "dailyScore")
+      : null;
+
+    res.json({
+      top3,
+      you,
+      daily: {
+        date: today,
+        resetsAt: utcDayEndIso(),
+        top3: dailyTop3,
+        you: dailyYou,
+        yourScore: yourDailyGame ? number(yourDailyGame.daily_contest_score) : 0
+      }
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
