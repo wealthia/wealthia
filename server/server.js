@@ -59,7 +59,7 @@ const STAR_PRODUCTS = {
     description: "Tapping costs no energy for 30 minutes"
   },
   income_boost_30: {
-    stars: 10,
+    stars: 15,
     title: "2x Income Boost",
     description: "Double offline income for 30 minutes"
   }
