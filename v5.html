@@ -34,7 +34,7 @@
     }
     [hidden] { display: none !important; }
   </style>
-  <link rel="stylesheet" href="./v5.css?v=2051" />
+  <link rel="stylesheet" href="./v5.css?v=2052" />
 </head>
 <body>
   <div class="ambient" aria-hidden="true">
@@ -228,6 +228,11 @@
 
   <div class="toast" id="toast"></div>
 
+  <div class="sync-bar" id="syncBar" hidden>
+    <span id="syncBarText">Connecting to server...</span>
+    <button class="sync-bar__button" id="syncRetryButton" type="button">Retry</button>
+  </div>
+
   <div class="onboarding" id="onboarding" hidden>
     <div class="onboarding__backdrop"></div>
     <div class="onboarding__card">
@@ -255,5 +260,5 @@
   </div>
 
   <script src="./config.js?v=14"></script>
-  <script src="./v5.js?v=10056"></script></body>
+  <script src="./v5.js?v=10057"></script></body>
 </html>

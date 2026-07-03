@@ -2205,6 +2205,43 @@ button.completed strong {
   margin-top: 0;
 }
 
+/* Sync status */
+.sync-bar {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  left: 50%;
+  z-index: 101;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(92vw, 420px);
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 196, 77, 0.35);
+  border-radius: 14px;
+  background: rgba(18, 22, 40, 0.94);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: var(--shadow);
+  transform: translateX(-50%);
+}
+
+.sync-bar[hidden] {
+  display: none !important;
+}
+
+.sync-bar__button {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 10px;
+  padding: 6px 10px;
+  background: linear-gradient(135deg, #f6c85f, #d89a24);
+  color: #1a1408;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 /* Toast */
 .toast {
   position: fixed;

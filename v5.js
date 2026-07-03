@@ -133,7 +133,10 @@ const els = {
   friendsPanel: document.getElementById("friendsPanel"),
   rankPanel: document.getElementById("rankPanel"),
   tournamentPanel: document.getElementById("tournamentPanel"),
-  globalLeaderboard: document.getElementById("globalLeaderboard")
+  globalLeaderboard: document.getElementById("globalLeaderboard"),
+  syncBar: document.getElementById("syncBar"),
+  syncBarText: document.getElementById("syncBarText"),
+  syncRetryButton: document.getElementById("syncRetryButton")
 };
 
 function loadState() {
@@ -635,8 +638,8 @@ function renderGoldRushBanner() {
 }
 
 async function startGoldRush() {
-  if (!backendReady) {
-    showToast("Backend offline.");
+  if (!(await ensureBackend())) {
+    showToast("Server not connected. Tap Retry at top.");
     return;
   }
 
@@ -708,6 +711,7 @@ function render() {
   renderRankPanel();
   startTaskCountdownTimer();
   updateCityVisuals();
+  renderSyncBar();
 }
 
 function renderCasinoCard() {
@@ -1766,6 +1770,87 @@ function syncFromBackend(user) {
   }
 }
 
+function isTelegramWebApp() {
+  return Boolean(window.Telegram && window.Telegram.WebApp);
+}
+
+async function waitForTelegramInitData(maxMs = 5000) {
+  if (!isTelegramWebApp()) return "";
+
+  const started = Date.now();
+  while (Date.now() - started < maxMs) {
+    const initData = getTelegramInitData();
+    if (initData) return initData;
+    await sleep(150);
+  }
+
+  return getTelegramInitData();
+}
+
+function authErrorMessage(reason) {
+  switch (reason) {
+    case "BOT_TOKEN_MISSING":
+      return "Server bot token missing. Admin must fix Render env.";
+    case "INIT_DATA_MISSING":
+      return "Open Wealthia from @WealthiaGameBot menu, not a direct link.";
+    case "INIT_DATA_HASH_MISMATCH":
+      return "Bot token mismatch. Reopen from @WealthiaGameBot.";
+    case "INIT_DATA_EXPIRED":
+      return "Session expired. Close and reopen from Telegram.";
+    case "INIT_DATA_NO_USER":
+    case "INIT_DATA_INVALID":
+      return "Telegram login invalid. Reopen from @WealthiaGameBot.";
+    default:
+      return getTelegramInitData()
+        ? "Login failed. Close and reopen from Telegram."
+        : "Open the game inside Telegram.";
+  }
+}
+
+async function fetchBackendHealth() {
+  try {
+    const response = await fetch(`${API_URL}/health`, { method: "GET", cache: "no-store" });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+function renderSyncBar() {
+  if (!els.syncBar) return;
+
+  if (backendReady) {
+    els.syncBar.hidden = true;
+    return;
+  }
+
+  els.syncBar.hidden = false;
+  if (els.syncBarText) {
+    if (!isTelegramWebApp()) {
+      els.syncBarText.textContent = "Offline mode — tap works, rewards need Telegram.";
+    } else if (!getTelegramInitData()) {
+      els.syncBarText.textContent = "Open from @WealthiaGameBot Play button.";
+    } else {
+      els.syncBarText.textContent = "Connecting to server...";
+    }
+  }
+}
+
+let ensureBackendPromise = null;
+
+async function ensureBackend(retries = 4) {
+  if (backendReady) return true;
+
+  if (!ensureBackendPromise) {
+    ensureBackendPromise = connectBackend(retries).finally(() => {
+      ensureBackendPromise = null;
+    });
+  }
+
+  return ensureBackendPromise;
+}
+
 function getTelegramInitData() {
   const tg = window.Telegram && window.Telegram.WebApp;
   return tg && tg.initData ? String(tg.initData) : "";
@@ -1874,7 +1959,12 @@ async function wakeBackend() {
 }
 
 async function connectBackend(retries = 6) {
+  renderSyncBar();
   await wakeBackend();
+
+  if (isTelegramWebApp()) {
+    await waitForTelegramInitData();
+  }
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     const { ok, result, status } = await apiPost("/api/session", {
@@ -1894,22 +1984,49 @@ async function connectBackend(retries = 6) {
       );
       if (!silent && attempt === 0) markMessageShown("backend-connected");
       await loadTournament();
+      renderSyncBar();
       return true;
     }
 
     if (result && result.error === "INVALID_TELEGRAM_AUTH") {
       backendReady = false;
       backendSessionToken = "";
-      showToast(
-        getTelegramInitData()
-          ? "Login failed. Close and reopen from Telegram."
-          : "Open the game inside Telegram."
-      );
+      const health = await fetchBackendHealth();
+      let message = authErrorMessage(result.reason);
+
+      if (health && health.telegram && !health.telegram.configured) {
+        message = authErrorMessage("BOT_TOKEN_MISSING");
+      } else if (
+        health &&
+        health.telegram &&
+        health.telegram.username &&
+        CONFIG.BOT_USERNAME &&
+        health.telegram.username.toLowerCase() !== String(CONFIG.BOT_USERNAME).toLowerCase()
+      ) {
+        message = `Server bot is @${health.telegram.username}, expected @${CONFIG.BOT_USERNAME}.`;
+      }
+
+      showToast(message);
+      renderSyncBar();
+      render();
+      return false;
+    }
+
+    if (result && result.error === "BOTS_NOT_ALLOWED") {
+      backendReady = false;
+      backendSessionToken = "";
+      showToast("Bot accounts cannot play.");
+      renderSyncBar();
       render();
       return false;
     }
 
     if (attempt < retries && (status === 0 || status >= 500)) {
+      if (els.syncBarText) {
+        els.syncBarText.textContent = status === 0
+          ? "Network error — retrying..."
+          : "Server error — retrying...";
+      }
       await sleep(2000 * (attempt + 1));
       continue;
     }
@@ -1922,9 +2039,15 @@ async function connectBackend(retries = 6) {
   if (!getTelegramInitData()) {
     showToast("Backend offline. Local mode — tap still works.");
   } else {
-    showToast("Server waking up... retrying.");
+    const health = await fetchBackendHealth();
+    if (health && health.database === false) {
+      showToast("Database offline. Tap works, sync paused.");
+    } else {
+      showToast("Server waking up... retrying.");
+    }
     scheduleBackendReconnect();
   }
+  renderSyncBar();
   render();
   return false;
 }
@@ -2012,8 +2135,8 @@ async function loadTournament() {
 }
 
 async function joinTournament() {
-  if (!backendReady || !tournamentData) {
-    showToast("Backend offline.");
+  if (!(await ensureBackend()) || !tournamentData) {
+    showToast("Server not connected. Tap Retry at top.");
     return;
   }
 
@@ -2159,8 +2282,8 @@ async function backendUpgrade(name) {
 }
 
 async function claimBackendTask(taskId) {
-  if (!backendReady) {
-    showToast("Backend offline.");
+  if (!(await ensureBackend())) {
+    showToast("Server not connected. Tap Retry at top.");
     return;
   }
 
@@ -2181,8 +2304,8 @@ async function claimBackendTask(taskId) {
 }
 
 async function claimDailyReward() {
-  if (!backendReady) {
-    showToast("Backend offline.");
+  if (!(await ensureBackend())) {
+    showToast("Server not connected. Tap Retry at top.");
     return;
   }
 
@@ -2232,8 +2355,8 @@ async function handleEarnClick(type) {
 }
 
 async function claimEarnTask(type) {
-  if (!backendReady) {
-    showToast("Backend offline.");
+  if (!(await ensureBackend())) {
+    showToast("Server not connected. Tap Retry at top.");
     return;
   }
 
@@ -2276,8 +2399,8 @@ async function buyStarsProduct(productId) {
     return;
   }
 
-  if (!backendReady) {
-    showToast("Backend offline.");
+  if (!(await ensureBackend())) {
+    showToast("Server not connected. Tap Retry at top.");
     return;
   }
 
@@ -2416,8 +2539,8 @@ function setupTapControls() {
 }
 
 async function spinCasino() {
-  if (!backendReady) {
-    showToast("Backend offline.");
+  if (!(await ensureBackend())) {
+    showToast("Server not connected. Tap Retry at top.");
     return;
   }
 
@@ -2522,12 +2645,20 @@ function bootApp() {
   initAdsGram();
   setupOnboarding();
   setupTapControls();
+
+  if (els.syncRetryButton) {
+    els.syncRetryButton.addEventListener("click", () => {
+      backendReconnectAttempts = 0;
+      connectBackend(6);
+    });
+  }
+
   render();
   connectBackend();
 
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && !backendReady && getTelegramInitData()) {
-      connectBackend(3);
+    if (document.visibilityState === "visible" && !backendReady && isTelegramWebApp()) {
+      connectBackend(4);
     }
   });
 }

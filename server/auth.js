@@ -12,12 +12,20 @@ function sessionSecret() {
   );
 }
 
-function verifyTelegramInitData(initData, botToken) {
-  if (!initData || !botToken) return null;
+function diagnoseTelegramAuth(initData, botToken) {
+  if (!botToken) {
+    return { ok: false, reason: "BOT_TOKEN_MISSING" };
+  }
+
+  if (!initData) {
+    return { ok: false, reason: "INIT_DATA_MISSING" };
+  }
 
   const params = new URLSearchParams(String(initData));
   const hash = params.get("hash");
-  if (!hash) return null;
+  if (!hash) {
+    return { ok: false, reason: "INIT_DATA_INVALID" };
+  }
 
   params.delete("hash");
 
@@ -32,27 +40,44 @@ function verifyTelegramInitData(initData, botToken) {
     .update(dataCheckString)
     .digest("hex");
 
-  if (calculatedHash !== hash) return null;
+  if (calculatedHash !== hash) {
+    return { ok: false, reason: "INIT_DATA_HASH_MISMATCH" };
+  }
 
   const authDate = Number(params.get("auth_date") || 0) * 1000;
-  if (!authDate || Date.now() - authDate > INIT_DATA_MAX_AGE_MS) return null;
+  if (!authDate || Date.now() - authDate > INIT_DATA_MAX_AGE_MS) {
+    return { ok: false, reason: "INIT_DATA_EXPIRED" };
+  }
 
   const userRaw = params.get("user");
-  if (!userRaw) return null;
+  if (!userRaw) {
+    return { ok: false, reason: "INIT_DATA_NO_USER" };
+  }
 
   try {
     const user = JSON.parse(userRaw);
-    if (!user || !user.id) return null;
+    if (!user || !user.id) {
+      return { ok: false, reason: "INIT_DATA_NO_USER" };
+    }
+
     return {
-      id: String(user.id),
-      first_name: user.first_name || "Player",
-      username: user.username || "",
-      is_bot: Boolean(user.is_bot),
-      start_param: params.get("start_param") || ""
+      ok: true,
+      user: {
+        id: String(user.id),
+        first_name: user.first_name || "Player",
+        username: user.username || "",
+        is_bot: Boolean(user.is_bot),
+        start_param: params.get("start_param") || ""
+      }
     };
   } catch {
-    return null;
+    return { ok: false, reason: "INIT_DATA_INVALID" };
   }
+}
+
+function verifyTelegramInitData(initData, botToken) {
+  const diagnosis = diagnoseTelegramAuth(initData, botToken);
+  return diagnosis.ok ? diagnosis.user : null;
 }
 
 function signToken(userId, expiresAt) {
@@ -99,8 +124,9 @@ function bearerTokenFromRequest(req) {
 
 function resolveTelegramUser(req) {
   const initData = String(req.body.initData || "");
-  const verified = verifyTelegramInitData(initData, process.env.TELEGRAM_BOT_TOKEN || "");
-  if (verified) return verified;
+  const botToken = process.env.TELEGRAM_BOT_TOKEN || "";
+  const diagnosis = diagnoseTelegramAuth(initData, botToken);
+  if (diagnosis.ok) return diagnosis.user;
 
   const allowDemo = String(process.env.ALLOW_DEMO_SESSION || "").toLowerCase() === "true";
   const demoUser = req.body.telegramUser;
@@ -117,10 +143,19 @@ function resolveTelegramUser(req) {
   return null;
 }
 
+function authFailureReason(req) {
+  const initData = String(req.body.initData || "");
+  const botToken = process.env.TELEGRAM_BOT_TOKEN || "";
+  const diagnosis = diagnoseTelegramAuth(initData, botToken);
+  return diagnosis.ok ? null : diagnosis.reason;
+}
+
 module.exports = {
   SESSION_TTL_MS,
+  authFailureReason,
   bearerTokenFromRequest,
   createSessionToken,
+  diagnoseTelegramAuth,
   resolveTelegramUser,
   verifyToken
 };

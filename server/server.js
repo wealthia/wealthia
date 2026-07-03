@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const { createClient } = require("@supabase/supabase-js");
 const {
+  authFailureReason,
   bearerTokenFromRequest,
   createSessionToken,
   resolveTelegramUser,
@@ -1110,11 +1111,45 @@ app.get("/", (_req, res) => {
   res.json({ ok: true, app: "Wealthia API", database: true, version: "stars-bot-embedded-v1" });
 });
 
-app.get("/health", (_req, res) => {
+async function checkTelegramBot() {
+  const token = TELEGRAM_BOT_TOKEN;
+  if (!token) {
+    return { configured: false, ok: false, username: "" };
+  }
+
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+    const data = await response.json();
+    return {
+      configured: true,
+      ok: Boolean(data.ok),
+      username: data.result?.username || ""
+    };
+  } catch {
+    return { configured: true, ok: false, username: "" };
+  }
+}
+
+app.get("/health", async (_req, res) => {
+  let database = false;
+
+  try {
+    const { error } = await supabase.from("users").select("id").limit(1);
+    database = !error;
+  } catch {
+    database = false;
+  }
+
+  const telegram = await checkTelegramBot();
+
   res.json({
     ok: true,
     app: "Wealthia API",
-    database: true,
+    database,
+    telegram,
+    session: {
+      configured: Boolean(TELEGRAM_BOT_TOKEN || process.env.SESSION_SECRET || ADMIN_SECRET)
+    },
     version: "referral-bot-block-v1"
   });
 });
@@ -1128,7 +1163,10 @@ app.post("/api/session", async (req, res) => {
   try {
     const telegramUser = resolveTelegramUser(req);
     if (!telegramUser) {
-      res.status(401).json({ error: "INVALID_TELEGRAM_AUTH" });
+      res.status(401).json({
+        error: "INVALID_TELEGRAM_AUTH",
+        reason: authFailureReason(req) || "UNKNOWN"
+      });
       return;
     }
 
