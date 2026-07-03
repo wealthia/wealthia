@@ -42,7 +42,12 @@ const defaultState = {
   buildings: {
     shop: 1,
     bank: 0,
-    factory: 0
+    factory: 0,
+    casino: 0
+  },
+  casino: {
+    spunToday: false,
+    canSpin: false
   }
 };
 
@@ -62,6 +67,13 @@ const els = {
   shopCost: document.getElementById("shopCost"),
   bankCost: document.getElementById("bankCost"),
   factoryCost: document.getElementById("factoryCost"),
+  casinoLevel: document.getElementById("casinoLevel"),
+  casinoCost: document.getElementById("casinoCost"),
+  casinoSpinCard: document.getElementById("casinoSpinCard"),
+  casinoSpinButton: document.getElementById("casinoSpinButton"),
+  casinoSpinHint: document.getElementById("casinoSpinHint"),
+  casinoUpgradeButton: document.getElementById("casinoUpgradeButton"),
+  empireLevel: document.getElementById("empireLevel"),
   toast: document.getElementById("toast"),
   shopBuilding: document.getElementById("shopBuilding"),
   bankBuilding: document.getElementById("bankBuilding"),
@@ -106,6 +118,10 @@ function loadState() {
       buildings: {
         ...defaultState.buildings,
         ...(parsed.buildings || {})
+      },
+      casino: {
+        ...defaultState.casino,
+        ...(parsed.casino || {})
       }
     };
   } catch {
@@ -131,8 +147,17 @@ function cityValue() {
   return Number(state.coins || 0) + Number(state.spent || 0);
 }
 
+function empireLevel() {
+  return (
+    Number(state.buildings.shop || 0) +
+    Number(state.buildings.bank || 0) +
+    Number(state.buildings.factory || 0) +
+    Number(state.buildings.casino || 0)
+  );
+}
+
 function upgradeCost(name) {
-  const base = { shop: 50, bank: 120, factory: 200 }[name];
+  const base = { shop: 50, bank: 120, factory: 200, casino: 300 }[name];
   const level = Number(state.buildings[name] || 0);
   return Math.floor(base * Math.pow(1.75, Math.max(0, level - 1)));
 }
@@ -156,16 +181,53 @@ function render() {
   if (els.shopLevel) els.shopLevel.textContent = state.buildings.shop;
   if (els.bankLevel) els.bankLevel.textContent = state.buildings.bank;
   if (els.factoryLevel) els.factoryLevel.textContent = state.buildings.factory;
+  if (els.casinoLevel) els.casinoLevel.textContent = state.buildings.casino;
+  if (els.empireLevel) els.empireLevel.textContent = empireLevel();
 
   if (els.shopCost) els.shopCost.textContent = format(upgradeCost("shop"));
   if (els.bankCost) els.bankCost.textContent = format(upgradeCost("bank"));
   if (els.factoryCost) els.factoryCost.textContent = format(upgradeCost("factory"));
+  if (els.casinoCost) els.casinoCost.textContent = format(upgradeCost("casino"));
+
+  if (els.casinoUpgradeButton) {
+    els.casinoUpgradeButton.textContent =
+      Number(state.buildings.casino || 0) < 1
+        ? `Build ${format(upgradeCost("casino"))}`
+        : `Upgrade ${format(upgradeCost("casino"))}`;
+  }
+
+  renderCasinoSpin();
 
   renderDailyTasks();
   renderEarnPanel();
   renderTournamentPanel();
   renderRankPanel();
   updateCityVisuals();
+}
+
+function renderCasinoSpin() {
+  const level = Number(state.buildings.casino || 0);
+  const canSpin = Boolean(state.casino && state.casino.canSpin);
+  const spunToday = Boolean(state.casino && state.casino.spunToday);
+
+  if (els.casinoSpinCard) {
+    els.casinoSpinCard.hidden = level < 1;
+  }
+
+  if (els.casinoSpinButton) {
+    els.casinoSpinButton.disabled = !canSpin;
+    els.casinoSpinButton.textContent = spunToday ? "Spun Today" : "Spin Now";
+  }
+
+  if (els.casinoSpinHint) {
+    if (level < 1) {
+      els.casinoSpinHint.textContent = "Build the Casino to unlock daily spins.";
+    } else if (spunToday) {
+      els.casinoSpinHint.textContent = "Come back tomorrow for another spin.";
+    } else {
+      els.casinoSpinHint.textContent = "Free daily spin — win up to jackpot coins!";
+    }
+  }
 }
 
 function getTaskRefreshLabel() {
@@ -611,7 +673,15 @@ function syncFromBackend(user) {
     state.buildings = {
       shop: Number(game.buildings.shop || 1),
       bank: Number(game.buildings.bank || 0),
-      factory: Number(game.buildings.factory || 0)
+      factory: Number(game.buildings.factory || 0),
+      casino: Number(game.buildings.casino || 0)
+    };
+  }
+
+  if (game.casino) {
+    state.casino = {
+      spunToday: Boolean(game.casino.spunToday),
+      canSpin: Boolean(game.casino.canSpin)
     };
   }
 }
@@ -1033,6 +1103,44 @@ function setupTapControls() {
   document.addEventListener("touchmove", (event) => {
     if (tapping && event.cancelable) event.preventDefault();
   }, { passive: false });
+}
+
+async function spinCasino() {
+  if (!backendReady) {
+    showToast("Backend offline.");
+    return;
+  }
+
+  if (Number(state.buildings.casino || 0) < 1) {
+    showToast("Build Casino first.");
+    return;
+  }
+
+  const { ok, result } = await apiPost("/api/casino-spin", { userId: backendUserId });
+
+  if (!ok) {
+    if (result && result.error === "ALREADY_SPUN") showToast("Already spun today.");
+    else if (result && result.error === "CASINO_LOCKED") showToast("Build Casino first.");
+    else showToast("Spin unavailable.");
+    return;
+  }
+
+  const labels = {
+    jackpot: "JACKPOT!",
+    big: "Big win!",
+    medium: "Nice win!",
+    small: "Small win!"
+  };
+
+  await applyBackendUser(
+    result.user,
+    `${labels[result.tier] || "Win!"} +${format(result.reward)}`
+  );
+}
+
+const casinoSpinButton = document.getElementById("casinoSpinButton");
+if (casinoSpinButton) {
+  casinoSpinButton.addEventListener("click", spinCasino);
 }
 
 document.querySelectorAll("[data-upgrade]").forEach((button) => {

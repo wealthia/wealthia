@@ -103,8 +103,37 @@ function number(value) {
 }
 
 function upgradeCost(building, level) {
-  const base = { shop: 50, bank: 120, factory: 200 }[building];
+  const base = { shop: 50, bank: 120, factory: 200, casino: 300 }[building];
   return Math.floor(base * Math.pow(1.75, Math.max(0, level - 1)));
+}
+
+function empireLevel(row) {
+  return (
+    number(row.shop_level) +
+    number(row.bank_level) +
+    number(row.factory_level) +
+    number(row.casino_level)
+  );
+}
+
+function casinoSpinReward(level) {
+  const lv = Math.max(1, number(level));
+  const roll = Math.random();
+
+  if (roll < 0.05) {
+    return { reward: 2000 + lv * 500, tier: "jackpot" };
+  }
+  if (roll < 0.25) {
+    return { reward: 500 + lv * 150, tier: "big" };
+  }
+  if (roll < 0.55) {
+    return { reward: 200 + lv * 80, tier: "medium" };
+  }
+  return { reward: 80 + lv * 40, tier: "small" };
+}
+
+function casinoSpunToday(row) {
+  return row.casino_date === todayKey();
 }
 
 function tapPower(row) {
@@ -424,7 +453,14 @@ function toClientUser(row) {
       buildings: {
         shop: number(row.shop_level),
         bank: number(row.bank_level),
-        factory: number(row.factory_level)
+        factory: number(row.factory_level),
+        casino: number(row.casino_level)
+      },
+      empireLevel: empireLevel(row),
+      casino: {
+        level: number(row.casino_level),
+        spunToday: casinoSpunToday(row),
+        canSpin: number(row.casino_level) >= 1 && !casinoSpunToday(row)
       }
     }
   };
@@ -510,6 +546,8 @@ async function getOrCreatePlayer(telegramUser, referrerId = "") {
     shop_level: 1,
     bank_level: 0,
     factory_level: 0,
+    casino_level: 0,
+    casino_date: "",
     last_seen_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   });
@@ -624,7 +662,7 @@ app.post("/api/upgrade", async (req, res) => {
     const userId = String(req.body.userId || "");
     const building = String(req.body.building || "");
 
-    if (!["shop", "bank", "factory"].includes(building)) {
+    if (!["shop", "bank", "factory", "casino"].includes(building)) {
       res.status(400).json({ error: "BAD_BUILDING" });
       return;
     }
@@ -835,6 +873,49 @@ app.post("/api/buy-boost", async (req, res) => {
   }
 });
 
+app.post("/api/casino-spin", async (req, res) => {
+  try {
+    const userId = String(req.body.userId || "");
+    const row = await loadGame(userId);
+
+    if (number(row.casino_level) < 1) {
+      res.status(400).json({ error: "CASINO_LOCKED" });
+      return;
+    }
+
+    if (casinoSpunToday(row)) {
+      res.status(400).json({ error: "ALREADY_SPUN" });
+      return;
+    }
+
+    const spin = casinoSpinReward(row.casino_level);
+    const reward = spin.reward;
+
+    const { data, error } = await supabase
+      .from("game_states")
+      .update({
+        coins: number(row.coins) + reward,
+        city_value: number(row.coins) + reward + number(row.spent),
+        casino_date: todayKey(),
+        updated_at: new Date().toISOString()
+      })
+      .eq("user_id", userId)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    res.json({
+      ok: true,
+      reward,
+      tier: spin.tier,
+      user: toClientUser(data)
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post("/api/reset", async (req, res) => {
   try {
     const userId = String(req.body.userId || "");
@@ -850,6 +931,7 @@ app.post("/api/reset", async (req, res) => {
         shop_level: 1,
         bank_level: 0,
         factory_level: 0,
+        casino_level: 0,
         daily_date: "",
         daily_streak: 0,
         daily_tasks_date: "",
@@ -858,6 +940,7 @@ app.post("/api/reset", async (req, res) => {
         sponsor_done: false,
         ad_done: false,
         channel_done: false,
+        casino_date: "",
         tap_boost_until: 0,
         income_boost_until: 0,
         updated_at: new Date().toISOString()

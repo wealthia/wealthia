@@ -60,6 +60,7 @@ To show it again, change `ONBOARDING_VERSION` in `config.js`.
 
 1. Supabase → **SQL Editor** → New query
 2. Paste and run `supabase/migration-admin-tournaments.sql`
+3. Paste and run `supabase/migration-casino-level.sql` (Casino + Empire Level)
 
 ### Backend env (Render)
 

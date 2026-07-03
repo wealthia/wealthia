@@ -60,7 +60,7 @@
     .tap-button:active { transform: scale(0.94) !important; }
     .energy-wrap { width: 100%; }
   </style>
-  <link rel="stylesheet" href="./v5.css?v=2006" />
+  <link rel="stylesheet" href="./v5.css?v=2007" />
 </head>
 <body>
   <div class="ambient" aria-hidden="true">
@@ -122,7 +122,7 @@
       <div class="city-icon factory-icon">&#x1F3ED;</div>
 
       <div class="street"></div>
-      <div class="city__label">Your Empire</div>
+      <div class="city__label">Your Empire · Lv. <span id="empireLevel">1</span></div>
     </section>
 
     <section class="energy-section">
@@ -208,6 +208,28 @@
           Upgrade <span id="factoryCost">200</span>
         </button>
       </article>
+
+      <article class="card card--casino" id="casinoCard">
+        <div class="card__icon">&#x1F3B0;</div>
+        <div class="card__body">
+          <h2>Casino</h2>
+          <p>Daily lucky spin &middot; Level <span id="casinoLevel">0</span></p>
+        </div>
+        <button class="buy-button" type="button" data-upgrade="casino" id="casinoUpgradeButton">
+          Build <span id="casinoCost">300</span>
+        </button>
+      </article>
+
+      <article class="card card--casino-spin" id="casinoSpinCard" hidden>
+        <div class="card__icon">&#x1F3B2;</div>
+        <div class="card__body">
+          <h2>Lucky Spin</h2>
+          <p id="casinoSpinHint">Spin once per day for bonus coins.</p>
+        </div>
+        <button class="wide-button casino-spin-button" type="button" id="casinoSpinButton">
+          Spin Now
+        </button>
+      </article>
     </section>
 
     <section class="panel" id="tasksPanel"></section>
@@ -260,6 +282,6 @@
   </div>
 
   <script src="./config.js?v=1"></script>
-  <script src="./v5.js?v=10009"></script>
+  <script src="./v5.js?v=10010"></script>
 </body>
 </html>
