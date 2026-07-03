@@ -312,10 +312,19 @@ function getDailyPrizeConfig() {
 }
 
 function dailyPrizeTimeLeft(resetsAt) {
-  const diff = Math.max(0, new Date(resetsAt || 0).getTime() - Date.now());
+  const target = getDailyResetTargetMs(resetsAt);
+  const diff = Math.max(0, target - Date.now());
   const hours = Math.floor(diff / 3600000);
   const minutes = Math.floor((diff % 3600000) / 60000);
   return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+}
+
+function getDailyResetTargetMs(resetsAt) {
+  const stored = Date.parse(resetsAt || dailyContestResetsAt || state.dailyContest?.resetsAt || "");
+  if (stored && !Number.isNaN(stored) && stored > Date.now()) return stored;
+
+  const now = new Date();
+  return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
 }
 
 function switchToEarnTab() {
@@ -736,6 +745,7 @@ function render() {
   renderFriendsPanel();
   renderTournamentPanel();
   renderRankPanel();
+  startTaskCountdownTimer();
   updateCityVisuals();
 }
 
@@ -823,10 +833,10 @@ function renderCasinoSpin() {
 }
 
 function getTaskRefreshTargetMs() {
-  const stored = Date.parse(state.dailyTasksNextRefresh || "");
-  if (stored && !Number.isNaN(stored)) return stored;
-
   const now = Date.now();
+  const stored = Date.parse(state.dailyTasksNextRefresh || "");
+  if (stored && !Number.isNaN(stored) && stored > now) return stored;
+
   const cycle = Math.floor(now / TASK_REFRESH_MS);
   return (cycle + 1) * TASK_REFRESH_MS;
 }
@@ -858,6 +868,7 @@ function updateTaskRefreshLabel() {
 }
 
 function startTaskCountdownTimer() {
+  updateTaskRefreshLabel();
   if (taskCountdownTimer) return;
 
   taskCountdownTimer = window.setInterval(() => {
@@ -1157,65 +1168,53 @@ function renderFriendsPanel() {
   const referralCoins = referrals * 500;
   const link = getInviteLink();
   const progressPct = Math.min(100, Math.round((referrals / required) * 100));
+  const timeLeft = dailyPrizeTimeLeft(dailyContestResetsAt || state.dailyContest?.resetsAt);
 
   panel.innerHTML = `
-    <div class="panel-head">
-      <h2>Invite Allies</h2>
-      <p>Unlock the $10 Daily Prize and earn coins per friend</p>
+    <button class="wide-button friends-copy-hero" id="inviteButton" type="button">
+      Copy invite link &amp; share
+    </button>
+
+    <div class="friends-link-box" id="friendsInviteLinkBox">
+      <code id="friendsInviteLinkText">${link}</code>
     </div>
 
-    <article class="friends-stat-grid">
+    <article class="friends-stat-row">
       <div class="friends-stat">
-        <span>Friends invited</span>
+        <span>Friends</span>
         <strong>${referrals}/${required}</strong>
       </div>
       <div class="friends-stat">
-        <span>Coins earned</span>
+        <span>Coins</span>
         <strong>+${format(referralCoins)}</strong>
       </div>
       <div class="friends-stat">
-        <span>Daily Prize</span>
-        <strong>${eligible ? "Unlocked" : "Locked"}</strong>
+        <span>Prize</span>
+        <strong>${eligible ? "On" : "Off"}</strong>
       </div>
       <div class="friends-stat">
-        <span>Per friend</span>
+        <span>Each</span>
         <strong>+500</strong>
       </div>
     </article>
 
-    <article class="card friends-progress-card">
+    <article class="friends-progress-card">
       <div class="friends-progress-card__head">
         <span>⚡ $10 Daily Race</span>
-        <strong>${eligible ? "Qualified" : `${required - referrals} more needed`}</strong>
+        <strong>${timeLeft}</strong>
       </div>
       <div class="friends-progress" role="progressbar" aria-valuenow="${progressPct}" aria-valuemin="0" aria-valuemax="100">
         <span style="width:${progressPct}%"></span>
       </div>
       <p>${eligible
-    ? "You can compete on the Rank tab. Winner announced on Telegram."
-    : `Invite ${Math.max(0, required - referrals)} more friend(s) to join today's $10 contest.`}</p>
+    ? "You are in today's race. Climb on the Rank tab."
+    : `Invite ${Math.max(0, required - referrals)} more friend(s) to unlock the $10 contest.`}</p>
     </article>
 
-    <article class="card stack friends-card">
-      <div class="friends-card__icon">&#x1F91D;</div>
-      <h2>Your invite link</h2>
-      <p>Share this link — friends must open the game in Telegram.</p>
-      <div class="friends-invite-link" id="friendsInviteLinkBox">
-        <code id="friendsInviteLinkText">${link}</code>
-      </div>
-      <button class="wide-button" id="inviteButton" type="button">
-        Copy link &amp; share with friends
-      </button>
-    </article>
-
-    <article class="friends-tips card stack">
-      <h2>How it works</h2>
-      <ol>
-        <li>Copy your link and send to friends</li>
-        <li>They tap Start in Telegram — you get +500 coins</li>
-        <li>With 3 friends you unlock the $10 daily leaderboard</li>
-        <li>Top gain today wins — check the Rank tab</li>
-      </ol>
+    <article class="friends-tips">
+      <p><strong>1.</strong> Send your link to friends in Telegram</p>
+      <p><strong>2.</strong> They open the game — you get +500 coins each</p>
+      <p><strong>3.</strong> 3 friends unlocks the daily $10 leaderboard</p>
     </article>
   `;
 
@@ -1341,63 +1340,57 @@ function renderRankRow(row, mode = "global", options = {}) {
   `;
 }
 
-function buildDailyLeaderboardRows() {
-  let rows = dailyLeaderboardTop3.length ? [...dailyLeaderboardTop3] : [];
+function buildDailyLeaderboardView() {
   const yourScore = Math.max(
     Number(dailyContestScore || 0),
     Number(state.dailyContest?.score || 0),
     todayGainScore()
   );
 
-  if (!rows.length && getDailyPrizeConfig()) {
-    rows = getContestSeedPreview();
+  let top3 = dailyLeaderboardTop3.length
+    ? dailyLeaderboardTop3.filter((row) => !row.isYou).slice(0, 3)
+    : [];
+
+  if (!top3.length && getDailyPrizeConfig()) {
+    top3 = getContestSeedPreview();
   }
 
-  if (!rows.some((row) => row.isYou) && yourScore > 0) {
-    const insertRank = 1 + rows.filter(
-      (row) => Number(row.dailyScore || row.score || 0) > yourScore
-    ).length;
+  const youInTop3 = dailyLeaderboardTop3.some((row) => row.isYou);
+  let yourPlace = null;
 
-    if (insertRank <= 3) {
-      rows.push({
-        rank: insertRank,
-        dailyScore: yourScore,
-        isYou: true
-      });
-      rows.sort(
-        (a, b) => Number(b.dailyScore || b.score || 0) - Number(a.dailyScore || a.score || 0)
-      );
-      return rows.slice(0, 3).map((row, index) => ({
-        ...row,
-        rank: index + 1
-      }));
-    }
-
-    const rank = Number(dailyYourRank || dailyLeaderboardYou?.rank || insertRank);
-    if (rank > 3) {
-      rows.push({
-        ...(dailyLeaderboardYou || {}),
-        rank,
-        dailyScore: Number(dailyLeaderboardYou?.dailyScore || dailyLeaderboardYou?.score || yourScore),
+  if (!youInTop3) {
+    if (dailyLeaderboardYou && Number(dailyLeaderboardYou.rank || 0) > 0) {
+      yourPlace = {
+        ...dailyLeaderboardYou,
+        rank: Number(dailyLeaderboardYou.rank),
+        dailyScore: Number(dailyLeaderboardYou.dailyScore || dailyLeaderboardYou.score || yourScore),
         isYou: true,
         isYourPlaceRow: true
-      });
+      };
+    } else {
+      const rank = Number(dailyYourRank) || (
+        1 + top3.filter((row) => Number(row.dailyScore || row.score || 0) > yourScore).length
+      );
+      yourPlace = {
+        rank,
+        dailyScore: yourScore,
+        isYou: true,
+        isYourPlaceRow: true
+      };
     }
   }
 
-  if (!rows.length) {
-    if (getDailyPrizeConfig()) {
-      return getContestSeedPreview();
-    }
-    return [{
-      rank: 1,
-      name: "You",
-      dailyScore: yourScore,
-      isYou: true
-    }];
+  if (!top3.length) {
+    top3 = getDailyPrizeConfig()
+      ? getContestSeedPreview()
+      : [{ rank: 1, name: "You", dailyScore: yourScore, isYou: true }];
   }
 
-  return rows;
+  return { top3, yourPlace };
+}
+
+function buildDailyLeaderboardRows() {
+  return buildDailyLeaderboardView().top3;
 }
 
 function rankMark(rank) {
@@ -1413,9 +1406,9 @@ function renderRankPanel() {
   if (!panel) return;
 
   const dailyMode = Boolean(getDailyPrizeConfig());
-  const dailyRows = buildDailyLeaderboardRows();
+  const dailyView = buildDailyLeaderboardView();
   const top3 = dailyMode
-    ? dailyRows
+    ? dailyView.top3
     : (leaderboardTop3.length
       ? leaderboardTop3
       : [{
@@ -1425,32 +1418,20 @@ function renderRankPanel() {
         isYou: true
       }]);
 
-  const you = dailyMode ? null : leaderboardYou;
+  const you = dailyMode ? dailyView.yourPlace : leaderboardYou;
   const youBlock = you
     ? `
       <div class="rank-your-place">
         <span class="rank-your-place__label">Your place · ${ordinalRank(you.rank)}</span>
       </div>
       <ol class="rank rank--you-only">
-        ${renderRankRow(you, "global")}
+        ${renderRankRow(you, dailyMode ? "daily" : "global")}
       </ol>
     `
     : "";
 
   const offlineBanner = !backendReady
     ? `<p class="rank-offline-note">Open in Telegram for live sync. Leaderboard preview below.</p>`
-    : "";
-
-  const yourScore = todayGainScore();
-  const yourPlaceBlock = dailyMode && yourScore > 0 && !top3.some((row) => row.isYou)
-    ? `
-      <div class="rank-your-place">
-        <span class="rank-your-place__label">Your gain today</span>
-      </div>
-      <ol class="rank rank--you-only">
-        ${renderRankRow({ rank: dailyYourRank || 4, dailyScore: yourScore, isYou: true }, "daily")}
-      </ol>
-    `
     : "";
 
   panel.innerHTML = `
@@ -1467,7 +1448,6 @@ function renderRankPanel() {
         { isYourPlaceRow: Boolean(row.isYourPlaceRow) }
       )).join("")}
     </ol>
-    ${yourPlaceBlock}
     ${youBlock}
   `;
 
