@@ -963,39 +963,46 @@ button.completed strong {
 }
 
 .boost-grid--stars {
+  display: grid;
+  width: 100%;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
-  margin-top: 8px;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .boost-grid--stars .boost-button {
-  min-height: 72px;
-  padding: 8px 4px;
-  gap: 2px;
-  font-size: 10px;
-  line-height: 1.15;
+  width: 100%;
+  min-height: 84px;
+  padding: 10px 6px;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 1.2;
   text-align: center;
+  justify-content: center;
 }
 
 .boost-grid--stars .boost-button__icon {
-  font-size: 16px;
+  font-size: 18px;
 }
 
 .boost-grid--stars .boost-button span:last-child {
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .stars-shop {
+  display: grid;
+  width: 100%;
   border-color: rgba(124, 92, 255, 0.28);
-  padding: 12px;
+  padding: 14px;
+  box-sizing: border-box;
 }
 
 .stars-shop h2 {
-  font-size: 16px;
+  font-size: 17px;
 }
 
 .stars-shop .earn-note {
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .earn-note {
@@ -1186,6 +1193,27 @@ button.completed strong {
 
   .boost-grid {
     grid-template-columns: 1fr;
+  }
+
+  .boost-grid--stars {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .boost-grid--stars .boost-button {
+    min-height: 68px;
+    flex-direction: column;
+    justify-content: center;
+    padding: 6px 3px;
+    font-size: 9px;
+  }
+
+  .boost-grid--stars .boost-button__icon {
+    font-size: 15px;
+  }
+
+  .boost-grid--stars .boost-button span:last-child {
+    font-size: 8px;
   }
 
   .boost-button {
