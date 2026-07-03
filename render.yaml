@@ -24,7 +24,7 @@ services:
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: WEBAPP_URL
-        value: https://wealthia.github.io/wealthia/v5.html
+        value: https://wealthia.github.io/wealthia/v5.html?v=2006
       - key: BOT_USERNAME
         value: WealthiaGameBot
       - key: CHANNEL_URL
