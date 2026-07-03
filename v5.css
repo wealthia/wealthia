@@ -35,6 +35,7 @@ html,
 body {
   margin: 0;
   min-height: 100%;
+  overscroll-behavior: none;
 }
 
 body {
@@ -504,8 +505,20 @@ h1 {
   position: relative;
   display: grid;
   justify-items: center;
-  gap: 14px;
-  padding: 22px 0 16px;
+  gap: 12px;
+  padding: 12px 0 10px;
+  touch-action: pan-x;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.tap-button-wrap {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 132px;
+  height: 132px;
+  touch-action: manipulation;
 }
 
 .tap-ring {
@@ -514,32 +527,32 @@ h1 {
   left: 50%;
   border-radius: 50%;
   border: 1px solid rgba(245, 196, 81, 0.2);
-  transform: translate(-50%, -58%);
+  transform: translate(-50%, -50%);
   pointer-events: none;
 }
 
 .tap-ring--outer {
-  width: 200px;
-  height: 200px;
+  width: 132px;
+  height: 132px;
   animation: ringPulse 2.8s ease-out infinite;
 }
 
 .tap-ring--inner {
-  width: 176px;
-  height: 176px;
+  width: 116px;
+  height: 116px;
   animation: ringPulse 2.8s ease-out infinite 0.6s;
 }
 
 @keyframes ringPulse {
   0% {
     opacity: 0.7;
-    transform: translate(-50%, -58%) scale(0.92);
+    transform: translate(-50%, -50%) scale(0.92);
   }
 
   70%,
   100% {
     opacity: 0;
-    transform: translate(-50%, -58%) scale(1.15);
+    transform: translate(-50%, -50%) scale(1.12);
   }
 }
 
@@ -548,21 +561,23 @@ h1 {
   z-index: 2;
   display: grid;
   place-content: center;
-  gap: 2px;
-  width: 164px;
-  height: 164px;
+  gap: 1px;
+  width: 112px;
+  height: 112px;
   border-radius: 50%;
-  border: 3px solid rgba(255, 220, 130, 0.45);
+  border: 2px solid rgba(255, 220, 130, 0.45);
   background:
     radial-gradient(circle at 35% 28%, #fff4c4 0%, #f5c451 38%, #d4921a 72%, #8f5a0e 100%);
   box-shadow:
-    0 0 0 6px rgba(245, 196, 81, 0.12),
-    0 0 40px rgba(245, 196, 81, 0.35),
-    0 16px 0 #5c3a0a,
-    inset 0 -8px 20px rgba(0, 0, 0, 0.2),
-    inset 0 4px 12px rgba(255, 255, 255, 0.35);
+    0 0 0 4px rgba(245, 196, 81, 0.12),
+    0 0 28px rgba(245, 196, 81, 0.3),
+    0 10px 0 #5c3a0a,
+    inset 0 -6px 16px rgba(0, 0, 0, 0.2),
+    inset 0 3px 10px rgba(255, 255, 255, 0.35);
   color: #2a1604;
-  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .tap-button__shine {
@@ -575,7 +590,7 @@ h1 {
 
 .tap-button span {
   position: relative;
-  font-size: 26px;
+  font-size: 20px;
   font-weight: 900;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -583,34 +598,34 @@ h1 {
 
 .tap-button strong {
   position: relative;
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 900;
 }
 
 .tap-button__hint {
   position: relative;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   opacity: 0.65;
 }
 
 .tap-button:active {
-  transform: translateY(8px) scale(0.97);
+  transform: scale(0.96);
   box-shadow:
-    0 0 0 6px rgba(245, 196, 81, 0.08),
-    0 0 24px rgba(245, 196, 81, 0.25),
-    0 6px 0 #5c3a0a,
-    inset 0 -4px 12px rgba(0, 0, 0, 0.2);
+    0 0 0 4px rgba(245, 196, 81, 0.08),
+    0 0 18px rgba(245, 196, 81, 0.22),
+    0 4px 0 #5c3a0a,
+    inset 0 -3px 10px rgba(0, 0, 0, 0.2);
 }
 
 .tap-button.no-energy {
   filter: grayscale(0.7) brightness(0.75);
   box-shadow:
-    0 0 0 6px rgba(120, 120, 120, 0.08),
-    0 12px 0 #333,
-    inset 0 4px 12px rgba(255, 255, 255, 0.15);
+    0 0 0 4px rgba(120, 120, 120, 0.08),
+    0 8px 0 #333,
+    inset 0 3px 10px rgba(255, 255, 255, 0.15);
 }
 
 .tap-button.no-energy span,
@@ -620,6 +635,7 @@ h1 {
 
 .energy-wrap {
   width: 100%;
+  order: -1;
 }
 
 .energy-bar {
@@ -1095,9 +1111,32 @@ button.completed strong {
 
   .tab__icon { font-size: 14px; }
 
+  .tap-button-wrap {
+    width: 120px;
+    height: 120px;
+  }
+
+  .tap-ring--outer {
+    width: 120px;
+    height: 120px;
+  }
+
+  .tap-ring--inner {
+    width: 106px;
+    height: 106px;
+  }
+
   .tap-button {
-    width: 148px;
-    height: 148px;
+    width: 104px;
+    height: 104px;
+  }
+
+  .tap-button span {
+    font-size: 18px;
+  }
+
+  .tap-button strong {
+    font-size: 16px;
   }
 
   .buy-button {

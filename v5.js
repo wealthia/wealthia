@@ -74,8 +74,10 @@ const els = {
 };
 
 connectBackend();
+initTelegramWebApp();
 initAdsGram();
 setupOnboarding();
+setupTapControls();
 render();
 
 function loadState() {
@@ -620,6 +622,9 @@ function getTelegramUser() {
   if (tg) {
     tg.ready();
     tg.expand();
+    if (typeof tg.disableVerticalSwipes === "function") {
+      tg.disableVerticalSwipes();
+    }
   }
 
   const user = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
@@ -982,8 +987,28 @@ async function refreshBackendState() {
   await loadTournament();
 }
 
-if (els.tapButton) {
+function initTelegramWebApp() {
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (!tg) return;
+
+  tg.ready();
+  tg.expand();
+  if (typeof tg.disableVerticalSwipes === "function") {
+    tg.disableVerticalSwipes();
+  }
+}
+
+function setupTapControls() {
+  if (!els.tapButton) return;
+
+  const blockTouchScroll = (event) => {
+    if (event.cancelable) event.preventDefault();
+  };
+
   els.tapButton.addEventListener("pointerdown", backendTap);
+  els.tapButton.addEventListener("touchstart", blockTouchScroll, { passive: false });
+  els.tapButton.addEventListener("touchmove", blockTouchScroll, { passive: false });
+  els.tapButton.addEventListener("contextmenu", (event) => event.preventDefault());
 }
 
 document.querySelectorAll("[data-upgrade]").forEach((button) => {

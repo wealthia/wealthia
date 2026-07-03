@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./v5.css?v=2002" />
+  <link rel="stylesheet" href="./v5.css?v=2003" />
 </head>
 <body>
   <div class="ambient" aria-hidden="true">
@@ -75,19 +75,21 @@
     </section>
 
     <section class="tap-area">
-      <div class="tap-ring tap-ring--outer" aria-hidden="true"></div>
-      <div class="tap-ring tap-ring--inner" aria-hidden="true"></div>
-      <button class="tap-button" id="tapButton" type="button">
-        <span class="tap-button__shine" aria-hidden="true"></span>
-        <span id="tapLabel">Tap</span>
-        <strong>+<span id="tapPower">1</span></strong>
-        <small class="tap-button__hint">per tap</small>
-      </button>
       <div class="energy-wrap">
         <div class="energy-bar">
           <span id="energyBar"></span>
         </div>
         <span class="energy-label">Energy Reserve</span>
+      </div>
+      <div class="tap-button-wrap">
+        <div class="tap-ring tap-ring--outer" aria-hidden="true"></div>
+        <div class="tap-ring tap-ring--inner" aria-hidden="true"></div>
+        <button class="tap-button" id="tapButton" type="button">
+          <span class="tap-button__shine" aria-hidden="true"></span>
+          <span id="tapLabel">Tap</span>
+          <strong>+<span id="tapPower">1</span></strong>
+          <small class="tap-button__hint">per tap</small>
+        </button>
       </div>
     </section>
 
@@ -204,6 +206,6 @@
   </div>
 
   <script src="./config.js?v=1"></script>
-  <script src="./v5.js?v=10005"></script>
+  <script src="./v5.js?v=10006"></script>
 </body>
 </html>
