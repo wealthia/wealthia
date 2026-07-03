@@ -1020,6 +1020,53 @@ button.completed strong {
   border-style: dashed;
 }
 
+.gold-rush {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 16px 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(245, 196, 81, 0.35);
+  background: linear-gradient(135deg, rgba(245, 196, 81, 0.16), rgba(255, 140, 0, 0.08));
+}
+
+.gold-rush--active {
+  justify-content: center;
+  flex-direction: column;
+  text-align: center;
+}
+
+.gold-rush__badge {
+  display: inline-block;
+  margin-bottom: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f5c451;
+}
+
+.gold-rush strong {
+  display: block;
+  font-size: 15px;
+}
+
+.gold-rush small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.gold-rush__button {
+  border: none;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 800;
+  color: #1a1200;
+  background: linear-gradient(180deg, #ffd978, #f5b942);
+}
+
 .earn-ad-wrap {
   display: grid;
   gap: 8px;

@@ -11,6 +11,7 @@ let adsgramController = null;
 let adsgramBonusController = null;
 let onboardingStep = 1;
 let adCooldownTimer = null;
+let goldRushTimer = null;
 
 const onboardingKey = `wealthia_onboarding_${CONFIG.ONBOARDING_VERSION || "v1"}`;
 
@@ -54,6 +55,14 @@ const defaultState = {
   casino: {
     spunToday: false,
     canSpin: false
+  },
+  goldRush: {
+    active: false,
+    until: 0,
+    claimedToday: false,
+    canStart: true,
+    multiplier: 2,
+    durationMinutes: 15
   }
 };
 
@@ -80,6 +89,7 @@ const els = {
   casinoSpinButton: null,
   casinoSpinHint: null,
   casinoUpgradeButton: document.getElementById("casinoUpgradeButton"),
+  goldRushMount: document.getElementById("goldRushMount"),
   empireLevel: document.getElementById("empireLevel"),
   empireLevelStat: document.getElementById("empireLevelStat"),
   toast: document.getElementById("toast"),
@@ -130,6 +140,10 @@ function loadState() {
       casino: {
         ...defaultState.casino,
         ...(parsed.casino || {})
+      },
+      goldRush: {
+        ...defaultState.goldRush,
+        ...(parsed.goldRush || {})
       }
     };
   } catch {
@@ -190,6 +204,100 @@ function upgradeCost(name) {
   return Math.floor(base * Math.pow(1.75, Math.max(0, level - 1)));
 }
 
+function goldRushTimeLeft(until) {
+  const diff = Math.max(0, Number(until || 0) - Date.now());
+  const minutes = Math.floor(diff / 60000);
+  const seconds = Math.floor((diff % 60000) / 1000);
+  if (diff <= 0) return "";
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function renderGoldRushBanner() {
+  const mount = els.goldRushMount;
+  if (!mount) return;
+
+  const rush = state.goldRush || {};
+  const active = Boolean(rush.active);
+  const canStart = Boolean(rush.canStart);
+  const multiplier = Number(rush.multiplier || 2);
+  const duration = Number(rush.durationMinutes || 15);
+
+  if (!active && !canStart) {
+    mount.innerHTML = "";
+    if (goldRushTimer) {
+      window.clearInterval(goldRushTimer);
+      goldRushTimer = null;
+    }
+    return;
+  }
+
+  if (active) {
+    mount.innerHTML = `
+      <article class="gold-rush gold-rush--active">
+        <span class="gold-rush__badge">Gold Rush Live</span>
+        <strong>${multiplier}x tap coins</strong>
+        <small id="goldRushTimer">${goldRushTimeLeft(rush.until)} left</small>
+      </article>
+    `;
+
+    if (!goldRushTimer) {
+      goldRushTimer = window.setInterval(() => {
+        if (Number(state.goldRush.until || 0) <= Date.now()) {
+          state.goldRush.active = false;
+          state.goldRush.canStart = false;
+          window.clearInterval(goldRushTimer);
+          goldRushTimer = null;
+          renderGoldRushBanner();
+          render();
+          return;
+        }
+
+        const timer = document.getElementById("goldRushTimer");
+        if (timer) timer.textContent = `${goldRushTimeLeft(state.goldRush.until)} left`;
+      }, 1000);
+    }
+    return;
+  }
+
+  mount.innerHTML = `
+    <article class="gold-rush">
+      <div>
+        <span class="gold-rush__badge">Daily Event</span>
+        <strong>Gold Rush</strong>
+        <small>${multiplier}x tap coins · ${duration} min</small>
+      </div>
+      <button class="gold-rush__button" type="button" id="startGoldRushButton">Start</button>
+    </article>
+  `;
+
+  const button = document.getElementById("startGoldRushButton");
+  if (button) {
+    button.addEventListener("click", startGoldRush);
+  }
+}
+
+async function startGoldRush() {
+  if (!backendReady) {
+    showToast("Backend offline.");
+    return;
+  }
+
+  const { ok, result } = await apiPost("/api/gold-rush/start", { userId: backendUserId });
+
+  if (!ok) {
+    if (result && result.error === "GOLD_RUSH_CLAIMED_TODAY") {
+      showToast("Gold Rush already used today.");
+    } else if (result && result.error === "GOLD_RUSH_ACTIVE") {
+      showToast("Gold Rush is already active.");
+    } else {
+      showToast("Gold Rush unavailable.");
+    }
+    return;
+  }
+
+  await applyBackendUser(result.user, `Gold Rush! ${state.goldRush.multiplier || 2}x tap for ${state.goldRush.durationMinutes || 15} min`);
+}
+
 function render() {
   if (els.coins) els.coins.textContent = format(state.coins);
   if (els.energy) els.energy.textContent = Math.floor(state.energy);
@@ -232,6 +340,7 @@ function render() {
 
   renderCasinoCard();
   renderCasinoSpin();
+  renderGoldRushBanner();
 
   renderDailyTasks();
   renderEarnPanel();
@@ -599,7 +708,7 @@ function renderTournamentPanel() {
       <article class="card stack tournament-card tournament-card--empty">
         <div class="tournament-card__badge">Arena</div>
         <h2>No Live Tournament</h2>
-        <p>Check back soon for tap races with coin prizes.</p>
+        <p>No bracket tournament for your Empire Level right now. Check back soon.</p>
       </article>
     `;
     return;
@@ -618,6 +727,7 @@ function renderTournamentPanel() {
       <h2>${t.title}</h2>
       <p>${t.description || "Tap as much as you can to climb the leaderboard."}</p>
       <div class="tournament-meta">
+        <span>Bracket: ${t.bracketLabel || "All levels"}</span>
         <span>Entry: ${format(t.entryFee)} coins</span>
         <span>Prize pool: ${format(t.prizePool)}</span>
         <span>${tournamentTimeLeft(t.endsAt)}</span>
@@ -996,6 +1106,17 @@ function syncFromBackend(user) {
       canSpin: Boolean(game.casino.canSpin)
     };
   }
+
+  if (game.goldRush) {
+    state.goldRush = {
+      active: Boolean(game.goldRush.active),
+      until: Number(game.goldRush.until || 0),
+      claimedToday: Boolean(game.goldRush.claimedToday),
+      canStart: Boolean(game.goldRush.canStart),
+      multiplier: Number(game.goldRush.multiplier || 2),
+      durationMinutes: Number(game.goldRush.durationMinutes || 15)
+    };
+  }
 }
 
 function getTelegramUser() {
@@ -1139,7 +1260,9 @@ async function joinTournament() {
   if (!ok) {
     if (result && result.error === "NOT_ENOUGH_COINS") showToast("Not enough coins to join.");
     else if (result && result.error === "ALREADY_JOINED") showToast("Already joined.");
-    else showToast("Could not join tournament.");
+    else if (result && result.error === "BRACKET_MISMATCH") {
+      showToast(`Your Empire Level does not fit this bracket (${result.bracketLabel || "level bracket"}).`);
+    } else showToast("Could not join tournament.");
     return;
   }
 

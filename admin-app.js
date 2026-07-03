@@ -374,7 +374,7 @@ async function loadTournaments() {
     <div class="tournament-item">
       <div>
         <strong>${row.title}</strong>
-        <small>Entry ${formatNumber(row.entryFee)} · ${formatNumber(row.entries)} players · Ends ${formatDate(row.endsAt)}</small>
+        <small>Entry ${formatNumber(row.entryFee)} · ${row.bracketLabel || "All levels"} · ${formatNumber(row.entries)} players · Ends ${formatDate(row.endsAt)}</small>
       </div>
       <div class="tournament-actions">
         ${tournamentBadge(row.status)}
@@ -398,6 +398,8 @@ async function createTournament(event) {
     prizeWinner: Number(data.get("prizeWinner") || 0),
     prizeRunnerUp: Number(data.get("prizeRunnerUp") || 0),
     prizeThird: Number(data.get("prizeThird") || 0),
+    bracketMinLevel: Number(data.get("bracketMinLevel") || 0),
+    bracketMaxLevel: Number(data.get("bracketMaxLevel") || 0),
     activate: Boolean(data.get("activate"))
   };
 

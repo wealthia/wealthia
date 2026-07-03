@@ -29,6 +29,10 @@ const NEW_PLAYER_BONUS = 100;
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
 const AD_REWARD_COOLDOWN_MS = 5 * 60 * 1000;
 const BONUS_AD_REWARD_COOLDOWN_MS = 15 * 60 * 1000;
+const GOLD_RUSH_DURATION_MS = 15 * 60 * 1000;
+const GOLD_RUSH_MULTIPLIER = 2;
+const CRON_SECRET = process.env.CRON_SECRET || process.env.ADMIN_SECRET || "";
+const DAILY_PUSH_HOUR_UTC = Math.max(0, Math.min(23, Number(process.env.DAILY_PUSH_HOUR_UTC) || 10));
 
 const EARN_TASKS = {
   sponsor: { reward: 750, field: "sponsor_done" },
@@ -250,10 +254,42 @@ function casinoSpunToday(row) {
   return row.casino_date === todayKey();
 }
 
+function goldRushActive(row) {
+  return number(row.gold_rush_until) > nowMs();
+}
+
+function goldRushClaimedToday(row) {
+  return row.gold_rush_date === todayKey();
+}
+
+function goldRushCanStart(row) {
+  return !goldRushClaimedToday(row) && !goldRushActive(row);
+}
+
+function tournamentBracketLabel(row) {
+  const min = number(row.bracket_min_level);
+  const max = number(row.bracket_max_level);
+  if (!min && !max) return "All levels";
+  if (max > 0) return `Empire Lv ${min || 1}–${max}`;
+  return `Empire Lv ${min}+`;
+}
+
+function tournamentMatchesLevel(row, level) {
+  const min = number(row.bracket_min_level);
+  const max = number(row.bracket_max_level);
+  if (!min && !max) return true;
+  const lv = Math.max(1, number(level));
+  const lo = min > 0 ? min : 1;
+  const hi = max > 0 ? max : 9999;
+  return lv >= lo && lv <= hi;
+}
+
 function tapPower(row) {
   const boostActive = number(row.tap_boost_until) > nowMs();
   const base = Math.max(1, number(row.shop_level));
-  return boostActive ? base * 2 : base;
+  let power = boostActive ? base * 2 : base;
+  if (goldRushActive(row)) power *= GOLD_RUSH_MULTIPLIER;
+  return power;
 }
 
 function incomeMultiplier(row) {
@@ -305,18 +341,30 @@ function tournamentIsLive(row, ms = nowMs()) {
   return ms >= starts && ms < ends;
 }
 
-async function getActiveTournament() {
+async function getActiveTournament(userId = "") {
   const { data, error } = await supabase
     .from("tournaments")
     .select("*")
     .eq("status", "active")
     .order("starts_at", { ascending: false })
-    .limit(5);
+    .limit(20);
 
   if (error) throw error;
 
-  const live = (data || []).find((row) => tournamentIsLive(row));
-  return live || null;
+  const live = (data || []).filter((row) => tournamentIsLive(row));
+  if (!live.length) return null;
+
+  if (!userId) return live[0];
+
+  let level = 1;
+  try {
+    const row = await loadGame(userId);
+    level = empireLevel(row);
+  } catch {
+    level = 1;
+  }
+
+  return live.find((row) => tournamentMatchesLevel(row, level)) || null;
 }
 
 async function getTournamentEntry(tournamentId, userId) {
@@ -332,7 +380,7 @@ async function getTournamentEntry(tournamentId, userId) {
 }
 
 async function incrementTournamentScore(userId, amount = 1) {
-  const tournament = await getActiveTournament();
+  const tournament = await getActiveTournament(userId);
   if (!tournament) return;
 
   const entry = await getTournamentEntry(tournament.id, userId);
@@ -381,7 +429,10 @@ function toClientTournament(row, entry = null) {
     hasStarted: ms >= starts,
     hasEnded: ms >= ends,
     joined: Boolean(entry),
-    myScore: entry ? number(entry.tap_score) : 0
+    myScore: entry ? number(entry.tap_score) : 0,
+    bracketMin: number(row.bracket_min_level),
+    bracketMax: number(row.bracket_max_level),
+    bracketLabel: tournamentBracketLabel(row)
   };
 }
 
@@ -586,6 +637,14 @@ function toClientUser(row) {
         level: number(row.casino_level),
         spunToday: casinoSpunToday(row),
         canSpin: number(row.casino_level) >= 1 && !casinoSpunToday(row)
+      },
+      goldRush: {
+        active: goldRushActive(row),
+        until: number(row.gold_rush_until),
+        claimedToday: goldRushClaimedToday(row),
+        canStart: goldRushCanStart(row),
+        multiplier: GOLD_RUSH_MULTIPLIER,
+        durationMinutes: Math.round(GOLD_RUSH_DURATION_MS / 60000)
       }
     }
   };
@@ -728,7 +787,12 @@ app.get("/", (_req, res) => {
 });
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, app: "Wealthia API", database: true, version: "stars-bot-embedded-v1" });
+  res.json({
+    ok: true,
+    app: "Wealthia API",
+    database: true,
+    version: "growth-features-v1"
+  });
 });
 
 // AdsGram server-side reward callback (GET; userid=[userId] replaced by AdsGram)
@@ -751,6 +815,40 @@ app.post("/api/session", async (req, res) => {
     });
   }
 });
+app.post("/api/gold-rush/start", async (req, res) => {
+  try {
+    const userId = String(req.body.userId || "");
+    const row = await loadGame(userId);
+
+    if (!goldRushCanStart(row)) {
+      if (goldRushActive(row)) {
+        res.status(400).json({ error: "GOLD_RUSH_ACTIVE", until: number(row.gold_rush_until) });
+        return;
+      }
+      res.status(400).json({ error: "GOLD_RUSH_CLAIMED_TODAY" });
+      return;
+    }
+
+    const until = nowMs() + GOLD_RUSH_DURATION_MS;
+    const { data, error } = await supabase
+      .from("game_states")
+      .update({
+        gold_rush_date: todayKey(),
+        gold_rush_until: until,
+        updated_at: new Date().toISOString()
+      })
+      .eq("user_id", userId)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    res.json({ ok: true, until, user: toClientUser(data) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post("/api/tap", async (req, res) => {
   try {
     const userId = String(req.body.userId || "");
@@ -1290,6 +1388,8 @@ app.post("/api/reset", async (req, res) => {
         sponsor_done: false,
         ad_last_claimed_at: 0,
         bonus_ad_last_claimed_at: 0,
+        gold_rush_date: "",
+        gold_rush_until: 0,
         channel_done: false,
         casino_date: "",
         endless_energy_until: 0,
@@ -1658,6 +1758,8 @@ app.post("/api/admin/tournaments", async (req, res) => {
     const prizeRunnerUp = Math.max(0, number(req.body.prizeRunnerUp));
     const prizeThird = Math.max(0, number(req.body.prizeThird));
     const durationHours = Math.max(1, number(req.body.durationHours) || 24);
+    const bracketMinLevel = Math.max(0, number(req.body.bracketMinLevel));
+    const bracketMaxLevel = Math.max(0, number(req.body.bracketMaxLevel));
     const activate = Boolean(req.body.activate);
 
     if (!title) {
@@ -1670,10 +1772,14 @@ app.post("/api/admin/tournaments", async (req, res) => {
     const endsAt = new Date(nowMs() + durationHours * 60 * 60 * 1000).toISOString();
 
     if (activate) {
-      await supabase
+      let endQuery = supabase
         .from("tournaments")
         .update({ status: "ended", updated_at: new Date().toISOString() })
-        .eq("status", "active");
+        .eq("status", "active")
+        .eq("bracket_min_level", bracketMinLevel)
+        .eq("bracket_max_level", bracketMaxLevel);
+
+      await endQuery;
     }
 
     const { data, error } = await supabase
@@ -1686,6 +1792,8 @@ app.post("/api/admin/tournaments", async (req, res) => {
         prize_winner: prizeWinner,
         prize_runner_up: prizeRunnerUp,
         prize_third: prizeThird,
+        bracket_min_level: bracketMinLevel,
+        bracket_max_level: bracketMaxLevel,
         status: activate ? "active" : "draft",
         starts_at: startsAt,
         ends_at: endsAt
@@ -1823,7 +1931,7 @@ app.get("/api/admin/metrics", async (req, res) => {
 app.post("/api/tournaments/active", async (req, res) => {
   try {
     const userId = String(req.body.userId || "");
-    const tournament = await getActiveTournament();
+    const tournament = await getActiveTournament(userId);
 
     if (!tournament) {
       res.json({ tournament: null });
@@ -1861,13 +1969,23 @@ app.post("/api/tournaments/join", async (req, res) => {
       return;
     }
 
+    const row = await loadGame(userId);
+    const playerLevel = empireLevel(row);
+    if (!tournamentMatchesLevel(tournament, playerLevel)) {
+      res.status(400).json({
+        error: "BRACKET_MISMATCH",
+        bracketLabel: tournamentBracketLabel(tournament),
+        yourLevel: playerLevel
+      });
+      return;
+    }
+
     const existing = await getTournamentEntry(tournamentId, userId);
     if (existing) {
       res.status(400).json({ error: "ALREADY_JOINED" });
       return;
     }
 
-    const row = await loadGame(userId);
     const fee = number(tournament.entry_fee);
 
     if (fee > 0 && number(row.coins) < fee) {
@@ -1958,6 +2076,100 @@ app.post("/api/tournaments/leaderboard", async (req, res) => {
         };
       })
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+function requireCron(req, res) {
+  if (!CRON_SECRET) {
+    res.status(503).json({ error: "CRON_NOT_CONFIGURED" });
+    return false;
+  }
+
+  const secret = String(req.headers["x-cron-secret"] || req.body.secret || "").trim();
+  if (secret !== CRON_SECRET) {
+    res.status(401).json({ error: "UNAUTHORIZED" });
+    return false;
+  }
+
+  return true;
+}
+
+async function sendPushMessage(telegramId, text) {
+  if (!TELEGRAM_BOT_TOKEN) return false;
+
+  try {
+    const webAppUrl = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2019";
+    await telegramApi("sendMessage", {
+      chat_id: telegramId,
+      text,
+      reply_markup: {
+        inline_keyboard: [[{
+          text: "🎮 Play Wealthia",
+          web_app: { url: webAppUrl }
+        }]]
+      }
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+app.post("/api/cron/daily-push", async (req, res) => {
+  if (!requireCron(req, res)) return;
+
+  try {
+    const hourUtc = new Date().getUTCHours();
+    const force = Boolean(req.body.force);
+
+    if (!force && hourUtc !== DAILY_PUSH_HOUR_UTC) {
+      res.json({
+        ok: true,
+        skipped: true,
+        reason: "NOT_PUSH_HOUR",
+        hourUtc,
+        pushHour: DAILY_PUSH_HOUR_UTC
+      });
+      return;
+    }
+
+    const today = todayKey();
+    const { data: users, error } = await supabase
+      .from("users")
+      .select("id, first_name, last_push_date")
+      .neq("last_push_date", today)
+      .limit(500);
+
+    if (error) throw error;
+
+    let sent = 0;
+    for (const user of users || []) {
+      const name = user.first_name || "Builder";
+      const text = [
+        "🏆 Wealthia Daily Reminder",
+        "",
+        "⚡ Gold Rush — 2x tap coins for 15 min (once daily)",
+        "🎁 Claim your daily streak in Tasks",
+        "🏅 Join your level bracket tournament in Rank",
+        "",
+        `Hi ${name}, tap Play to continue your empire!`
+      ].join("\n");
+
+      const ok = await sendPushMessage(user.id, text);
+      if (ok) {
+        sent += 1;
+        await supabase
+          .from("users")
+          .update({ last_push_date: today })
+          .eq("id", user.id);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+
+    res.json({ ok: true, sent, total: (users || []).length });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

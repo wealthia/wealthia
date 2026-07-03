@@ -4,6 +4,9 @@ const BOT_USERNAME = process.env.BOT_USERNAME || "WealthiaGameBot";
 const CHANNEL_URL = process.env.CHANNEL_URL || "";
 const BACKEND_URL = process.env.BACKEND_URL || "https://wealthia-backend.onrender.com";
 const STARS_WEBHOOK_SECRET = process.env.STARS_WEBHOOK_SECRET || process.env.ADMIN_SECRET || "";
+const CRON_SECRET = process.env.CRON_SECRET || STARS_WEBHOOK_SECRET || "";
+const ENABLE_DAILY_PUSH = process.env.ENABLE_DAILY_PUSH === "true";
+const DAILY_PUSH_HOUR_UTC = Number(process.env.DAILY_PUSH_HOUR_UTC || 10);
 
 const STAR_PRODUCT_IDS = new Set([
   "refill_energy",
@@ -340,8 +343,49 @@ function startBotPolling() {
   console.log("Telegram bot polling started.");
   console.log("WebApp:", WEBAPP_URL);
   if (CHANNEL_URL) console.log("Channel:", CHANNEL_URL);
+  if (ENABLE_DAILY_PUSH) console.log("Daily push enabled at UTC hour", DAILY_PUSH_HOUR_UTC);
 
-  setupBotProfile().finally(() => poll());
+  setupBotProfile().finally(() => {
+    poll();
+    scheduleDailyPush();
+  });
+}
+
+let lastDailyPushDate = "";
+
+async function runDailyPushCron() {
+  if (!CRON_SECRET) return;
+
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/cron/daily-push`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-cron-secret": CRON_SECRET
+      },
+      body: JSON.stringify({})
+    });
+
+    const result = await response.json();
+    if (result.sent) {
+      console.log(`Daily push sent to ${result.sent} players.`);
+    }
+  } catch (error) {
+    console.warn("Daily push cron failed:", error.message);
+  }
+}
+
+function scheduleDailyPush() {
+  if (!ENABLE_DAILY_PUSH) return;
+
+  setInterval(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const hour = new Date().getUTCHours();
+    if (hour === DAILY_PUSH_HOUR_UTC && lastDailyPushDate !== today) {
+      lastDailyPushDate = today;
+      runDailyPushCron();
+    }
+  }, 30 * 60 * 1000);
 }
 
 module.exports = { startBotPolling };

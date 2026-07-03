@@ -23,6 +23,10 @@ services:
         sync: false
       - key: ALLOW_EARN_RESET
         value: "true"
+      - key: ENABLE_DAILY_PUSH
+        value: "true"
+      - key: DAILY_PUSH_HOUR_UTC
+        value: "10"
 
   - type: worker
     name: wealthia-bot
