@@ -2381,6 +2381,11 @@ button.completed strong {
   }
 }
 
+.onboarding[hidden] {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 /* Onboarding tutorial */
 .onboarding {
   position: fixed;

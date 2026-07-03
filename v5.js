@@ -26,6 +26,12 @@ let lastGrandPrizeMilestone = 0;
 
 const TASK_REFRESH_MS = 12 * 60 * 60 * 1000;
 
+const CONTEST_SEED_IDS = {
+  Marcus: "contest_seed_1",
+  Emma: "contest_seed_2",
+  Ryan: "contest_seed_3"
+};
+
 const onboardingKey = `wealthia_onboarding_${CONFIG.ONBOARDING_VERSION || "v1"}`;
 
 const storageKey = "wealthiaV5State";
@@ -129,13 +135,6 @@ const els = {
   tournamentPanel: document.getElementById("tournamentPanel"),
   globalLeaderboard: document.getElementById("globalLeaderboard")
 };
-
-connectBackend();
-initTelegramWebApp();
-initAdsGram();
-setupOnboarding();
-setupTapControls();
-render();
 
 function loadState() {
   const saved = localStorage.getItem(storageKey);
@@ -431,11 +430,6 @@ async function shareInviteLink() {
     switchToFriendsTab();
     showToast("Copy the link below and send to friends.");
   }
-}
-
-function isMainView() {
-  const appRoot = document.getElementById("appRoot");
-  return !appRoot || appRoot.classList.contains("view-main");
 }
 
 function renderDailyPrizeCardHtml() {
@@ -1091,12 +1085,6 @@ function renderEarnPanel() {
     </section>
   `;
 }
-
-const CONTEST_SEED_IDS = {
-  Marcus: "contest_seed_1",
-  Emma: "contest_seed_2",
-  Ryan: "contest_seed_3"
-};
 
 function leaderboardCandidateKey(row) {
   if (row.isYou) return "__you__";
@@ -2446,10 +2434,6 @@ document.querySelectorAll(".tab").forEach((tab) => {
       loadLeaderboard();
       loadTournament();
     }
-
-    if (tab.dataset.view === "main" || tab.dataset.tab === "rankPanel") {
-      renderCampaignBanner();
-    }
   });
 });
 
@@ -2489,6 +2473,17 @@ const resetButton = document.getElementById("resetButton");
 if (resetButton) {
   resetButton.addEventListener("click", resetGame);
 }
+
+function bootApp() {
+  initTelegramWebApp();
+  initAdsGram();
+  setupOnboarding();
+  setupTapControls();
+  render();
+  connectBackend();
+}
+
+bootApp();
 
 window.setInterval(refreshBackendState, 10000);
 
