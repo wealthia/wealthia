@@ -174,11 +174,41 @@ p {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  padding-bottom: 4px;
+}
+
+.app.view-city .header {
+  margin-bottom: 6px;
+}
+
+.app.view-city .brand__mark {
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  border-radius: 12px;
+}
+
+.app.view-city .header h1 {
+  font-size: 20px;
+}
+
+.app.view-city .brand__eyebrow {
+  font-size: 8px;
+}
+
+.app.view-city .round-button {
+  width: 36px;
+  height: 36px;
 }
 
 .app.view-city .header,
 .app.view-city .game-shell {
   flex-shrink: 0;
+}
+
+.app.view-city .game-shell {
+  display: grid;
+  gap: 4px;
 }
 
 .app.view-city #cityPanel.panel.active {
@@ -188,40 +218,56 @@ p {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding-right: 2px;
+  gap: 6px;
+  align-content: start;
 }
 
 .app.view-city .stats {
-  gap: 6px;
-  margin-bottom: 8px;
-}
-
-.app.view-city .stat {
-  min-height: 64px;
-  padding: 8px 8px 6px;
-}
-
-.app.view-city .stat__icon {
-  font-size: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
   margin-bottom: 4px;
 }
 
+.app.view-city .stat {
+  min-height: 44px;
+  padding: 5px 4px 4px;
+  text-align: center;
+}
+
+.app.view-city .stat__icon {
+  display: none;
+}
+
 .app.view-city .stat span {
-  font-size: 9px;
+  font-size: 7px;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
 }
 
 .app.view-city .stat strong {
-  font-size: 15px;
-  margin-top: 4px;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.app.view-city .stat strong small {
+  font-size: 9px;
 }
 
 .app.view-city .city {
-  height: 140px !important;
+  height: 88px !important;
+}
+
+.app.view-city .city__label {
+  top: 6px;
+  left: 8px;
+  padding: 4px 8px;
+  font-size: 8px;
 }
 
 .app.view-city .energy-section {
-  padding: 0 0 4px;
+  padding: 0;
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
 .app.view-city .energy-section .grand-prize,
@@ -230,57 +276,104 @@ p {
 }
 
 .app.view-city .gold-rush {
-  padding: 10px 12px;
-  border-radius: 12px;
-  min-height: 52px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  min-height: 0;
+}
+
+.app.view-city .gold-rush strong {
+  font-size: 13px;
+}
+
+.app.view-city .gold-rush small {
+  font-size: 10px;
 }
 
 .app.view-city .daily-prize--strip {
-  padding: 8px 12px;
+  padding: 6px 10px;
   margin-bottom: 0;
-  min-height: 52px;
+  min-height: 0;
 }
 
 .app.view-city .daily-prize-strip {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 6px;
+  flex-wrap: nowrap;
 }
 
 .app.view-city .daily-prize-strip strong {
-  font-size: 13px;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .app.view-city .daily-prize-strip__gain {
   margin-left: auto;
   color: var(--gold-light);
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 900;
 }
 
 .app.view-city .daily-prize-strip__hint {
-  margin: 6px 0 0;
-  font-size: 11px;
-  color: var(--muted);
+  display: none;
 }
 
 .app.view-city .grand-prize.daily-prize--strip .grand-prize__badge {
-  font-size: 9px;
-  padding: 3px 8px;
+  font-size: 8px;
+  padding: 2px 6px;
+}
+
+.app.view-city .energy-wrap {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.app.view-city .energy-bar {
+  height: 8px;
+}
+
+.app.view-city .energy-label {
+  margin: 0;
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.app.view-city .tap-area {
+  padding: 0;
 }
 
 .app.view-city #cityPanel .panel-head {
-  margin-bottom: 6px;
-}
-
-.app.view-city #cityPanel .panel-head h2 {
-  font-size: 18px;
+  display: none;
 }
 
 .app.view-city #cityPanel .card {
-  min-height: 68px;
-  padding: 12px;
+  min-height: 52px;
+  padding: 8px 10px;
+  gap: 8px;
+}
+
+.app.view-city #cityPanel .card__icon {
+  width: 34px;
+  height: 34px;
+  font-size: 16px;
+  border-radius: 10px;
+}
+
+.app.view-city #cityPanel .card h2 {
+  font-size: 14px;
+}
+
+.app.view-city #cityPanel .card p {
+  font-size: 10px;
+  margin-top: 1px;
+}
+
+.app.view-city #cityPanel .buy-button {
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 10px;
 }
 
 /* Tasks tab — fill screen, large cards */
