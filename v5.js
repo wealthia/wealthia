@@ -1150,7 +1150,7 @@ function ordinalRank(rank) {
   return `${value}th`;
 }
 
-function renderRankRow(row, mode = "global") {
+function renderRankRow(row, mode = "global", options = {}) {
   const daily = mode === "daily";
   const rank = Number(row.rank || 0);
   const value = daily
@@ -1158,7 +1158,9 @@ function renderRankRow(row, mode = "global") {
     : Number(row.cityValue || 0);
   const display = daily ? `+${format(value)}` : format(value);
   const label = row.isYou
-    ? (rank > 3 ? `Your place · ${ordinalRank(rank)}` : "You")
+    ? (options.isYourPlaceRow || rank > 3
+      ? `Your place · ${ordinalRank(rank)}`
+      : "You")
     : row.name;
 
   return `
@@ -1171,17 +1173,16 @@ function renderRankRow(row, mode = "global") {
 }
 
 function buildDailyLeaderboardRows() {
-  const rows = dailyLeaderboardTop3.length
-    ? [...dailyLeaderboardTop3]
-    : [];
+  const rows = dailyLeaderboardTop3.length ? [...dailyLeaderboardTop3] : [];
 
-  const youInList = rows.some((row) => row.isYou);
-  if (youInList) return rows.length ? rows : [{
-    rank: 1,
-    name: "You",
-    dailyScore: todayGainScore(),
-    isYou: true
-  }];
+  if (rows.some((row) => row.isYou)) {
+    return rows.length ? rows : [{
+      rank: 1,
+      name: "You",
+      dailyScore: todayGainScore(),
+      isYou: true
+    }];
+  }
 
   const score = Math.max(
     Number(dailyContestScore || 0),
@@ -1193,28 +1194,19 @@ function buildDailyLeaderboardRows() {
   if (!rank) {
     rank = 1 + rows.filter((row) => Number(row.dailyScore || row.score || 0) > score).length;
   }
-
-  const you = dailyLeaderboardYou || (backendReady ? {
-    rank,
-    name: "You",
-    dailyScore: score,
-    isYou: true
-  } : null);
-
-  if (you && rank > 3) {
-    rows.push({
-      ...you,
-      rank,
-      dailyScore: Number(you.dailyScore || you.score || score)
-    });
+  if (!rank) {
+    rank = rows.length + 1;
   }
 
-  return rows.length ? rows : [{
-    rank: 1,
+  rows.push({
+    rank,
     name: "You",
-    dailyScore: score,
-    isYou: true
-  }];
+    dailyScore: Number(dailyLeaderboardYou?.dailyScore || dailyLeaderboardYou?.score || score),
+    isYou: true,
+    isYourPlaceRow: true
+  });
+
+  return rows;
 }
 
 function renderRankPanel() {
@@ -1253,7 +1245,11 @@ function renderRankPanel() {
       <p>${dailyMode ? "Top players by today's gain" : "Top empire builders by city value"}</p>
     </div>
     <ol class="rank">
-      ${top3.map((row) => renderRankRow(row, dailyMode ? "daily" : "global")).join("")}
+      ${top3.map((row) => renderRankRow(
+        row,
+        dailyMode ? "daily" : "global",
+        { isYourPlaceRow: Boolean(row.isYourPlaceRow) }
+      )).join("")}
     </ol>
     ${youBlock}
   `;

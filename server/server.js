@@ -1860,6 +1860,9 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
           userId,
           number(contest.daily_contest_score)
         );
+        if (!yourDailyRank) {
+          yourDailyRank = rankRows.length;
+        }
       }
     }
 
@@ -1902,8 +1905,12 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
     const dailyTop3 = dailyTopData.map((row, index) => rowFromGame(row, index + 1, "dailyScore"));
 
     const youInDailyTop3 = dailyTop3.some((row) => row.isYou);
-    const dailyYou = yourDailyGame && yourDailyRank > 3 && !youInDailyTop3
-      ? rowFromGame(yourDailyGame, yourDailyRank, "dailyScore")
+    const dailyYou = yourDailyGame && !youInDailyTop3
+      ? rowFromGame(
+        yourDailyGame,
+        Math.max(number(yourDailyRank), 1),
+        "dailyScore"
+      )
       : null;
 
     res.json({
