@@ -1158,9 +1158,7 @@ function renderRankRow(row, mode = "global", options = {}) {
     : Number(row.cityValue || 0);
   const display = daily ? `+${format(value)}` : format(value);
   const label = row.isYou
-    ? (options.isYourPlaceRow || rank > 3
-      ? `Your place · ${ordinalRank(rank)}`
-      : "You")
+    ? (options.isYourPlaceRow ? `Your place · ${ordinalRank(rank)}` : "You")
     : row.name;
 
   return `
@@ -1175,36 +1173,18 @@ function renderRankRow(row, mode = "global", options = {}) {
 function buildDailyLeaderboardRows() {
   const rows = dailyLeaderboardTop3.length ? [...dailyLeaderboardTop3] : [];
 
-  if (rows.some((row) => row.isYou)) {
-    return rows.length ? rows : [{
+  if (!rows.some((row) => row.isYou) && dailyLeaderboardYou && Number(dailyLeaderboardYou.rank) > 3) {
+    rows.push({ ...dailyLeaderboardYou, isYourPlaceRow: true });
+  }
+
+  if (!rows.length) {
+    return [{
       rank: 1,
       name: "You",
       dailyScore: todayGainScore(),
       isYou: true
     }];
   }
-
-  const score = Math.max(
-    Number(dailyContestScore || 0),
-    Number(state.dailyContest?.score || 0),
-    todayGainScore()
-  );
-
-  let rank = Number(dailyYourRank || dailyLeaderboardYou?.rank || 0);
-  if (!rank) {
-    rank = 1 + rows.filter((row) => Number(row.dailyScore || row.score || 0) > score).length;
-  }
-  if (!rank) {
-    rank = rows.length + 1;
-  }
-
-  rows.push({
-    rank,
-    name: "You",
-    dailyScore: Number(dailyLeaderboardYou?.dailyScore || dailyLeaderboardYou?.score || score),
-    isYou: true,
-    isYourPlaceRow: true
-  });
 
   return rows;
 }
