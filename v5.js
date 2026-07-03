@@ -69,9 +69,10 @@ const els = {
   factoryCost: document.getElementById("factoryCost"),
   casinoCardDesc: document.getElementById("casinoCardDesc"),
   casinoCost: document.getElementById("casinoCost"),
-  casinoSpinCard: document.getElementById("casinoSpinCard"),
-  casinoSpinButton: document.getElementById("casinoSpinButton"),
-  casinoSpinHint: document.getElementById("casinoSpinHint"),
+  casinoSpinMount: document.getElementById("casinoSpinMount"),
+  casinoSpinCard: null,
+  casinoSpinButton: null,
+  casinoSpinHint: null,
   casinoUpgradeButton: document.getElementById("casinoUpgradeButton"),
   empireLevel: document.getElementById("empireLevel"),
   empireLevelStat: document.getElementById("empireLevelStat"),
@@ -232,16 +233,57 @@ function renderCasinoCard() {
   }
 }
 
+function removeCasinoSpinCard() {
+  if (els.casinoSpinCard) {
+    els.casinoSpinCard.remove();
+    els.casinoSpinCard = null;
+    els.casinoSpinButton = null;
+    els.casinoSpinHint = null;
+  }
+}
+
+function ensureCasinoSpinCard() {
+  const level = Number(state.buildings.casino || 0);
+  if (level < 1) {
+    removeCasinoSpinCard();
+    return;
+  }
+
+  if (els.casinoSpinCard) return;
+
+  const mount = els.casinoSpinMount || document.getElementById("casinoCard");
+  if (!mount) return;
+
+  const card = document.createElement("article");
+  card.className = "card card--casino-spin";
+  card.id = "casinoSpinCard";
+  card.innerHTML = `
+    <div class="card__icon">&#x1F3B2;</div>
+    <div class="card__body">
+      <h2>Lucky Spin</h2>
+      <p id="casinoSpinHint">Spin once per day for bonus coins.</p>
+    </div>
+    <button class="wide-button casino-spin-button" type="button" id="casinoSpinButton">
+      Spin Now
+    </button>
+  `;
+
+  mount.insertAdjacentElement("beforebegin", card);
+
+  els.casinoSpinCard = card;
+  els.casinoSpinHint = card.querySelector("#casinoSpinHint");
+  els.casinoSpinButton = card.querySelector("#casinoSpinButton");
+  els.casinoSpinButton.addEventListener("click", spinCasino);
+}
+
 function renderCasinoSpin() {
   const level = Number(state.buildings.casino || 0);
   const canSpin = Boolean(state.casino && state.casino.canSpin);
   const spunToday = Boolean(state.casino && state.casino.spunToday);
-  const showSpin = level >= 1;
 
-  if (els.casinoSpinCard) {
-    els.casinoSpinCard.hidden = !showSpin;
-    els.casinoSpinCard.style.display = showSpin ? "" : "none";
-  }
+  ensureCasinoSpinCard();
+
+  if (level < 1 || !els.casinoSpinCard) return;
 
   if (els.casinoSpinButton) {
     els.casinoSpinButton.disabled = !canSpin;
@@ -925,6 +967,12 @@ function upgradeLocal(name) {
 }
 
 async function backendUpgrade(name) {
+  const snapshot = {
+    coins: state.coins,
+    spent: Number(state.spent || 0),
+    level: Number(state.buildings[name] || 0)
+  };
+
   if (!upgradeLocal(name)) return;
   if (!backendReady) return;
 
@@ -933,7 +981,22 @@ async function backendUpgrade(name) {
     building: name
   });
 
-  if (!ok || !result) return;
+  if (!ok || !result || !result.user) {
+    state.coins = snapshot.coins;
+    state.spent = snapshot.spent;
+    state.buildings[name] = snapshot.level;
+    saveState();
+    render();
+
+    if (result && result.error === "NOT_ENOUGH_COINS") {
+      showToast("Not enough Wealth Coin.");
+    } else if (name === "casino") {
+      showToast("Casino save failed. Run migration-casino-level.sql in Supabase.");
+    } else {
+      showToast("Upgrade failed. Try again.");
+    }
+    return;
+  }
 
   syncFromBackend(result.user);
   saveState();
@@ -1165,11 +1228,6 @@ async function spinCasino() {
     result.user,
     `${labels[result.tier] || "Win!"} +${format(result.reward)}`
   );
-}
-
-const casinoSpinButton = document.getElementById("casinoSpinButton");
-if (casinoSpinButton) {
-  casinoSpinButton.addEventListener("click", spinCasino);
 }
 
 document.querySelectorAll("[data-upgrade]").forEach((button) => {
