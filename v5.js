@@ -1141,20 +1141,42 @@ function ordinalRank(rank) {
   return `${value}th`;
 }
 
-function renderRankRow(row, mode = "global") {
+function renderRankRow(row, mode = "global", options = {}) {
   const daily = mode === "daily";
   const value = daily
     ? Number(row.dailyScore || row.score || 0)
     : Number(row.cityValue || 0);
   const display = daily ? `+${format(value)}` : format(value);
+  const label = row.isYou
+    ? (options.showYouRank ? `You · ${ordinalRank(row.rank)}` : "You")
+    : row.name;
 
   return `
     <li class="${row.isYou ? "rank__you" : ""}">
       <span class="rank__medal">${medalForRank(row.rank)}</span>
-      <span>${row.isYou ? "You" : row.name}</span>
+      <span>${label}</span>
       <strong>${display}</strong>
     </li>
   `;
+}
+
+function buildDailyLeaderboardRows() {
+  const rows = dailyLeaderboardTop3.length
+    ? [...dailyLeaderboardTop3]
+    : [{
+      rank: 1,
+      name: "You",
+      dailyScore: todayGainScore(),
+      isYou: true
+    }];
+
+  const you = dailyLeaderboardYou;
+  const youInList = rows.some((row) => row.isYou);
+  if (you && !youInList) {
+    rows.push(you);
+  }
+
+  return rows;
 }
 
 function renderRankPanel() {
@@ -1162,15 +1184,9 @@ function renderRankPanel() {
   if (!panel) return;
 
   const dailyMode = Boolean(getDailyPrizeConfig());
+  const dailyRows = buildDailyLeaderboardRows();
   const top3 = dailyMode
-    ? (dailyLeaderboardTop3.length
-      ? dailyLeaderboardTop3
-      : [{
-        rank: 1,
-        name: "You",
-        dailyScore: todayGainScore(),
-        isYou: true
-      }])
+    ? dailyRows
     : (leaderboardTop3.length
       ? leaderboardTop3
       : [{
@@ -1180,14 +1196,14 @@ function renderRankPanel() {
         isYou: true
       }]);
 
-  const you = dailyMode ? dailyLeaderboardYou : leaderboardYou;
+  const you = dailyMode ? null : leaderboardYou;
   const youBlock = you
     ? `
       <div class="rank-your-place">
         <span class="rank-your-place__label">Your place · ${ordinalRank(you.rank)}</span>
       </div>
       <ol class="rank rank--you-only">
-        ${renderRankRow(you, dailyMode ? "daily" : "global")}
+        ${renderRankRow(you, "global")}
       </ol>
     `
     : "";
@@ -1199,7 +1215,11 @@ function renderRankPanel() {
       <p>${dailyMode ? "Top players by today's gain" : "Top empire builders by city value"}</p>
     </div>
     <ol class="rank">
-      ${top3.map((row) => renderRankRow(row, dailyMode ? "daily" : "global")).join("")}
+      ${top3.map((row) => renderRankRow(
+        row,
+        dailyMode ? "daily" : "global",
+        { showYouRank: dailyMode && row.isYou && row.rank > 3 }
+      )).join("")}
     </ol>
     ${youBlock}
   `;

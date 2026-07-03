@@ -4,7 +4,8 @@
 
 const SEED_PLAYERS = [
   { userId: "contest_seed_1", name: "Marcus", referralCount: 4 },
-  { userId: "contest_seed_2", name: "Emma", referralCount: 3 }
+  { userId: "contest_seed_2", name: "Emma", referralCount: 3 },
+  { userId: "contest_seed_3", name: "Ryan", referralCount: 3 }
 ];
 
 const SLOT_MINUTES = 20;
@@ -74,10 +75,14 @@ function morningTargets(effectiveSlot, realScores, topReal) {
   const firstScore = secondScore > 0
     ? Math.min(secondScore + LEADER_GAP, Math.max(0, topReal - 140))
     : 0;
+  const thirdScore = secondScore > 0
+    ? Math.max(0, secondScore - LEADER_GAP)
+    : 0;
 
   return {
     [SEED_PLAYERS[0].userId]: Math.max(firstScore, 0),
-    [SEED_PLAYERS[1].userId]: secondScore
+    [SEED_PLAYERS[1].userId]: secondScore,
+    [SEED_PLAYERS[2].userId]: thirdScore
   };
 }
 
@@ -87,6 +92,7 @@ function afternoonTargets(effectiveSlot, realScores, topReal, postNoonBlend) {
   const base = baseSlotScore(effectiveSlot);
   const endSecond = Math.max(topReal + 110, base + 180);
   const endFirst = endSecond + LEADER_GAP;
+  const endThird = Math.max(0, endSecond - LEADER_GAP);
 
   return {
     [SEED_PLAYERS[0].userId]: Math.floor(
@@ -94,6 +100,9 @@ function afternoonTargets(effectiveSlot, realScores, topReal, postNoonBlend) {
     ),
     [SEED_PLAYERS[1].userId]: Math.floor(
       morning[SEED_PLAYERS[1].userId] + (endSecond - morning[SEED_PLAYERS[1].userId]) * climb
+    ),
+    [SEED_PLAYERS[2].userId]: Math.floor(
+      (morning[SEED_PLAYERS[2].userId] || 0) + (endThird - (morning[SEED_PLAYERS[2].userId] || 0)) * climb
     )
   };
 }
