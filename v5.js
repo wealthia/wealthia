@@ -1832,7 +1832,7 @@ async function apiPost(path, body = {}) {
 }
 
 async function applyBackendUser(user, message) {
-  if (!user) return false;
+  if (!user || !user.game) return false;
 
   syncFromBackend(user);
   backendReady = true;
@@ -1847,21 +1847,35 @@ async function applyBackendUser(user, message) {
 }
 
 let backendReconnectTimer = null;
+let backendReconnectAttempts = 0;
 
 function scheduleBackendReconnect() {
   if (backendReconnectTimer || !getTelegramInitData()) return;
 
+  const delay = Math.min(5000 + backendReconnectAttempts * 2000, 15000);
+  backendReconnectAttempts += 1;
+
   backendReconnectTimer = window.setTimeout(async () => {
     backendReconnectTimer = null;
-    await connectBackend(2);
-  }, 8000);
+    await connectBackend(4);
+  }, delay);
 }
 
 async function sleep(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-async function connectBackend(retries = 3) {
+async function wakeBackend() {
+  try {
+    await fetch(`${API_URL}/health`, { method: "GET", cache: "no-store" });
+  } catch {
+    // Render cold start — session retry will follow.
+  }
+}
+
+async function connectBackend(retries = 6) {
+  await wakeBackend();
+
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     const { ok, result, status } = await apiPost("/api/session", {
       initData: getTelegramInitData(),
@@ -1869,10 +1883,16 @@ async function connectBackend(retries = 3) {
       referrerId: getReferrerId()
     });
 
-    if (ok && result && !result.error) {
+    if (ok && result && !result.error && result.game) {
       backendUserId = result.userId;
       backendSessionToken = result.token || "";
-      await applyBackendUser(result, attempt > 0 ? "Backend reconnected." : "Backend connected.");
+      backendReconnectAttempts = 0;
+      const silent = attempt === 0 && !messageShownRecently("backend-connected");
+      await applyBackendUser(
+        result,
+        silent ? "" : attempt > 0 ? "Backend reconnected." : "Backend connected."
+      );
+      if (!silent && attempt === 0) markMessageShown("backend-connected");
       await loadTournament();
       return true;
     }
@@ -1880,13 +1900,17 @@ async function connectBackend(retries = 3) {
     if (result && result.error === "INVALID_TELEGRAM_AUTH") {
       backendReady = false;
       backendSessionToken = "";
-      showToast("Open the game inside Telegram.");
+      showToast(
+        getTelegramInitData()
+          ? "Login failed. Close and reopen from Telegram."
+          : "Open the game inside Telegram."
+      );
       render();
       return false;
     }
 
     if (attempt < retries && (status === 0 || status >= 500)) {
-      await sleep(1500 * (attempt + 1));
+      await sleep(2000 * (attempt + 1));
       continue;
     }
 
@@ -1896,12 +1920,31 @@ async function connectBackend(retries = 3) {
   backendReady = false;
   backendSessionToken = "";
   if (!getTelegramInitData()) {
-    showToast("Backend offline. Local mode.");
+    showToast("Backend offline. Local mode — tap still works.");
   } else {
+    showToast("Server waking up... retrying.");
     scheduleBackendReconnect();
   }
   render();
   return false;
+}
+
+function messageShownRecently(key) {
+  try {
+    const raw = sessionStorage.getItem(`wealthia_msg_${key}`);
+    if (!raw) return false;
+    return Date.now() - Number(raw) < 60000;
+  } catch {
+    return false;
+  }
+}
+
+function markMessageShown(key) {
+  try {
+    sessionStorage.setItem(`wealthia_msg_${key}`, String(Date.now()));
+  } catch {
+    // ignore
+  }
 }
 
 async function loadLeaderboard() {
@@ -2481,6 +2524,12 @@ function bootApp() {
   setupTapControls();
   render();
   connectBackend();
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && !backendReady && getTelegramInitData()) {
+      connectBackend(3);
+    }
+  });
 }
 
 bootApp();
