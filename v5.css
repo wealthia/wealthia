@@ -962,8 +962,40 @@ button.completed strong {
   color: var(--gold-light);
 }
 
+.boost-grid--stars {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.boost-grid--stars .boost-button {
+  min-height: 72px;
+  padding: 8px 4px;
+  gap: 2px;
+  font-size: 10px;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.boost-grid--stars .boost-button__icon {
+  font-size: 16px;
+}
+
+.boost-grid--stars .boost-button span:last-child {
+  font-size: 9px;
+}
+
 .stars-shop {
   border-color: rgba(124, 92, 255, 0.28);
+  padding: 12px;
+}
+
+.stars-shop h2 {
+  font-size: 16px;
+}
+
+.stars-shop .earn-note {
+  font-size: 11px;
 }
 
 .earn-note {
