@@ -1,5 +1,5 @@
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
-const WEBAPP_URL = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2045";
+const WEBAPP_URL = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2046";
 const BOT_USERNAME = process.env.BOT_USERNAME || "WealthiaGameBot";
 const CHANNEL_URL = process.env.CHANNEL_URL || "";
 const BACKEND_URL = process.env.BACKEND_URL || "https://wealthia-backend.onrender.com";
