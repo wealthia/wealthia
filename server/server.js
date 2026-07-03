@@ -41,6 +41,8 @@ const GOLD_RUSH_MULTIPLIER = 2;
 const CRON_SECRET = process.env.CRON_SECRET || process.env.ADMIN_SECRET || "";
 const DAILY_PUSH_HOUR_UTC = Math.max(0, Math.min(23, Number(process.env.DAILY_PUSH_HOUR_UTC) || 10));
 const DAILY_PRIZE_MIN_REFERRALS = Math.max(0, Number(process.env.DAILY_PRIZE_MIN_REFERRALS) || 3);
+const REFERRAL_STATUS_QUALIFIED = "qualified";
+const REFERRAL_STATUS_REJECTED_BOT = "rejected_bot";
 const TAP_RATE_WINDOW_MS = 1000;
 const MAX_TAPS_PER_WINDOW = 10;
 const TAP_VIOLATION_ALERT_THRESHOLD = 25;
@@ -791,13 +793,14 @@ function toClientUser(row, extra = {}) {
   };
 }
 
-async function creditReferrer(referrerId, newUserId) {
+async function creditReferrer(referrerId, newUserId, options = {}) {
   const referrer = String(referrerId || "");
   const newbie = String(newUserId || "");
 
   if (!referrer || !newbie || referrer === newbie) return;
 
-  await recordReferral(referrer, newbie);
+  const recorded = await recordReferral(referrer, newbie, options);
+  if (!recorded) return;
 
   const { data: refRow } = await supabase
     .from("game_states")
@@ -820,15 +823,48 @@ async function creditReferrer(referrerId, newUserId) {
     .eq("user_id", referrer);
 }
 
-async function recordReferral(referrerId, referredUserId) {
+async function isReferralBotAccount(userId, options = {}) {
+  if (options.isBot) return true;
+  if (String(userId) === "web_demo") return true;
+
+  try {
+    const chat = await telegramApi("getChat", { chat_id: Number(userId) });
+    return Boolean(chat?.is_bot);
+  } catch {
+    return false;
+  }
+}
+
+async function recordReferral(referrerId, referredUserId, options = {}) {
   const referrer = String(referrerId || "");
   const referred = String(referredUserId || "");
 
   if (!referrer || !referred || referrer === referred) return false;
 
+  const isBot = await isReferralBotAccount(referred, options);
+  if (isBot) {
+    const { error } = await supabase.from("referrals").upsert({
+      referrer_id: referrer,
+      referred_user_id: referred,
+      status: REFERRAL_STATUS_REJECTED_BOT,
+      reject_reason: "telegram_bot"
+    }, { onConflict: "referred_user_id" });
+
+    if (error && error.code !== "23505") {
+      console.error("REFERRAL_BOT_REJECT_ERROR:", error);
+    }
+
+    await logMetric("referral_bot_blocked", 1, `referrer=${referrer}`, {
+      userId: referrer
+    });
+    return false;
+  }
+
   const { error } = await supabase.from("referrals").insert({
     referrer_id: referrer,
-    referred_user_id: referred
+    referred_user_id: referred,
+    status: REFERRAL_STATUS_QUALIFIED,
+    reject_reason: ""
   });
 
   if (error) {
@@ -836,16 +872,12 @@ async function recordReferral(referrerId, referredUserId) {
     throw error;
   }
 
-  const { data: userRow } = await supabase
-    .from("users")
-    .select("referral_count")
-    .eq("id", referrer)
-    .maybeSingle();
+  const qualifiedCount = await getReferralCount(referrer);
 
   await supabase
     .from("users")
     .update({
-      referral_count: number(userRow?.referral_count) + 1
+      referral_count: qualifiedCount
     })
     .eq("id", referrer);
 
@@ -853,14 +885,14 @@ async function recordReferral(referrerId, referredUserId) {
 }
 
 async function getReferralCount(userId) {
-  const { data, error } = await supabase
-    .from("users")
-    .select("referral_count")
-    .eq("id", String(userId))
-    .maybeSingle();
+  const { count, error } = await supabase
+    .from("referrals")
+    .select("*", { count: "exact", head: true })
+    .eq("referrer_id", String(userId))
+    .eq("status", REFERRAL_STATUS_QUALIFIED);
 
   if (error) throw error;
-  return number(data?.referral_count);
+  return number(count);
 }
 
 async function getReferralCounts(userIds) {
@@ -871,14 +903,15 @@ async function getReferralCounts(userIds) {
   if (!ids.length) return counts;
 
   const { data, error } = await supabase
-    .from("users")
-    .select("id, referral_count")
-    .in("id", ids);
+    .from("referrals")
+    .select("referrer_id")
+    .in("referrer_id", ids)
+    .eq("status", REFERRAL_STATUS_QUALIFIED);
 
   if (error) throw error;
 
   for (const row of data || []) {
-    counts.set(row.id, number(row.referral_count));
+    counts.set(row.referrer_id, (counts.get(row.referrer_id) || 0) + 1);
   }
 
   return counts;
@@ -893,6 +926,12 @@ async function getOrCreatePlayer(telegramUser, referrerId = "") {
   const name = telegramUser?.first_name || "Player";
   const username = telegramUser?.username || "";
   const referrer = parseReferrerId(referrerId);
+
+  if (Boolean(telegramUser?.is_bot)) {
+    const error = new Error("BOTS_NOT_ALLOWED");
+    error.code = "BOTS_NOT_ALLOWED";
+    throw error;
+  }
 
   await supabase.from("users").upsert({
     id: telegramId,
@@ -956,7 +995,9 @@ async function getOrCreatePlayer(telegramUser, referrerId = "") {
   if (error) throw error;
 
   if (referrer) {
-    await creditReferrer(referrer, telegramId);
+    await creditReferrer(referrer, telegramId, {
+      isBot: Boolean(telegramUser?.is_bot)
+    });
   }
 
   return data;
@@ -1006,7 +1047,7 @@ app.get("/health", (_req, res) => {
     ok: true,
     app: "Wealthia API",
     database: true,
-    version: "daily-contest-v2"
+    version: "referral-bot-block-v1"
   });
 });
 
@@ -1037,6 +1078,10 @@ app.post("/api/session", async (req, res) => {
     });
   } catch (error) {
     console.error("SESSION_ERROR:", error);
+    if (error.code === "BOTS_NOT_ALLOWED") {
+      res.status(403).json({ error: "BOTS_NOT_ALLOWED" });
+      return;
+    }
     res.status(500).json({
       error: error.message,
       details: error.details || "",
