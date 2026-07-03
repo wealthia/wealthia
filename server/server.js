@@ -699,13 +699,8 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, app: "Wealthia API", database: true, version: "stars-bot-embedded-v1" });
 });
 
-// AdsGram server-side reward callback (GET with userid=[userId] placeholder)
-app.get("/api/adsgram/reward", (req, res) => {
-  const userId = String(req.query.userid || req.query.userId || "").trim();
-  if (!userId || userId === "[userId]") {
-    res.status(200).send("ok");
-    return;
-  }
+// AdsGram server-side reward callback (GET; userid=[userId] replaced by AdsGram)
+app.get("/api/adsgram/reward", (_req, res) => {
   res.status(200).send("ok");
 });
 
