@@ -280,7 +280,7 @@ h1 {
 /* City scene */
 .city {
   position: relative;
-  height: 230px;
+  height: 170px;
   overflow: hidden;
   border: 1px solid var(--line-bright);
   border-radius: var(--radius);
@@ -507,13 +507,22 @@ h1 {
   50% { transform: translateY(-4px); }
 }
 
+/* Energy bar — separate from tap so they never overlap */
+.energy-section {
+  width: 100%;
+  padding: 0 0 12px;
+}
+
+.energy-wrap {
+  width: 100%;
+}
+
 /* Tap area */
 .tap-area {
   position: relative;
   display: grid;
   justify-items: center;
-  gap: 10px;
-  padding: 8px 0 6px;
+  padding: 0 0 10px;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -523,44 +532,14 @@ h1 {
   position: relative;
   display: grid;
   place-items: center;
-  width: 100px;
-  height: 100px;
+  width: 84px;
+  height: 84px;
+  overflow: hidden;
   touch-action: none;
 }
 
 .tap-ring {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  border-radius: 50%;
-  border: 1px solid rgba(245, 196, 81, 0.2);
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-
-.tap-ring--outer {
-  width: 100px;
-  height: 100px;
-  animation: ringPulse 2.8s ease-out infinite;
-}
-
-.tap-ring--inner {
-  width: 88px;
-  height: 88px;
-  animation: ringPulse 2.8s ease-out infinite 0.6s;
-}
-
-@keyframes ringPulse {
-  0% {
-    opacity: 0.7;
-    transform: translate(-50%, -50%) scale(0.92);
-  }
-
-  70%,
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(1.12);
-  }
+  display: none;
 }
 
 .tap-button {
@@ -569,20 +548,15 @@ h1 {
   display: grid;
   place-content: center;
   gap: 0;
-  width: 88px;
-  height: 88px;
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
   border: 2px solid rgba(255, 220, 130, 0.45);
   background:
     radial-gradient(circle at 35% 28%, #fff4c4 0%, #f5c451 38%, #d4921a 72%, #8f5a0e 100%);
-  box-shadow:
-    0 0 0 3px rgba(245, 196, 81, 0.12),
-    0 0 20px rgba(245, 196, 81, 0.28),
-    0 6px 0 #5c3a0a,
-    inset 0 -4px 12px rgba(0, 0, 0, 0.2),
-    inset 0 2px 8px rgba(255, 255, 255, 0.35);
+  box-shadow: 0 0 18px rgba(245, 196, 81, 0.45);
   color: #2a1604;
-  transition: transform 0.06s ease, box-shadow 0.06s ease;
+  transition: transform 0.06s ease;
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
 }
@@ -597,7 +571,7 @@ h1 {
 
 .tap-button span {
   position: relative;
-  font-size: 17px;
+  font-size: 14px;
   font-weight: 900;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -605,44 +579,32 @@ h1 {
 
 .tap-button strong {
   position: relative;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 900;
 }
 
 .tap-button__hint {
   position: relative;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   opacity: 0.65;
 }
 
 .tap-button:active {
-  transform: scale(0.96);
-  box-shadow:
-    0 0 0 4px rgba(245, 196, 81, 0.08),
-    0 0 18px rgba(245, 196, 81, 0.22),
-    0 4px 0 #5c3a0a,
-    inset 0 -3px 10px rgba(0, 0, 0, 0.2);
+  transform: scale(0.94);
+  box-shadow: 0 0 12px rgba(245, 196, 81, 0.35);
 }
 
 .tap-button.no-energy {
   filter: grayscale(0.7) brightness(0.75);
-  box-shadow:
-    0 0 0 4px rgba(120, 120, 120, 0.08),
-    0 8px 0 #333,
-    inset 0 3px 10px rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 10px rgba(120, 120, 120, 0.2);
 }
 
 .tap-button.no-energy span,
 .tap-button.no-energy strong {
   opacity: 0.7;
-}
-
-.energy-wrap {
-  width: 100%;
-  order: -1;
 }
 
 .energy-bar {
@@ -1119,31 +1081,21 @@ button.completed strong {
   .tab__icon { font-size: 14px; }
 
   .tap-button-wrap {
-    width: 92px;
-    height: 92px;
-  }
-
-  .tap-ring--outer {
-    width: 92px;
-    height: 92px;
-  }
-
-  .tap-ring--inner {
-    width: 82px;
-    height: 82px;
+    width: 78px;
+    height: 78px;
   }
 
   .tap-button {
-    width: 80px;
-    height: 80px;
+    width: 68px;
+    height: 68px;
   }
 
   .tap-button span {
-    font-size: 15px;
+    font-size: 13px;
   }
 
   .tap-button strong {
-    font-size: 14px;
+    font-size: 12px;
   }
 
   .buy-button {

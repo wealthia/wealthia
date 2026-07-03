@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script>
+    (function () {
+      var tg = window.Telegram && window.Telegram.WebApp;
+      if (!tg) return;
+      tg.ready();
+      if (typeof tg.disableVerticalSwipes === "function") tg.disableVerticalSwipes();
+    })();
+  </script>
   <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
   <title>Wealthia</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -25,32 +33,34 @@
       overflow-x: hidden;
       overscroll-behavior: contain;
     }
+    .city { height: 170px !important; }
+    .energy-section {
+      width: 100%;
+      padding: 0 0 12px;
+    }
     .tap-area {
       touch-action: none;
-      gap: 10px;
-      padding: 8px 0 6px;
+      padding: 0 0 10px;
+      min-height: 0;
     }
     .tap-button-wrap {
-      width: 100px;
-      height: 100px;
+      width: 84px !important;
+      height: 84px !important;
+      overflow: hidden;
     }
+    .tap-ring { display: none !important; }
     .tap-button {
-      width: 88px !important;
-      height: 88px !important;
-      box-shadow:
-        0 0 0 3px rgba(245, 196, 81, 0.12),
-        0 0 20px rgba(245, 196, 81, 0.28),
-        0 6px 0 #5c3a0a,
-        inset 0 -4px 12px rgba(0, 0, 0, 0.2);
+      width: 72px !important;
+      height: 72px !important;
+      box-shadow: 0 0 18px rgba(245, 196, 81, 0.45) !important;
     }
-    .tap-button span { font-size: 17px !important; }
-    .tap-button strong { font-size: 15px !important; }
-    .tap-button:active { transform: scale(0.95) !important; }
-    .tap-ring--outer { width: 100px !important; height: 100px !important; }
-    .tap-ring--inner { width: 88px !important; height: 88px !important; }
+    .tap-button span { font-size: 14px !important; }
+    .tap-button strong { font-size: 13px !important; }
+    .tap-button__hint { font-size: 8px !important; }
+    .tap-button:active { transform: scale(0.94) !important; }
     .energy-wrap { width: 100%; }
   </style>
-  <link rel="stylesheet" href="./v5.css?v=2004" />
+  <link rel="stylesheet" href="./v5.css?v=2005" />
 </head>
 <body>
   <div class="ambient" aria-hidden="true">
@@ -115,13 +125,16 @@
       <div class="city__label">Your Empire</div>
     </section>
 
-    <section class="tap-area">
+    <section class="energy-section">
       <div class="energy-wrap">
         <div class="energy-bar">
           <span id="energyBar"></span>
         </div>
         <span class="energy-label">Energy Reserve</span>
       </div>
+    </section>
+
+    <section class="tap-area">
       <div class="tap-button-wrap">
         <div class="tap-ring tap-ring--outer" aria-hidden="true"></div>
         <div class="tap-ring tap-ring--inner" aria-hidden="true"></div>
@@ -247,6 +260,6 @@
   </div>
 
   <script src="./config.js?v=1"></script>
-  <script src="./v5.js?v=10007"></script>
+  <script src="./v5.js?v=10008"></script>
 </body>
 </html>
