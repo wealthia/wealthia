@@ -14,7 +14,7 @@ window.WEALTHIA_CONFIG = {
   ADSGRAM_BLOCK_ID: "37131",
   // Second rewarded ad block — create in AdsGram dashboard (Reward type)
   // Until you have a 2nd block, falls back to ADSGRAM_BLOCK_ID
-  ADSGRAM_BONUS_BLOCK_ID: "",
+  ADSGRAM_BONUS_BLOCK_ID: "37140",
   // Set true while testing ads; set false when live on Production platform
   ADSGRAM_DEBUG: true,
   // Repeatable every 5 minutes (server: AD_REWARD_COOLDOWN_MS)
