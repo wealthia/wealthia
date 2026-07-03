@@ -1171,17 +1171,50 @@ function renderRankRow(row, mode = "global", options = {}) {
 }
 
 function buildDailyLeaderboardRows() {
-  const rows = dailyLeaderboardTop3.length ? [...dailyLeaderboardTop3] : [];
+  let rows = dailyLeaderboardTop3.length ? [...dailyLeaderboardTop3] : [];
+  const yourScore = Math.max(
+    Number(dailyContestScore || 0),
+    Number(state.dailyContest?.score || 0),
+    todayGainScore()
+  );
 
-  if (!rows.some((row) => row.isYou) && dailyLeaderboardYou && Number(dailyLeaderboardYou.rank) > 3) {
-    rows.push({ ...dailyLeaderboardYou, isYourPlaceRow: true });
+  if (!rows.some((row) => row.isYou) && yourScore > 0) {
+    const insertRank = 1 + rows.filter(
+      (row) => Number(row.dailyScore || row.score || 0) > yourScore
+    ).length;
+
+    if (insertRank <= 3) {
+      rows.push({
+        rank: insertRank,
+        dailyScore: yourScore,
+        isYou: true
+      });
+      rows.sort(
+        (a, b) => Number(b.dailyScore || b.score || 0) - Number(a.dailyScore || a.score || 0)
+      );
+      return rows.slice(0, 3).map((row, index) => ({
+        ...row,
+        rank: index + 1
+      }));
+    }
+
+    const rank = Number(dailyYourRank || dailyLeaderboardYou?.rank || insertRank);
+    if (rank > 3) {
+      rows.push({
+        ...(dailyLeaderboardYou || {}),
+        rank,
+        dailyScore: Number(dailyLeaderboardYou?.dailyScore || dailyLeaderboardYou?.score || yourScore),
+        isYou: true,
+        isYourPlaceRow: true
+      });
+    }
   }
 
   if (!rows.length) {
     return [{
       rank: 1,
       name: "You",
-      dailyScore: todayGainScore(),
+      dailyScore: yourScore,
       isYou: true
     }];
   }
