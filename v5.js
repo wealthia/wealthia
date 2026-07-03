@@ -13,6 +13,7 @@ let adsgramBonusController = null;
 let onboardingStep = 1;
 let adCooldownTimer = null;
 let goldRushTimer = null;
+let lastGrandPrizeMilestone = 0;
 
 const onboardingKey = `wealthia_onboarding_${CONFIG.ONBOARDING_VERSION || "v1"}`;
 
@@ -91,6 +92,7 @@ const els = {
   casinoSpinHint: null,
   casinoUpgradeButton: document.getElementById("casinoUpgradeButton"),
   goldRushMount: document.getElementById("goldRushMount"),
+  grandPrizeMount: document.getElementById("grandPrizeMount"),
   empireLevel: document.getElementById("empireLevel"),
   empireLevelStat: document.getElementById("empireLevelStat"),
   toast: document.getElementById("toast"),
@@ -211,6 +213,140 @@ function goldRushTimeLeft(until) {
   const seconds = Math.floor((diff % 60000) / 1000);
   if (diff <= 0) return "";
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function grandPrizeEndMs(endDate) {
+  const parts = String(endDate || "").split("-").map(Number);
+  if (parts.length !== 3 || parts.some((n) => !n)) return 0;
+  return Date.UTC(parts[0], parts[1] - 1, parts[2], 23, 59, 59, 999);
+}
+
+function getGrandPrizeConfig() {
+  const cfg = CONFIG.GRAND_PRIZE || {};
+  if (!cfg.enabled) return null;
+
+  const endMs = grandPrizeEndMs(cfg.endDate);
+  if (!endMs || Date.now() > endMs) return null;
+
+  return {
+    title: cfg.title || "Grand Prize",
+    prizePool: Number(cfg.prizePool || 0),
+    currency: cfg.currency || "USD",
+    endDate: cfg.endDate,
+    endMs,
+    qualifyCityValue: Number(cfg.qualifyCityValue || 50000),
+    milestones: Array.isArray(cfg.milestones) ? cfg.milestones.map(Number) : [10000, 25000, 50000],
+    prizes: {
+      first: Number(cfg.prizes?.first || 500),
+      second: Number(cfg.prizes?.second || 300),
+      third: Number(cfg.prizes?.third || 200)
+    },
+    channelUrl: String(cfg.channelUrl || CONFIG.PARTNER_CHANNEL_URL || "")
+  };
+}
+
+function grandPrizeDaysLeft(endMs) {
+  const diff = Math.max(0, Number(endMs || 0) - Date.now());
+  return Math.max(1, Math.ceil(diff / (24 * 60 * 60 * 1000)));
+}
+
+function grandPrizeProgressPercent(current, target) {
+  const goal = Math.max(1, Number(target || 1));
+  return Math.min(100, Math.round((Number(current || 0) / goal) * 100));
+}
+
+function checkGrandPrizeMilestones(current, milestones) {
+  const value = Number(current || 0);
+  let reached = 0;
+
+  for (const milestone of milestones) {
+    if (value >= milestone) reached = milestone;
+  }
+
+  if (reached > lastGrandPrizeMilestone) {
+    lastGrandPrizeMilestone = reached;
+    showToast(`Milestone! ${format(reached)} City Value`);
+  }
+}
+
+function renderGrandPrizeBanner() {
+  const mount = els.grandPrizeMount;
+  if (!mount) return;
+
+  const prize = getGrandPrizeConfig();
+  if (!prize) {
+    mount.innerHTML = "";
+    return;
+  }
+
+  const current = cityValue();
+  checkGrandPrizeMilestones(current, prize.milestones);
+  const progress = grandPrizeProgressPercent(current, prize.qualifyCityValue);
+  const qualified = current >= prize.qualifyCityValue;
+  const daysLeft = grandPrizeDaysLeft(prize.endMs);
+  const symbol = prize.currency === "USD" ? "$" : "";
+
+  mount.innerHTML = `
+    <article class="grand-prize ${qualified ? "grand-prize--qualified" : ""}">
+      <div class="grand-prize__head">
+        <span class="grand-prize__badge">🏆 ${prize.title}</span>
+        <strong>${symbol}${format(prize.prizePool)} prize pool</strong>
+        <small>${daysLeft} day${daysLeft === 1 ? "" : "s"} left · Highest City Value wins</small>
+      </div>
+      <div class="grand-prize__progress-wrap">
+        <div class="grand-prize__progress-label">
+          <span>${qualified ? "Qualified" : "Your progress"}</span>
+          <span>${format(current)} / ${format(prize.qualifyCityValue)}</span>
+        </div>
+        <div class="grand-prize__progress" role="progressbar" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">
+          <span style="width:${progress}%"></span>
+        </div>
+      </div>
+      <p class="grand-prize__hint">Boosts & Gold Rush count · Check <strong>Rank</strong> tab for top players</p>
+    </article>
+  `;
+}
+
+function renderGrandPrizeRankCard() {
+  const prize = getGrandPrizeConfig();
+  if (!prize) return "";
+
+  const current = cityValue();
+  const qualified = current >= prize.qualifyCityValue;
+  const daysLeft = grandPrizeDaysLeft(prize.endMs);
+  const symbol = prize.currency === "USD" ? "$" : "";
+  const leaders = leaderboardTop3.length ? leaderboardTop3 : [];
+
+  const leaderRows = leaders.length
+    ? leaders.slice(0, 3).map((row, index) => {
+      const amounts = [prize.prizes.first, prize.prizes.second, prize.prizes.third];
+      return `
+        <li>
+          <span>${medalForRank(row.rank || index + 1)} ${row.isYou ? "You" : row.name}</span>
+          <strong>${format(row.cityValue)} · ${symbol}${format(amounts[index] || 0)}</strong>
+        </li>
+      `;
+    }).join("")
+    : `<li class="grand-prize__empty">Play to appear on the leaderboard</li>`;
+
+  return `
+    <article class="grand-prize-card">
+      <div class="grand-prize-card__head">
+        <span class="grand-prize__badge">🏆 ${prize.title}</span>
+        <h3>${symbol}${format(prize.prizePool)} total prizes</h3>
+        <p>${daysLeft} days left · ${qualified ? "You are qualified" : `Reach ${format(prize.qualifyCityValue)} to qualify`}</p>
+      </div>
+      <ol class="grand-prize-card__prizes">
+        <li>🥇 ${symbol}${format(prize.prizes.first)}</li>
+        <li>🥈 ${symbol}${format(prize.prizes.second)}</li>
+        <li>🥉 ${symbol}${format(prize.prizes.third)}</li>
+      </ol>
+      <ol class="grand-prize-card__leaders">
+        ${leaderRows}
+      </ol>
+      ${prize.channelUrl ? `<button class="grand-prize-card__channel" type="button" data-channel="${prize.channelUrl}">Follow channel for updates</button>` : ""}
+    </article>
+  `;
 }
 
 function renderGoldRushBanner() {
@@ -341,6 +477,7 @@ function render() {
 
   renderCasinoCard();
   renderCasinoSpin();
+  renderGrandPrizeBanner();
   renderGoldRushBanner();
 
   renderDailyTasks();
@@ -814,6 +951,7 @@ function renderRankPanel() {
     : "";
 
   panel.innerHTML = `
+    ${renderGrandPrizeRankCard()}
     <div class="panel-head">
       <h2>Global Leaderboard</h2>
       <p>Top empire builders by city value</p>
@@ -823,6 +961,13 @@ function renderRankPanel() {
     </ol>
     ${youBlock}
   `;
+
+  const channelButton = panel.querySelector(".grand-prize-card__channel");
+  if (channelButton) {
+    channelButton.addEventListener("click", () => {
+      openPartnerLink(channelButton.dataset.channel || "");
+    });
+  }
 }
 
 function updateCityVisuals() {
