@@ -47,6 +47,7 @@ https://wealthia.github.io/wealthia/v5.html?v=2019
    - **Name:** `Wealthia Reward`
    - **Ad Platform:** Wealthia (from step 2)
    - **Block type:** `Reward`
+   - **Reward URL:** `https://wealthia-backend.onrender.com/api/adsgram/reward?userid=[userId]`
 3. Save
 
 ---

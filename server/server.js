@@ -699,6 +699,11 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, app: "Wealthia API", database: true, version: "stars-bot-embedded-v1" });
 });
 
+// AdsGram server-side reward callback (GET; userid=[userId] replaced by AdsGram)
+app.get("/api/adsgram/reward", (_req, res) => {
+  res.status(200).send("ok");
+});
+
 app.post("/api/session", async (req, res) => {
   try {
     const referrerId = parseReferrerId(req.body.referrerId || req.body.referralId);
