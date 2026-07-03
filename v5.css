@@ -1198,6 +1198,29 @@ button.completed strong {
   background: transparent;
 }
 
+.daily-prize {
+  border-color: rgba(52, 211, 153, 0.45);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.16), rgba(245, 196, 81, 0.1));
+}
+
+.daily-prize__boost {
+  width: 100%;
+  margin-top: 10px;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-weight: 800;
+  color: #052e1c;
+  background: linear-gradient(180deg, #6ee7b7, #34d399);
+}
+
+.daily-prize-card__boost-tip {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 .earn-ad-wrap {
   display: grid;
   gap: 8px;

@@ -39,7 +39,7 @@ window.WEALTHIA_CONFIG = {
   // Monthly Grand Prize campaign (config-only — no fake bots)
   // Highest City Value when endDate passes wins prizePool (paid manually via admin)
   GRAND_PRIZE: {
-    enabled: true,
+    enabled: false,
     title: "Grand Prize",
     prizePool: 1000,
     currency: "USD",
@@ -55,6 +55,15 @@ window.WEALTHIA_CONFIG = {
       second: 300,
       third: 200
     },
+    channelUrl: "https://t.me/weathia_official"
+  },
+
+  // Daily contest — highest City Value gained today (UTC) wins prize (paid manually)
+  DAILY_PRIZE: {
+    enabled: true,
+    title: "Daily Prize",
+    prize: 10,
+    currency: "USD",
     channelUrl: "https://t.me/weathia_official"
   }
 };

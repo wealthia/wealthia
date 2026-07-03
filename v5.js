@@ -6,6 +6,10 @@ let backendSessionToken = "";
 let backendReady = false;
 let leaderboardTop3 = [];
 let leaderboardYou = null;
+let dailyLeaderboardTop3 = [];
+let dailyLeaderboardYou = null;
+let dailyContestResetsAt = "";
+let dailyContestScore = 0;
 let tournamentData = null;
 let tournamentLeaderboard = [];
 let adsgramController = null;
@@ -65,6 +69,11 @@ const defaultState = {
     canStart: true,
     multiplier: 2,
     durationMinutes: 15
+  },
+  dailyContest: {
+    score: 0,
+    date: "",
+    resetsAt: ""
   }
 };
 
@@ -263,10 +272,131 @@ function checkGrandPrizeMilestones(current, milestones) {
     if (value >= milestone) reached = milestone;
   }
 
+  if (lastGrandPrizeMilestone === 0) {
+    lastGrandPrizeMilestone = reached;
+    return;
+  }
+
   if (reached > lastGrandPrizeMilestone) {
     lastGrandPrizeMilestone = reached;
     showToast(`Milestone! ${format(reached)} City Value`);
   }
+}
+
+function getDailyPrizeConfig() {
+  const cfg = CONFIG.DAILY_PRIZE || {};
+  if (!cfg.enabled) return null;
+
+  return {
+    title: cfg.title || "Daily Prize",
+    prize: Number(cfg.prize || 10),
+    currency: cfg.currency || "USD",
+    channelUrl: String(cfg.channelUrl || CONFIG.PARTNER_CHANNEL_URL || "")
+  };
+}
+
+function dailyPrizeTimeLeft(resetsAt) {
+  const diff = Math.max(0, new Date(resetsAt || 0).getTime() - Date.now());
+  const hours = Math.floor(diff / 3600000);
+  const minutes = Math.floor((diff % 3600000) / 60000);
+  return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+}
+
+function switchToEarnTab() {
+  const earnTab = document.querySelector('.tab[data-tab="earnPanel"]');
+  if (earnTab) earnTab.click();
+}
+
+function renderCampaignBanner() {
+  if (getDailyPrizeConfig()) {
+    renderDailyPrizeBanner();
+    return;
+  }
+
+  renderGrandPrizeBanner();
+}
+
+function renderDailyPrizeBanner() {
+  const mount = els.grandPrizeMount;
+  const prize = getDailyPrizeConfig();
+  if (!mount || !prize) {
+    if (mount) mount.innerHTML = "";
+    return;
+  }
+
+  const score = dailyContestScore || Number(state.dailyContest?.score || 0);
+  const timeLeft = dailyPrizeTimeLeft(dailyContestResetsAt || state.dailyContest?.resetsAt);
+  const symbol = prize.currency === "USD" ? "$" : "";
+  const leader = dailyLeaderboardTop3[0];
+
+  mount.innerHTML = `
+    <article class="grand-prize daily-prize">
+      <div class="grand-prize__head">
+        <span class="grand-prize__badge">⚡ ${prize.title}</span>
+        <strong>${symbol}${format(prize.prize)} today — highest gain wins</strong>
+        <small>${timeLeft} left · Your gain today: +${format(score)}</small>
+      </div>
+      ${leader ? `<p class="grand-prize__hint">Leader: <strong>${leader.isYou ? "You" : leader.name}</strong> (+${format(leader.dailyScore || leader.score || 0)})</p>` : `<p class="grand-prize__hint">Tap, upgrade & boost to take the lead</p>`}
+      <button class="daily-prize__boost" type="button" id="dailyPrizeBoostButton">⭐ Boosts in Earn tab</button>
+    </article>
+  `;
+
+  const boostBtn = document.getElementById("dailyPrizeBoostButton");
+  if (boostBtn) {
+    boostBtn.addEventListener("click", switchToEarnTab);
+  }
+}
+
+function renderCampaignRankCard() {
+  if (getDailyPrizeConfig()) return renderDailyPrizeRankCard();
+  return renderGrandPrizeRankCard();
+}
+
+function renderDailyPrizeRankCard() {
+  const prize = getDailyPrizeConfig();
+  if (!prize) return "";
+
+  const symbol = prize.currency === "USD" ? "$" : "";
+  const score = dailyContestScore || Number(state.dailyContest?.score || 0);
+  const timeLeft = dailyPrizeTimeLeft(dailyContestResetsAt || state.dailyContest?.resetsAt);
+  const leaders = dailyLeaderboardTop3.length ? dailyLeaderboardTop3 : [];
+
+  const leaderRows = leaders.length
+    ? leaders.map((row) => `
+        <li class="${row.isYou ? "rank__you" : ""}">
+          <span>${medalForRank(row.rank)} ${row.isYou ? "You" : row.name}</span>
+          <strong>+${format(row.dailyScore || row.score || 0)}</strong>
+        </li>
+      `).join("")
+    : `<li class="grand-prize__empty">Be first on today's board</li>`;
+
+  const youRow = dailyLeaderboardYou
+    ? `
+      <ol class="rank rank--you-only">
+        <li class="rank__you">
+          <span class="rank__medal">${medalForRank(dailyLeaderboardYou.rank)}</span>
+          <span>You · ${ordinalRank(dailyLeaderboardYou.rank)}</span>
+          <strong>+${format(dailyLeaderboardYou.dailyScore || dailyLeaderboardYou.score || 0)}</strong>
+        </li>
+      </ol>
+    `
+    : "";
+
+  return `
+    <article class="grand-prize-card daily-prize-card">
+      <div class="grand-prize-card__head">
+        <span class="grand-prize__badge">⚡ ${prize.title}</span>
+        <h3>${symbol}${format(prize.prize)} · winner tonight UTC</h3>
+        <p>${timeLeft} left · You gained +${format(score)} today</p>
+      </div>
+      <p class="daily-prize-card__boost-tip">⭐ Endless Energy & 2x Tap in Earn tab help you climb.</p>
+      <ol class="grand-prize-card__leaders">
+        ${leaderRows}
+      </ol>
+      ${youRow}
+      ${prize.channelUrl ? `<button class="grand-prize-card__channel" type="button" data-channel="${prize.channelUrl}">Winner announced on channel</button>` : ""}
+    </article>
+  `;
 }
 
 function renderGrandPrizeBanner() {
@@ -477,7 +607,7 @@ function render() {
 
   renderCasinoCard();
   renderCasinoSpin();
-  renderGrandPrizeBanner();
+  renderCampaignBanner();
   renderGoldRushBanner();
 
   renderDailyTasks();
@@ -951,7 +1081,7 @@ function renderRankPanel() {
     : "";
 
   panel.innerHTML = `
-    ${renderGrandPrizeRankCard()}
+    ${renderCampaignRankCard()}
     <div class="panel-head">
       <h2>Global Leaderboard</h2>
       <p>Top empire builders by city value</p>
@@ -1263,6 +1393,16 @@ function syncFromBackend(user) {
       durationMinutes: Number(game.goldRush.durationMinutes || 15)
     };
   }
+
+  if (game.dailyContest) {
+    state.dailyContest = {
+      score: Number(game.dailyContest.score || 0),
+      date: game.dailyContest.date || "",
+      resetsAt: game.dailyContest.resetsAt || ""
+    };
+    dailyContestScore = Number(game.dailyContest.score || 0);
+    dailyContestResetsAt = game.dailyContest.resetsAt || "";
+  }
 }
 
 function getTelegramInitData() {
@@ -1376,12 +1516,21 @@ async function connectBackend() {
 async function loadLeaderboard() {
   if (!backendReady) return;
 
-  const { ok, result } = await apiPost("/api/leaderboard", { userId: backendUserId });
+  const { ok, result } = await apiPost("/api/leaderboard");
   if (!ok || !result) return;
 
   leaderboardTop3 = Array.isArray(result.top3) ? result.top3 : [];
   leaderboardYou = result.you || null;
+  dailyLeaderboardTop3 = Array.isArray(result.daily?.top3) ? result.daily.top3 : [];
+  dailyLeaderboardYou = result.daily?.you || null;
+  dailyContestResetsAt = result.daily?.resetsAt || state.dailyContest?.resetsAt || "";
+  if (typeof result.daily?.yourScore === "number") {
+    dailyContestScore = result.daily.yourScore;
+    if (state.dailyContest) state.dailyContest.score = result.daily.yourScore;
+  }
+
   renderRankPanel();
+  renderCampaignBanner();
 }
 
 async function loadTournament() {
