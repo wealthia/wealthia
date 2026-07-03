@@ -8,6 +8,7 @@ let leaderboardYou = null;
 let tournamentData = null;
 let tournamentLeaderboard = [];
 let adsgramController = null;
+let adsgramBonusController = null;
 let onboardingStep = 1;
 let adCooldownTimer = null;
 
@@ -35,6 +36,7 @@ const defaultState = {
     channel: false
   },
   adCooldownUntil: 0,
+  bonusAdCooldownUntil: 0,
   boosts: {
     tapActive: false,
     incomeActive: false,
@@ -413,13 +415,29 @@ function starPrice(productId) {
   return Number(prices[productId] || 0);
 }
 
+function earnRefreshMinutesLeft(until) {
+  const diff = Math.max(0, Number(until || 0) - Date.now());
+  return Math.max(1, Math.ceil(diff / 60000));
+}
+
 function adRewardAvailable() {
   return Number(state.adCooldownUntil || 0) <= Date.now();
 }
 
+function bonusAdRewardAvailable() {
+  return Number(state.bonusAdCooldownUntil || 0) <= Date.now();
+}
+
 function adRefreshMinutesLeft() {
-  const diff = Math.max(0, Number(state.adCooldownUntil || 0) - Date.now());
-  return Math.max(1, Math.ceil(diff / 60000));
+  return earnRefreshMinutesLeft(state.adCooldownUntil);
+}
+
+function bonusAdRefreshMinutesLeft() {
+  return earnRefreshMinutesLeft(state.bonusAdCooldownUntil);
+}
+
+function bonusAdRewardAmount() {
+  return Number(CONFIG.BONUS_AD_REWARD || 150);
 }
 
 function adRewardSubtitle() {
@@ -430,14 +448,22 @@ function adRewardSubtitle() {
   return "Connect AdsGram Block ID in config.js";
 }
 
-function renderAdEarnRow() {
-  const onCooldown = !adRewardAvailable();
-  const refreshMinutes = onCooldown ? adRefreshMinutesLeft() : 0;
+function bonusAdRewardSubtitle() {
+  if (!bonusAdRewardAvailable()) return "Reward collected";
 
+  const reward = bonusAdRewardAmount();
+  if (adsGramBonusReady()) return `Watch bonus ad for +${reward} coins`;
+  if (CONFIG.ADSGRAM_BONUS_BLOCK_ID || CONFIG.ADSGRAM_BLOCK_ID) {
+    return "Ad loading — open in Telegram";
+  }
+  return "Add AdsGram Bonus Block ID in config.js";
+}
+
+function renderCooldownAdRow(type, title, subtitle, reward, onCooldown, refreshMinutes, timerId) {
   const button = `
-    <button class="task earn-task earn-task--ad ${onCooldown ? "completed" : ""}" type="button" data-earn="ad" ${onCooldown ? "disabled" : ""}>
-      <span><b>Rewarded Ad</b><small>${adRewardSubtitle()}</small></span>
-      <strong class="${onCooldown ? "completed" : ""}">${onCooldown ? "Claimed" : "+300"}</strong>
+    <button class="task earn-task earn-task--ad ${onCooldown ? "completed" : ""}" type="button" data-earn="${type}" ${onCooldown ? "disabled" : ""}>
+      <span><b>${title}</b><small>${subtitle}</small></span>
+      <strong class="${onCooldown ? "completed" : ""}">${onCooldown ? "Claimed" : `+${reward}`}</strong>
     </button>
   `;
 
@@ -446,28 +472,62 @@ function renderAdEarnRow() {
   return `
     <div class="earn-ad-wrap">
       ${button}
-      <p class="ad-refresh-timer" id="adRefreshTimer">Refreshing in <span>${refreshMinutes}</span></p>
+      <p class="ad-refresh-timer" id="${timerId}">Refreshing in <span>${refreshMinutes}</span></p>
     </div>
   `;
+}
+
+function renderAdEarnRow() {
+  return renderCooldownAdRow(
+    "ad",
+    "Rewarded Ad",
+    adRewardSubtitle(),
+    300,
+    !adRewardAvailable(),
+    adRefreshMinutesLeft(),
+    "adRefreshTimer"
+  );
+}
+
+function renderBonusAdEarnRow() {
+  const reward = bonusAdRewardAmount();
+  return renderCooldownAdRow(
+    "bonus_ad",
+    "Bonus Ad",
+    bonusAdRewardSubtitle(),
+    reward,
+    !bonusAdRewardAvailable(),
+    bonusAdRefreshMinutesLeft(),
+    "bonusAdRefreshTimer"
+  );
 }
 
 function scheduleAdCooldownRefresh() {
   if (adCooldownTimer) return;
 
   adCooldownTimer = window.setInterval(() => {
-    const timer = document.getElementById("adRefreshTimer");
-    if (timer && !adRewardAvailable()) {
-      timer.innerHTML = `Refreshing in <span>${adRefreshMinutesLeft()}</span>`;
+    const adTimer = document.getElementById("adRefreshTimer");
+    const bonusTimer = document.getElementById("bonusAdRefreshTimer");
+
+    if (adTimer && !adRewardAvailable()) {
+      adTimer.innerHTML = `Refreshing in <span>${adRefreshMinutesLeft()}</span>`;
     }
 
-    if (adRewardAvailable()) {
+    if (bonusTimer && !bonusAdRewardAvailable()) {
+      bonusTimer.innerHTML = `Refreshing in <span>${bonusAdRefreshMinutesLeft()}</span>`;
+    }
+
+    const adReady = adRewardAvailable();
+    const bonusReady = bonusAdRewardAvailable();
+
+    if (adReady && bonusReady) {
       window.clearInterval(adCooldownTimer);
       adCooldownTimer = null;
       renderEarnPanel();
       return;
     }
 
-    if (!timer) renderEarnPanel();
+    if (!adTimer && !bonusTimer) renderEarnPanel();
   }, 1000);
 }
 
@@ -494,14 +554,14 @@ function renderEarnPanel() {
     <article class="card stack earn-hero">
       <div class="earn-hero__badge">VIP Earn Center</div>
       <h2>Multiply Your Fortune</h2>
-      <p>Complete partner tasks and unlock premium boosts with Telegram Stars.</p>
+      <p>Watch ads for coins and unlock premium boosts with Telegram Stars.</p>
     </article>
-    ${earnRow("sponsor", "Partner Bot", "Open sponsor bot · one-time bonus", 750, state.tasks.sponsor)}
+    ${renderBonusAdEarnRow()}
     ${renderAdEarnRow()}
     ${earnRow("channel", "Join Channel", "Subscribe for bonus coins", 500, state.tasks.channel)}
     ${
-      CONFIG.ADSGRAM_DEBUG && (state.tasks.sponsor || state.tasks.channel || !adRewardAvailable())
-        ? `<button class="task earn-reset" type="button" id="resetEarnTasks">Reset earn tasks (test)</button>`
+      CONFIG.ADSGRAM_DEBUG && (state.tasks.channel || !adRewardAvailable() || !bonusAdRewardAvailable())
+        ? `<button class="task earn-reset" type="button" id="resetEarnTasks">Reset ads (test)</button>`
         : ""
     }
     <article class="card stack stars-shop">
@@ -689,9 +749,11 @@ function openPartnerLink(url) {
 
 function initAdsGram() {
   const blockId = String(CONFIG.ADSGRAM_BLOCK_ID || "").trim();
+  const bonusBlockId = String(CONFIG.ADSGRAM_BONUS_BLOCK_ID || blockId).trim();
 
   if (!blockId || !window.Adsgram) {
     adsgramController = null;
+    adsgramBonusController = null;
     return;
   }
 
@@ -704,15 +766,37 @@ function initAdsGram() {
   } catch {
     adsgramController = null;
   }
+
+  if (!bonusBlockId) {
+    adsgramBonusController = null;
+    return;
+  }
+
+  try {
+    adsgramBonusController = window.Adsgram.init({
+      blockId: bonusBlockId,
+      debug: Boolean(CONFIG.ADSGRAM_DEBUG),
+      debugBannerType: "RewardedVideo"
+    });
+  } catch {
+    adsgramBonusController = null;
+  }
 }
 
 function adsGramReady() {
   return Boolean(String(CONFIG.ADSGRAM_BLOCK_ID || "").trim() && adsgramController);
 }
 
-async function showRewardedAd() {
-  if (!adsGramReady()) {
-    if (CONFIG.ADSGRAM_BLOCK_ID) {
+function adsGramBonusReady() {
+  const blockId = String(CONFIG.ADSGRAM_BONUS_BLOCK_ID || CONFIG.ADSGRAM_BLOCK_ID || "").trim();
+  return Boolean(blockId && adsgramBonusController);
+}
+
+async function showRewardedAd(controller) {
+  const hasBlock = String(CONFIG.ADSGRAM_BLOCK_ID || "").trim();
+
+  if (!controller) {
+    if (hasBlock) {
       showToast("Ad not ready. Open game in Telegram and try again.");
       return false;
     }
@@ -722,7 +806,7 @@ async function showRewardedAd() {
   }
 
   try {
-    const result = await adsgramController.show();
+    const result = await controller.show();
     if (result && result.done) return true;
     showToast(result?.description || "Watch the full ad to get reward.");
     return false;
@@ -731,6 +815,14 @@ async function showRewardedAd() {
     showToast(message);
     return false;
   }
+}
+
+async function showMainRewardedAd() {
+  return showRewardedAd(adsGramReady() ? adsgramController : null);
+}
+
+async function showBonusRewardedAd() {
+  return showRewardedAd(adsGramBonusReady() ? adsgramBonusController : null);
 }
 
 function setupOnboarding() {
@@ -880,9 +972,18 @@ function syncFromBackend(user) {
 
   if (game.adReward) {
     state.adCooldownUntil = Number(game.adReward.nextAt || 0);
-    scheduleAdCooldownRefresh();
   } else {
     state.adCooldownUntil = 0;
+  }
+
+  if (game.bonusAdReward) {
+    state.bonusAdCooldownUntil = Number(game.bonusAdReward.nextAt || 0);
+  } else {
+    state.bonusAdCooldownUntil = 0;
+  }
+
+  if (!adRewardAvailable() || !bonusAdRewardAvailable()) {
+    scheduleAdCooldownRefresh();
   }
 
   if (game.buildings) {
@@ -1191,7 +1292,7 @@ async function claimDailyReward() {
 }
 
 async function handleEarnClick(type) {
-  if (type !== "ad" && state.tasks[type]) {
+  if (type !== "ad" && type !== "bonus_ad" && state.tasks[type]) {
     showToast("Already claimed.");
     return;
   }
@@ -1202,13 +1303,18 @@ async function handleEarnClick(type) {
       return;
     }
 
-    const watched = await showRewardedAd();
+    const watched = await showMainRewardedAd();
     if (!watched) return;
   }
 
-  if (type === "sponsor") {
-    openPartnerLink(CONFIG.SPONSOR_BOT_URL || "https://t.me/WealthiaGameBot");
-    showToast("Open sponsor bot, then reward is added.");
+  if (type === "bonus_ad") {
+    if (!bonusAdRewardAvailable()) {
+      showToast(`Refreshing in ${bonusAdRefreshMinutesLeft()}`);
+      return;
+    }
+
+    const watched = await showBonusRewardedAd();
+    if (!watched) return;
   }
 
   if (type === "channel") {
@@ -1237,6 +1343,11 @@ async function claimEarnTask(type) {
       scheduleAdCooldownRefresh();
       renderEarnPanel();
       showToast(`Refreshing in ${adRefreshMinutesLeft()}`);
+    } else if (result && result.error === "BONUS_AD_COOLDOWN") {
+      state.bonusAdCooldownUntil = Number(result.nextAt || state.bonusAdCooldownUntil);
+      scheduleAdCooldownRefresh();
+      renderEarnPanel();
+      showToast(`Refreshing in ${bonusAdRefreshMinutesLeft()}`);
     } else showToast("Task unavailable.");
     return;
   }
@@ -1476,7 +1587,7 @@ if (els.tasksPanel) {
 if (els.earnPanel) {
   els.earnPanel.addEventListener("click", (event) => {
     if (event.target.closest("#resetEarnTasks")) {
-      resetEarnTasks("ad");
+      resetEarnTasks("");
       return;
     }
 

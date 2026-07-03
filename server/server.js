@@ -28,10 +28,12 @@ const REFERRAL_BONUS = 500;
 const NEW_PLAYER_BONUS = 100;
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
 const AD_REWARD_COOLDOWN_MS = 5 * 60 * 1000;
+const BONUS_AD_REWARD_COOLDOWN_MS = 15 * 60 * 1000;
 
 const EARN_TASKS = {
   sponsor: { reward: 750, field: "sponsor_done" },
   ad: { reward: 300, cooldown: true },
+  bonus_ad: { reward: 150, cooldown: true, field: "bonus_ad_last_claimed_at" },
   channel: { reward: 500, field: "channel_done" }
 };
 
@@ -101,6 +103,16 @@ function adRewardNextAt(row) {
 
 function adRewardOnCooldown(row) {
   return adRewardNextAt(row) > nowMs();
+}
+
+function bonusAdRewardNextAt(row) {
+  const last = number(row.bonus_ad_last_claimed_at);
+  if (!last) return 0;
+  return last + BONUS_AD_REWARD_COOLDOWN_MS;
+}
+
+function bonusAdRewardOnCooldown(row) {
+  return bonusAdRewardNextAt(row) > nowMs();
 }
 
 function applyStarProduct(row, productId) {
@@ -558,6 +570,11 @@ function toClientUser(row) {
         reward: EARN_TASKS.ad.reward,
         cooldownMs: AD_REWARD_COOLDOWN_MS
       },
+      bonusAdReward: {
+        nextAt: bonusAdRewardNextAt(row),
+        reward: EARN_TASKS.bonus_ad.reward,
+        cooldownMs: BONUS_AD_REWARD_COOLDOWN_MS
+      },
       buildings: {
         shop: number(row.shop_level),
         bank: number(row.bank_level),
@@ -935,6 +952,32 @@ app.post("/api/claim-earn", async (req, res) => {
       return;
     }
 
+    if (type === "bonus_ad") {
+      if (bonusAdRewardOnCooldown(row)) {
+        res.status(400).json({ error: "BONUS_AD_COOLDOWN", nextAt: bonusAdRewardNextAt(row) });
+        return;
+      }
+
+      const reward = EARN_TASKS.bonus_ad.reward;
+
+      const { data, error } = await supabase
+        .from("game_states")
+        .update({
+          coins: number(row.coins) + reward,
+          city_value: number(row.coins) + reward + number(row.spent),
+          bonus_ad_last_claimed_at: nowMs(),
+          updated_at: new Date().toISOString()
+        })
+        .eq("user_id", userId)
+        .select("*")
+        .single();
+
+      if (error) throw error;
+
+      res.json({ ok: true, reward, user: toClientUser(data) });
+      return;
+    }
+
     if (Boolean(row[earnTask.field])) {
       res.status(400).json({ error: "ALREADY_CLAIMED" });
       return;
@@ -1183,11 +1226,23 @@ app.post("/api/reset", async (req, res) => {
       let coins = number(row.coins);
       const onlyType = String(req.body.type || "").trim();
 
+      const update = {
+        coins,
+        city_value: coins + number(row.spent),
+        updated_at: new Date().toISOString()
+      };
+
       if (!onlyType || onlyType === "ad") {
         if (number(row.ad_last_claimed_at) > 0 && adRewardOnCooldown(row)) {
           coins = Math.max(0, coins - EARN_TASKS.ad.reward);
         }
         update.ad_last_claimed_at = 0;
+      }
+      if (!onlyType || onlyType === "bonus_ad") {
+        if (number(row.bonus_ad_last_claimed_at) > 0 && bonusAdRewardOnCooldown(row)) {
+          coins = Math.max(0, coins - EARN_TASKS.bonus_ad.reward);
+        }
+        update.bonus_ad_last_claimed_at = 0;
       }
       if (!onlyType || onlyType === "sponsor") {
         if (Boolean(row.sponsor_done)) coins = Math.max(0, coins - EARN_TASKS.sponsor.reward);
@@ -1196,13 +1251,9 @@ app.post("/api/reset", async (req, res) => {
         if (Boolean(row.channel_done)) coins = Math.max(0, coins - EARN_TASKS.channel.reward);
       }
 
-      const update = {
-        coins,
-        city_value: coins + number(row.spent),
-        updated_at: new Date().toISOString()
-      };
+      update.coins = coins;
+      update.city_value = coins + number(row.spent);
 
-      if (!onlyType || onlyType === "ad") update.ad_last_claimed_at = 0;
       if (!onlyType || onlyType === "sponsor") update.sponsor_done = false;
       if (!onlyType || onlyType === "channel") update.channel_done = false;
 
@@ -1238,6 +1289,7 @@ app.post("/api/reset", async (req, res) => {
         daily_tasks_claimed_json: [],
         sponsor_done: false,
         ad_last_claimed_at: 0,
+        bonus_ad_last_claimed_at: 0,
         channel_done: false,
         casino_date: "",
         endless_energy_until: 0,

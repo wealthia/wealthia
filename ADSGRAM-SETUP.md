@@ -50,6 +50,20 @@ https://wealthia.github.io/wealthia/v5.html?v=2019
    - **Reward URL:** `https://wealthia-backend.onrender.com/api/adsgram/reward?userid=[userId]`
 3. Save
 
+### Bonus Ad (2nd rewarded slot — replaces Partner Bot)
+
+1. Dashboard → **Create...** → **Ad unit**
+2. Settings:
+   - **Name:** `Wealthia Bonus`
+   - **Ad Platform:** Wealthia
+   - **Block type:** `Reward`
+   - **Reward URL:** same as above
+3. Copy **Block ID** → `config.js`:
+   ```js
+   ADSGRAM_BONUS_BLOCK_ID: "YOUR_BONUS_BLOCK_ID",
+   ```
+4. Players get **+150 coins** every **15 minutes** (main ad: +300 every 5 min)
+
 ---
 
 ## Verification failed? (platform yaradılmır / verify etmir)

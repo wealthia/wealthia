@@ -12,10 +12,16 @@ window.WEALTHIA_CONFIG = {
   // Setup guide: ADSGRAM-SETUP.md
   // Leave empty for demo mode (no real ad revenue)
   ADSGRAM_BLOCK_ID: "37131",
+  // Second rewarded ad block — create in AdsGram dashboard (Reward type)
+  // Until you have a 2nd block, falls back to ADSGRAM_BLOCK_ID
+  ADSGRAM_BONUS_BLOCK_ID: "",
   // Set true while testing ads; set false when live on Production platform
   ADSGRAM_DEBUG: true,
   // Repeatable every 5 minutes (server: AD_REWARD_COOLDOWN_MS)
   AD_REWARD_COOLDOWN_MINUTES: 5,
+  // Bonus ad: every 15 minutes, +150 coins
+  AD_BONUS_REWARD_COOLDOWN_MINUTES: 15,
+  BONUS_AD_REWARD: 150,
 
   // Partner monetization links (Earn tab rewards)
   SPONSOR_BOT_URL: "https://t.me/WealthiaGameBot",
