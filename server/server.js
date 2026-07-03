@@ -346,6 +346,19 @@ function buildCityValue(row) {
   return number(row.coins) + number(row.spent);
 }
 
+function computeDailyRank(rows, userId, userScore) {
+  const score = number(userScore);
+  if (!userId || score <= 0) return 0;
+
+  const sorted = [...rows].sort(
+    (a, b) => number(b.daily_contest_score) - number(a.daily_contest_score)
+  );
+  const index = sorted.findIndex((row) => row.user_id === userId);
+  if (index >= 0) return index + 1;
+
+  return 1 + sorted.filter((row) => number(row.daily_contest_score) > score).length;
+}
+
 function syncDailyContest(row) {
   const today = todayKey();
   const cityValueNow = buildCityValue(row);
@@ -1840,13 +1853,15 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
           yourDailyGame = userRow;
 
           if (yourDailyEligible && number(userRow.daily_contest_score) > 0) {
-            yourDailyRank = dailyWithSeeds.findIndex((row) => row.user_id === userId) + 1;
-            if (yourDailyRank <= 0) {
-              yourDailyRank = dailyWithSeeds.filter((row) =>
-                !isContestSeedUserId(row.user_id) &&
-                dailyPrizeEligible(referralCounts.get(row.user_id) || 0)
-              ).length + 1;
+            const rankRows = [...dailyWithSeeds];
+            if (!rankRows.some((row) => row.user_id === userId)) {
+              rankRows.push(userRow);
             }
+            yourDailyRank = computeDailyRank(
+              rankRows,
+              userId,
+              number(userRow.daily_contest_score)
+            );
           }
         }
       }
@@ -1906,6 +1921,7 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
         eligible: yourDailyEligible,
         top3: dailyTop3,
         you: dailyYou,
+        yourRank: yourDailyRank || 0,
         yourScore: yourDailyGame ? number(yourDailyGame.daily_contest_score) : 0
       }
     });
