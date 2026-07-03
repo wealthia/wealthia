@@ -202,3 +202,5 @@ Also bump cache if needed:
 - One-time reward per account (+300 coins)
 - Earn tab → Rewarded Ad
 - After claimed, button shows "Claimed"
+- Repeatable every **5 minutes** (+300 coins per ad)
+- Earn tab → Rewarded Ad shows countdown until next ad
