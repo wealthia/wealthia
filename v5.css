@@ -364,6 +364,12 @@ p {
   padding: 3px 8px;
 }
 
+.app.view-main .tap-area .energy-wrap {
+  width: 100%;
+  max-width: 300px;
+  flex-shrink: 0;
+}
+
 .app.view-main .energy-wrap {
   display: block;
   width: 100%;
@@ -1442,14 +1448,14 @@ h1 {
 .tabs {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 4px;
-  margin: 6px 0 10px;
-  padding: 4px;
+  gap: 3px;
+  margin: 4px 0 0;
+  padding: 5px;
   border: 1px solid var(--line);
-  border-radius: 18px;
-  background: rgba(8, 12, 24, 0.92);
+  border-radius: 16px;
+  background: rgba(8, 12, 24, 0.95);
   backdrop-filter: blur(12px);
-  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.4);
 }
 
 .tab {
@@ -1457,20 +1463,21 @@ h1 {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  min-height: 48px;
-  padding: 5px 2px;
-  border-radius: 12px;
+  gap: 3px;
+  min-height: 52px;
+  padding: 6px 2px;
+  border-radius: 11px;
   background: transparent;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
   transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease;
 }
 
 .tab__icon {
-  font-size: 15px;
+  font-size: 17px;
   line-height: 1;
 }
 
