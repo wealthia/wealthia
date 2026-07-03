@@ -7,6 +7,11 @@ const {
   resolveTelegramUser,
   verifyToken
 } = require("./auth");
+const {
+  contestSeedGameRows,
+  contestSeedProfile,
+  isContestSeedUserId
+} = require("./contest-seeds");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -1784,10 +1789,14 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
     const dailyEligibleRows = (dailyCandidates || []).filter((row) =>
       dailyPrizeEligible(referralCounts.get(row.user_id) || 0)
     );
-    const dailyTopData = dailyEligibleRows.slice(0, 3);
+    const dailyWithSeeds = [
+      ...dailyEligibleRows,
+      ...contestSeedGameRows(today)
+    ].sort((a, b) => number(b.daily_contest_score) - number(a.daily_contest_score));
+    const dailyTopData = dailyWithSeeds.slice(0, 3);
 
     const topIds = (topData || []).map((row) => row.user_id);
-    const dailyIds = dailyEligibleRows.map((row) => row.user_id);
+    const dailyIds = dailyWithSeeds.map((row) => row.user_id);
     const lookupIds = [...new Set([...topIds, ...dailyIds])];
 
     let yourRank = null;
@@ -1825,9 +1834,12 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
           yourDailyGame = userRow;
 
           if (yourDailyEligible && number(userRow.daily_contest_score) > 0) {
-            yourDailyRank = dailyEligibleRows.findIndex((row) => row.user_id === userId) + 1;
+            yourDailyRank = dailyWithSeeds.findIndex((row) => row.user_id === userId) + 1;
             if (yourDailyRank <= 0) {
-              yourDailyRank = dailyEligibleRows.length + 1;
+              yourDailyRank = dailyWithSeeds.filter((row) =>
+                !isContestSeedUserId(row.user_id) &&
+                dailyPrizeEligible(referralCounts.get(row.user_id) || 0)
+              ).length + 1;
             }
           }
         }
@@ -1842,20 +1854,23 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
     const userMap = new Map((users || []).map((user) => [user.id, user]));
 
     function rowFromGame(gameRow, rank, valueKey = "cityValue") {
+      const seed = contestSeedProfile(gameRow.user_id);
       const profile = userMap.get(gameRow.user_id) || {};
       const value = valueKey === "dailyScore"
         ? number(gameRow.daily_contest_score)
         : number(gameRow.city_value);
-      const refCount = referralCounts.get(gameRow.user_id) || 0;
+      const refCount = seed
+        ? seed.referralCount
+        : (referralCounts.get(gameRow.user_id) || 0);
 
       return {
         rank,
         userId: gameRow.user_id,
-        name: profile.first_name || profile.username || `Player ${String(gameRow.user_id).slice(-4)}`,
+        name: seed?.name || profile.first_name || profile.username || `Player ${String(gameRow.user_id).slice(-4)}`,
         cityValue: number(gameRow.city_value),
         dailyScore: number(gameRow.daily_contest_score),
         referralCount: refCount,
-        prizeEligible: dailyPrizeEligible(refCount),
+        prizeEligible: seed ? false : dailyPrizeEligible(refCount),
         score: value,
         isYou: gameRow.user_id === userId
       };
