@@ -1197,23 +1197,32 @@ button.completed strong {
 
   .boost-grid--stars {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 5px;
+    gap: 6px;
   }
 
   .boost-grid--stars .boost-button {
-    min-height: 68px;
+    width: 100%;
+    min-height: 76px;
     flex-direction: column;
     justify-content: center;
-    padding: 6px 3px;
-    font-size: 9px;
+    padding: 8px 4px;
+    font-size: 10px;
   }
 
   .boost-grid--stars .boost-button__icon {
-    font-size: 15px;
+    font-size: 17px;
   }
 
   .boost-grid--stars .boost-button span:last-child {
-    font-size: 8px;
+    font-size: 9px;
+  }
+
+  .tournament-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .tournament-card h2 {
+    font-size: 17px;
   }
 
   .boost-button {
@@ -1319,14 +1328,47 @@ button.completed strong {
   z-index: 201;
 }
 
-.tournament-card {
+#tournamentPanel {
+  width: 100%;
+}
+
+.tournament-card.card {
+  display: grid;
+  width: 100%;
+  box-sizing: border-box;
+  align-items: stretch;
+  justify-items: stretch;
+  justify-content: stretch;
+  min-height: auto;
+  padding: 14px;
   margin-bottom: 18px;
   position: relative;
   overflow: hidden;
 }
 
+.tournament-card h2 {
+  width: 100%;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.tournament-card p {
+  width: 100%;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .tournament-card--empty {
   text-align: center;
+  justify-items: center;
+}
+
+.tournament-card--empty .tournament-card__badge {
+  align-self: center;
 }
 
 .tournament-card__badge {
@@ -1343,18 +1385,25 @@ button.completed strong {
 }
 
 .tournament-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
   margin-top: 12px;
 }
 
 .tournament-meta span {
-  padding: 8px 12px;
-  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 8px 6px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--line);
-  font-size: 13px;
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
   color: var(--muted);
 }
 
@@ -1362,11 +1411,13 @@ button.completed strong {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  width: 100%;
   margin-top: 16px;
   padding: 16px;
   border-radius: var(--radius-sm);
   background: rgba(245, 196, 81, 0.08);
   border: 1px solid var(--line-bright);
+  box-sizing: border-box;
 }
 
 .tournament-score strong {
@@ -1376,5 +1427,6 @@ button.completed strong {
 }
 
 .tournament-join {
+  width: 100%;
   margin-top: 16px;
 }
