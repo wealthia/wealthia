@@ -15,6 +15,12 @@ services:
         sync: false
       - key: TELEGRAM_BOT_TOKEN
         sync: false
+      - key: ENABLE_BOT_POLLING
+        value: "true"
+      - key: WEBAPP_URL
+        value: https://wealthia.github.io/wealthia/v5.html?v=2011
+      - key: CHANNEL_URL
+        sync: false
 
   - type: worker
     name: wealthia-bot

@@ -692,11 +692,11 @@ async function loadGame(userId) {
 }
 
 app.get("/", (_req, res) => {
-  res.json({ ok: true, app: "Wealthia API", database: true, version: "stars-boosts-v1" });
+  res.json({ ok: true, app: "Wealthia API", database: true, version: "stars-bot-embedded-v1" });
 });
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, app: "Wealthia API", database: true, version: "stars-boosts-v1" });
+  res.json({ ok: true, app: "Wealthia API", database: true, version: "stars-bot-embedded-v1" });
 });
 
 app.post("/api/session", async (req, res) => {
@@ -1786,4 +1786,14 @@ app.post("/api/tournaments/leaderboard", async (req, res) => {
 
 app.listen(port, () => {
   console.log(`Wealthia backend running on port ${port}`);
+
+  if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_BOT_POLLING !== "false") {
+    try {
+      const { startBotPolling } = require("../bot/runner");
+      startBotPolling();
+      console.log("Telegram bot polling embedded in backend.");
+    } catch (error) {
+      console.warn("Telegram bot polling skipped:", error.message);
+    }
+  }
 });
