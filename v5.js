@@ -642,7 +642,11 @@ function initAdsGram() {
   }
 
   try {
-    adsgramController = window.Adsgram.init({ blockId, debug: false });
+    adsgramController = window.Adsgram.init({
+      blockId,
+      debug: Boolean(CONFIG.ADSGRAM_DEBUG),
+      debugBannerType: "RewardedVideo"
+    });
   } catch {
     adsgramController = null;
   }
@@ -666,10 +670,11 @@ async function showRewardedAd() {
   try {
     const result = await adsgramController.show();
     if (result && result.done) return true;
-    showToast("Watch the full ad to get reward.");
+    showToast(result?.description || "Watch the full ad to get reward.");
     return false;
-  } catch {
-    showToast("Ad skipped or unavailable.");
+  } catch (error) {
+    const message = error && error.description ? error.description : "Ad skipped or unavailable.";
+    showToast(message);
     return false;
   }
 }

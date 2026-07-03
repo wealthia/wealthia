@@ -12,6 +12,8 @@ window.WEALTHIA_CONFIG = {
   // Setup guide: ADSGRAM-SETUP.md
   // Leave empty for demo mode (no real ad revenue)
   ADSGRAM_BLOCK_ID: "37131",
+  // Set true while testing ads; set false when live on Production platform
+  ADSGRAM_DEBUG: true,
 
   // Partner monetization links (Earn tab rewards)
   SPONSOR_BOT_URL: "https://t.me/WealthiaGameBot",
