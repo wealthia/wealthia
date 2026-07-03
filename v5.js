@@ -305,7 +305,7 @@ function renderCasinoSpin() {
 
   if (els.casinoSpinButton) {
     els.casinoSpinButton.disabled = !canSpin;
-    els.casinoSpinButton.textContent = spunToday ? "Spun Today" : "Spin Now";
+    els.casinoSpinButton.textContent = spunToday ? "Spin Today" : "Spin Now";
   }
 
   if (els.casinoSpinHint) {
