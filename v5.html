@@ -32,35 +32,9 @@
       overflow: hidden;
       overscroll-behavior: contain;
     }
-    .city { height: 88px !important; }
-    .energy-section {
-      width: 100%;
-      padding: 0 0 4px;
-    }
-    .tap-area {
-      touch-action: none;
-      padding: 0 0 4px;
-      min-height: 0;
-    }
-    .tap-button-wrap {
-      width: 52px !important;
-      height: 52px !important;
-      overflow: hidden;
-    }
-    .tap-ring { display: none !important; }
-    .tap-button {
-      width: 48px !important;
-      height: 48px !important;
-      box-shadow: 0 0 10px rgba(245, 196, 81, 0.4) !important;
-    }
-    .tap-button span { font-size: 9px !important; }
-    .tap-button strong { font-size: 10px !important; }
-    .tap-button__hint { font-size: 6px !important; }
-    .tap-button:active { transform: scale(0.94) !important; }
-    .energy-wrap { width: 100%; }
     [hidden] { display: none !important; }
   </style>
-  <link rel="stylesheet" href="./v5.css?v=2046" />
+  <link rel="stylesheet" href="./v5.css?v=2048" />
 </head>
 <body>
   <div class="ambient" aria-hidden="true">
@@ -135,15 +109,15 @@
     <section class="energy-section">
       <div id="grandPrizeMount"></div>
       <div id="goldRushMount"></div>
+    </section>
+
+    <section class="tap-area">
       <div class="energy-wrap">
         <div class="energy-bar">
           <span id="energyBar"></span>
         </div>
         <span class="energy-label">Energy Reserve</span>
       </div>
-    </section>
-
-    <section class="tap-area">
       <div class="tap-button-wrap">
         <div class="tap-ring tap-ring--outer" aria-hidden="true"></div>
         <div class="tap-ring tap-ring--inner" aria-hidden="true"></div>
@@ -281,5 +255,5 @@
   </div>
 
   <script src="./config.js?v=14"></script>
-  <script src="./v5.js?v=10051"></script></body>
+  <script src="./v5.js?v=10052"></script></body>
 </html>

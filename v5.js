@@ -438,79 +438,14 @@ function isMainView() {
   return !appRoot || appRoot.classList.contains("view-main");
 }
 
-function renderDailyPrizeBanner() {
-  const mount = els.grandPrizeMount;
-  const prize = getDailyPrizeConfig();
-  if (!mount || !prize) {
-    if (mount) mount.innerHTML = "";
-    return;
-  }
-
-  const compact = isMainView();
-  const score = todayGainScore();
-  const referrals = dailyReferralCount || Number(state.referrals?.count || 0);
-  const required = prize.minReferrals || dailyReferralsRequired || 3;
-  const eligible = dailyPrizeEligible || Boolean(state.referrals?.eligible);
-  const timeLeft = dailyPrizeTimeLeft(dailyContestResetsAt || state.dailyContest?.resetsAt);
-  const symbol = prize.currency === "USD" ? "$" : "";
-
-  if (compact) {
-    mount.innerHTML = `
-      <article class="grand-prize daily-prize daily-prize--strip ${eligible ? "daily-prize--eligible" : "daily-prize--locked"}">
-        <div class="daily-prize-strip">
-          <span class="grand-prize__badge">⚡ ${prize.title}</span>
-          <strong>${symbol}${format(prize.prize)} · ${referrals}/${required} friends</strong>
-          <span class="daily-prize-strip__gain">+${format(score)}</span>
-        </div>
-        <p class="daily-prize-strip__hint">${eligible ? `${timeLeft} left · Rank tab` : `Invite ${Math.max(0, required - referrals)} more · Friends tab`}</p>
-      </article>
-    `;
-    return;
-  }
-
-  mount.innerHTML = `
-    <article class="grand-prize daily-prize ${eligible ? "daily-prize--eligible" : "daily-prize--locked"}">
-      <div class="grand-prize__head">
-        <span class="grand-prize__badge">⚡ ${prize.title}</span>
-        <strong>${symbol}${format(prize.prize)} today — 3 friends required</strong>
-        <small>${timeLeft} left · Friends invited: ${referrals}/${required}</small>
-      </div>
-      <div class="daily-prize__gain-box">
-        <span class="daily-prize__gain-label">Today's gain</span>
-        <strong class="daily-prize__gain-value">+${format(score)}</strong>
-      </div>
-      ${eligible
-    ? `<p class="grand-prize__hint">Check the <strong>Rank</strong> tab for the daily leaderboard.</p>`
-    : `<p class="grand-prize__hint daily-prize__lock">Invite <strong>${Math.max(0, required - referrals)}</strong> more friend(s) to unlock the $10 race.</p>`}
-      <div class="daily-prize__actions">
-        ${eligible
-    ? `<button class="daily-prize__boost" type="button" id="dailyPrizeBoostButton">⭐ Boosts in Earn tab</button>`
-    : `<button class="daily-prize__boost daily-prize__boost--invite" type="button" id="dailyPrizeInviteButton">👥 Invite friends</button>`}
-        ${eligible ? `<button class="daily-prize__boost daily-prize__boost--invite daily-prize__boost--secondary" type="button" id="dailyPrizeInviteButton">👥 Invite more friends</button>` : ""}
-      </div>
-    </article>
-  `;
-
-  const boostBtn = document.getElementById("dailyPrizeBoostButton");
-  if (boostBtn) boostBtn.addEventListener("click", switchToEarnTab);
-
-  const inviteBtn = document.getElementById("dailyPrizeInviteButton");
-  if (inviteBtn) inviteBtn.addEventListener("click", () => shareInviteLink());
-}
-
-function renderCampaignRankCard() {
-  if (getDailyPrizeConfig()) return renderDailyPrizeRankCard();
-  return renderGrandPrizeRankCard();
-}
-
-function renderDailyPrizeRankCard() {
+function renderDailyPrizeCardHtml() {
   const prize = getDailyPrizeConfig();
   if (!prize) return "";
 
   const symbol = prize.currency === "USD" ? "$" : "";
   const score = todayGainScore();
   const referrals = dailyReferralCount || Number(state.referrals?.count || 0);
-  const required = prize.minReferrals || 3;
+  const required = prize.minReferrals || dailyReferralsRequired || 3;
   const eligible = dailyPrizeEligible || Boolean(state.referrals?.eligible);
   const timeLeft = dailyPrizeTimeLeft(dailyContestResetsAt || state.dailyContest?.resetsAt);
 
@@ -527,6 +462,38 @@ function renderDailyPrizeRankCard() {
       ${prize.channelUrl ? `<button class="grand-prize-card__channel" type="button" data-channel="${prize.channelUrl}">Winner will be announced on the Telegram channel</button>` : ""}
     </article>
   `;
+}
+
+function bindDailyPrizeCardActions(mount) {
+  if (!mount) return;
+
+  const channelButton = mount.querySelector(".grand-prize-card__channel");
+  if (channelButton) {
+    channelButton.addEventListener("click", () => {
+      openPartnerLink(channelButton.dataset.channel || "");
+    });
+  }
+}
+
+function renderDailyPrizeBanner() {
+  const mount = els.grandPrizeMount;
+  const prize = getDailyPrizeConfig();
+  if (!mount || !prize) {
+    if (mount) mount.innerHTML = "";
+    return;
+  }
+
+  mount.innerHTML = renderDailyPrizeCardHtml();
+  bindDailyPrizeCardActions(mount);
+}
+
+function renderCampaignRankCard() {
+  if (getDailyPrizeConfig()) return renderDailyPrizeRankCard();
+  return renderGrandPrizeRankCard();
+}
+
+function renderDailyPrizeRankCard() {
+  return renderDailyPrizeCardHtml();
 }
 
 function renderGrandPrizeBanner() {
@@ -1125,6 +1092,25 @@ function renderEarnPanel() {
   `;
 }
 
+const CONTEST_SEED_IDS = {
+  Marcus: "contest_seed_1",
+  Emma: "contest_seed_2",
+  Ryan: "contest_seed_3"
+};
+
+function leaderboardCandidateKey(row) {
+  if (row.isYou) return "__you__";
+
+  const userId = String(row.userId || "");
+  if (userId.startsWith("contest_seed")) return userId;
+
+  const seedId = CONTEST_SEED_IDS[row.name];
+  if (seedId) return seedId;
+
+  if (userId) return userId;
+  return `name:${String(row.name || "").toLowerCase()}`;
+}
+
 function getContestSeedPreview() {
   const now = new Date();
   const hour = now.getUTCHours();
@@ -1149,9 +1135,9 @@ function getContestSeedPreview() {
   const climb = Math.pow(postNoonBlend, 0.55);
 
   const scores = [
-    { name: "Marcus", dailyScore: Math.floor(morningFirst + (endFirst - morningFirst) * climb) },
-    { name: "Emma", dailyScore: Math.floor(morningSecond + (endSecond - morningSecond) * climb) },
-    { name: "Ryan", dailyScore: Math.floor(morningThird + (endThird - morningThird) * climb) }
+    { userId: "contest_seed_1", name: "Marcus", dailyScore: Math.floor(morningFirst + (endFirst - morningFirst) * climb) },
+    { userId: "contest_seed_2", name: "Emma", dailyScore: Math.floor(morningSecond + (endSecond - morningSecond) * climb) },
+    { userId: "contest_seed_3", name: "Ryan", dailyScore: Math.floor(morningThird + (endThird - morningThird) * climb) }
   ];
 
   return scores
@@ -1354,11 +1340,12 @@ function buildDailyLeaderboardView() {
 
   const addCandidate = (row) => {
     if (!row) return;
-    const key = row.isYou ? "__you__" : String(row.userId || row.name || "");
+    const key = leaderboardCandidateKey(row);
     if (!key || seen.has(key)) return;
     seen.add(key);
     candidates.push({
       ...row,
+      userId: row.userId || CONTEST_SEED_IDS[row.name] || row.userId,
       dailyScore: Number(row.dailyScore || row.score || 0),
       name: row.isYou ? "You" : (row.name || "Player")
     });
@@ -2458,6 +2445,10 @@ document.querySelectorAll(".tab").forEach((tab) => {
     if (tab.dataset.tab === "rankPanel") {
       loadLeaderboard();
       loadTournament();
+    }
+
+    if (tab.dataset.view === "main" || tab.dataset.tab === "rankPanel") {
+      renderCampaignBanner();
     }
   });
 });
