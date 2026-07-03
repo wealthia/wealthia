@@ -374,10 +374,81 @@ p {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto 1fr;
-  gap: 6px;
+  grid-template-rows: auto auto auto;
+  gap: 8px;
   overflow: hidden;
   align-content: start;
+}
+
+.earn-boosts {
+  flex-shrink: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(124, 92, 255, 0.3);
+  background: linear-gradient(145deg, rgba(124, 92, 255, 0.12), rgba(18, 24, 42, 0.95));
+}
+
+.earn-boosts__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.earn-boosts__head span {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.earn-boosts__head small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.earn-boosts__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.earn-boost {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  min-height: 72px;
+  padding: 8px 4px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.earn-boost:active {
+  transform: scale(0.96);
+  border-color: var(--line-bright);
+}
+
+.earn-boost:disabled {
+  opacity: 0.6;
+}
+
+.earn-boost__icon {
+  font-size: 20px;
+}
+
+.earn-boost__title {
+  color: var(--text);
+}
+
+.earn-boost__price {
+  color: var(--gold-light);
+  font-size: 10px;
+  font-weight: 700;
 }
 
 .app.view-earn .earn-compact-head {
@@ -426,36 +497,7 @@ p {
 }
 
 .app.view-earn .stars-shop--compact {
-  flex-shrink: 0;
-  display: grid;
-  gap: 6px;
-  padding: 10px 12px;
-  min-height: auto;
-  align-content: start;
-}
-
-.app.view-earn .stars-shop--compact h2 {
-  font-size: 15px;
-}
-
-.app.view-earn .stars-shop--compact .earn-note {
-  font-size: 11px;
-  margin: 2px 0 6px;
-}
-
-.app.view-earn .boost-grid--compact {
-  margin-top: 4px;
-  gap: 6px;
-}
-
-.app.view-earn .boost-button--compact {
-  min-height: 64px;
-  padding: 8px 4px;
-  font-size: 10px;
-}
-
-.app.view-earn .boost-button--compact .boost-button__icon {
-  font-size: 18px;
+  display: none;
 }
 
 /* Friends tab — compact, visible link */
