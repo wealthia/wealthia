@@ -358,6 +358,32 @@ function computeDailyRank(rows, userId, userScore) {
   return 1 + sorted.filter((row) => number(row.daily_contest_score) > number(userScore)).length;
 }
 
+function mergeDailyLeaderboardRows(today, dailyEligibleRows, realDailyScores, yourDailyGame, userId) {
+  const topRealDailyScore = realDailyScores.reduce((max, score) => Math.max(max, score), 0);
+  const merged = [...dailyEligibleRows];
+
+  if (yourDailyGame && userId && !merged.some((row) => row.user_id === userId)) {
+    merged.push(yourDailyGame);
+  }
+
+  merged.push(...contestSeedGameRows(today, {
+    topRealDailyScore,
+    realScores: realDailyScores
+  }));
+
+  merged.sort((a, b) => number(b.daily_contest_score) - number(a.daily_contest_score));
+
+  const unique = [];
+  const seen = new Set();
+  for (const row of merged) {
+    if (seen.has(row.user_id)) continue;
+    seen.add(row.user_id);
+    unique.push(row);
+  }
+
+  return unique;
+}
+
 function syncDailyContest(row) {
   const today = todayKey();
   const cityValueNow = buildCityValue(row);
@@ -1803,19 +1829,9 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
       dailyPrizeEligible(referralCounts.get(row.user_id) || 0)
     );
     const realDailyScores = dailyEligibleRows.map((row) => number(row.daily_contest_score));
-    const topRealDailyScore = realDailyScores.reduce((max, score) => Math.max(max, score), 0);
-    const dailyWithSeeds = [
-      ...dailyEligibleRows,
-      ...contestSeedGameRows(today, {
-        topRealDailyScore,
-        realScores: realDailyScores
-      })
-    ].sort((a, b) => number(b.daily_contest_score) - number(a.daily_contest_score));
-    const dailyTopData = dailyWithSeeds.slice(0, 3);
 
     const topIds = (topData || []).map((row) => row.user_id);
-    const dailyIds = dailyWithSeeds.map((row) => row.user_id);
-    const lookupIds = [...new Set([...topIds, ...dailyIds])];
+    const lookupIds = [...new Set(topIds)];
 
     let yourRank = null;
     let yourGame = null;
@@ -1823,6 +1839,8 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
     let yourDailyGame = null;
     let yourReferrals = 0;
     let yourDailyEligible = false;
+    let dailyMerged = [];
+    let dailyTopData = [];
 
     if (userId) {
       yourReferrals = await getReferralCount(userId);
@@ -1844,26 +1862,32 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
         if (countError) throw countError;
         yourRank = number(count) + 1;
 
-        if (!lookupIds.includes(userId)) {
-          lookupIds.push(userId);
-        }
-
         const contest = syncDailyContest(userRow);
         yourDailyGame = { ...userRow, ...contest };
-
-        const rankRows = [...dailyWithSeeds];
-        if (!rankRows.some((row) => row.user_id === userId)) {
-          rankRows.push(yourDailyGame);
-        }
-        yourDailyRank = computeDailyRank(
-          rankRows,
-          userId,
-          number(contest.daily_contest_score)
-        );
-        if (!yourDailyRank) {
-          yourDailyRank = rankRows.length;
-        }
       }
+    }
+
+    dailyMerged = mergeDailyLeaderboardRows(
+      today,
+      dailyEligibleRows,
+      realDailyScores,
+      yourDailyGame,
+      userId
+    );
+    dailyTopData = dailyMerged.slice(0, 3);
+
+    if (yourDailyGame && userId) {
+      yourDailyRank = computeDailyRank(
+        dailyMerged,
+        userId,
+        number(yourDailyGame.daily_contest_score)
+      );
+    }
+
+    const dailyIds = dailyMerged.map((row) => row.user_id);
+    lookupIds.push(...dailyIds);
+    if (userId && !lookupIds.includes(userId)) {
+      lookupIds.push(userId);
     }
 
     const { data: users } = await supabase
@@ -1905,12 +1929,8 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
     const dailyTop3 = dailyTopData.map((row, index) => rowFromGame(row, index + 1, "dailyScore"));
 
     const youInDailyTop3 = dailyTop3.some((row) => row.isYou);
-    const dailyYou = yourDailyGame && !youInDailyTop3
-      ? rowFromGame(
-        yourDailyGame,
-        Math.max(number(yourDailyRank), 1),
-        "dailyScore"
-      )
+    const dailyYou = yourDailyGame && !youInDailyTop3 && yourDailyRank > 3
+      ? rowFromGame(yourDailyGame, yourDailyRank, "dailyScore")
       : null;
 
     res.json({
