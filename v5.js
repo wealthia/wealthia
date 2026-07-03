@@ -2212,14 +2212,4 @@ window.setInterval(() => {
   }
 }, 60000);
 
-setInterval(() => {
-  if (isEndlessEnergy() || state.energy >= 100) return;
-
-  state.energy = Math.min(
-    100,
-    Number(state.energy || 0) + Math.max(1, Number(state.buildings.factory || 0) + 1)
-  );
-
-  saveState();
-  render();
-}, 5000);
+// Energy recovery is server-side only (1 per 10s via /api/session sync).

@@ -31,7 +31,8 @@ app.use(express.json());
 app.use(ipRateLimit);
 
 const MAX_ENERGY = 100;
-const ENERGY_RECOVERY_PER_MINUTE = 2;
+const ENERGY_RECOVERY_INTERVAL_MS = 10000;
+const ENERGY_PER_INTERVAL = 1;
 const OFFLINE_INCOME_PER_BANK_LEVEL_PER_MINUTE = 3;
 const TASK_REFRESH_MS = 12 * 60 * 60 * 1000;
 const TASKS_PER_CYCLE = 4;
@@ -718,8 +719,8 @@ function applyPassive(row) {
   const current = nowMs();
   const lastSeen = row.last_seen_at ? new Date(row.last_seen_at).getTime() : current;
   const minutes = Math.max(0, (current - lastSeen) / 60000);
-
-  const energyGain = Math.floor(minutes * ENERGY_RECOVERY_PER_MINUTE);
+  const elapsedMs = Math.max(0, current - lastSeen);
+  const energyGain = Math.floor(elapsedMs / ENERGY_RECOVERY_INTERVAL_MS) * ENERGY_PER_INTERVAL;
   const bankIncome = Math.floor(minutes * number(row.bank_level) * OFFLINE_INCOME_PER_BANK_LEVEL_PER_MINUTE * incomeMultiplier(row));
 
   row.energy = Math.min(MAX_ENERGY, number(row.energy) + energyGain);
