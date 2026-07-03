@@ -14,7 +14,7 @@ window.WEALTHIA_CONFIG = {
 
   // Partner monetization links (Earn tab rewards)
   SPONSOR_BOT_URL: "https://t.me/WealthiaGameBot",
-  PARTNER_CHANNEL_URL: "https://t.me/wealthia_channel",
+  PARTNER_CHANNEL_URL: "https://t.me/c/4457207085",
 
   // Onboarding version — change to show tutorial again
   ONBOARDING_VERSION: "v1"
