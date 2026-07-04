@@ -2,7 +2,7 @@
 // Full monetization guide: MONETIZATION.md
 window.WEALTHIA_CONFIG = {
   API_URL: "https://wealthia-backend.onrender.com",
-  GAME_URL: "https://wealthia.github.io/wealthia/v5.html?v=2055",
+  GAME_URL: "https://wealthia.github.io/wealthia/v5.html?v=2056",
   ADMIN_URL: "https://wealthia.github.io/wealthia/admin.html",
 
   // Your bot username without @ — used for invite links
@@ -24,6 +24,12 @@ window.WEALTHIA_CONFIG = {
   // Partner monetization links (Earn tab rewards)
   SPONSOR_BOT_URL: "https://t.me/WealthiaGameBot",
   PARTNER_CHANNEL_URL: "https://t.me/weathia_official",
+
+  // Social daily tasks (Tasks tab — URLs also set on server via env)
+  SOCIAL_TASKS: {
+    followX: "https://x.com/WealthiaGame",
+    joinTelegram: "https://t.me/weathia_official"
+  },
 
   // Premium boost prices shown in Earn tab (must match server STAR_PRODUCTS)
   STAR_PRICES: {

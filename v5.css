@@ -516,29 +516,47 @@ p {
   margin-bottom: 0;
 }
 
-.app.view-tasks .panel-head--tasks h2 {
-  font-size: 22px;
+.app.view-tasks .panel-head--tasks .panel-head__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
-.app.view-tasks .panel-head--tasks p {
-  font-size: 12px;
-  margin-top: 2px;
+.app.view-tasks .panel-head--tasks h2 {
+  font-size: 22px;
+  margin: 0;
+}
+
+.app.view-tasks .panel-head--tasks .panel-head__note {
+  font-size: 11px;
+  margin-top: 4px;
+  color: var(--muted);
 }
 
 .app.view-tasks .task-refresh-clock {
-  margin-top: 6px;
-  padding: 8px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(245, 196, 81, 0.35);
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 0;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(245, 196, 81, 0.3);
   background: rgba(245, 196, 81, 0.08);
-  text-align: center;
 }
 
-.app.view-tasks .task-refresh-clock span {
+.app.view-tasks .task-refresh-clock__icon {
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.9;
+}
+
+.app.view-tasks .task-refresh-clock span#taskRefreshTimer {
   font-family: var(--font-display);
-  font-size: 24px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
   color: var(--gold-light);
   font-variant-numeric: tabular-nums;
 }
@@ -565,6 +583,11 @@ p {
 .app.view-tasks .tasks-list .task strong {
   min-width: 72px;
   font-size: 15px;
+}
+
+.app.view-tasks .tasks-list .task--social:not(.completed) {
+  border-color: rgba(124, 92, 255, 0.35);
+  background: linear-gradient(145deg, rgba(124, 92, 255, 0.1), rgba(18, 24, 42, 0.95));
 }
 
 /* Earn tab — compact, no scroll */

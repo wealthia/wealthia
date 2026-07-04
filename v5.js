@@ -831,16 +831,78 @@ function getTaskRefreshCountdown() {
 }
 
 function getTaskRefreshLabel() {
-  return `Next tasks in ${getTaskRefreshCountdown()}`;
+  return "Refreshes every 12 hours";
+}
+
+function renderTasksPanelHead() {
+  return `
+    <div class="panel-head panel-head--tasks">
+      <div class="panel-head__row">
+        <h2>Daily Missions</h2>
+        <div class="task-refresh-clock" aria-live="polite" title="Next tasks refresh">
+          <span class="task-refresh-clock__icon" aria-hidden="true">&#9201;</span>
+          <span id="taskRefreshTimer">${getTaskRefreshCountdown()}</span>
+        </div>
+      </div>
+      <p id="taskRefreshNote" class="panel-head__note">${getTaskRefreshLabel()}</p>
+    </div>
+  `;
+}
+
+function sortDailyTasksForDisplay(tasks) {
+  return [...tasks].sort((a, b) => {
+    const aClaimed = Boolean(a.claimed);
+    const bClaimed = Boolean(b.claimed);
+    if (aClaimed === bClaimed) return 0;
+    return aClaimed ? 1 : -1;
+  });
+}
+
+function renderDailyTaskCard(task) {
+  const title = task.title || "Daily Task";
+  const reward = format(task.reward || 0);
+  const progress = Number(task.progress || 0);
+  const target = Number(task.target || 1);
+  const claimed = Boolean(task.claimed);
+  const isSocial = task.type === "social";
+  const ready = !claimed && (isSocial || task.ready || progress >= target);
+  const buttonText = claimed
+    ? "Claimed"
+    : isSocial
+      ? `+${reward}`
+      : ready
+        ? `+${reward}`
+        : `${format(progress)} / ${format(target)}`;
+  const statusText = claimed
+    ? "Reward collected"
+    : isSocial
+      ? "Tap to open link"
+      : ready
+        ? "Ready to claim"
+        : "Progress";
+  const icon = isSocial
+    ? task.action === "follow_x"
+      ? "&#120143;"
+      : "&#128172;"
+    : "&#127873;";
+
+  return `
+    <button
+      class="task ${claimed ? "completed" : ""} ${isSocial ? "task--social" : ""}"
+      type="button"
+      data-daily-task="${task.id || ""}"
+      ${claimed || !ready ? "disabled" : ""}
+    >
+      <span><b>${icon} ${title}</b><small>${statusText}</small></span>
+      <strong class="${claimed ? "completed" : ""}">${buttonText}</strong>
+    </button>
+  `;
 }
 
 function updateTaskRefreshLabel() {
-  const note = document.getElementById("taskRefreshNote");
   const timer = document.getElementById("taskRefreshTimer");
-  const label = getTaskRefreshLabel();
   const countdown = getTaskRefreshCountdown();
 
-  if (note) note.textContent = label;
   if (timer) timer.textContent = countdown;
 }
 
@@ -860,7 +922,9 @@ function startTaskCountdownTimer() {
 
 function renderDailyTasks() {
   const panel = els.tasksPanel;
-  const tasks = Array.isArray(state.dailyTasks) ? state.dailyTasks : [];
+  const tasks = sortDailyTasksForDisplay(
+    Array.isArray(state.dailyTasks) ? state.dailyTasks : []
+  );
   const daily = state.dailyReward || defaultState.dailyReward;
   const dailyClaimed = Boolean(daily.claimedToday);
   const dailyAmount = format(daily.nextAmount || 100);
@@ -877,13 +941,7 @@ function renderDailyTasks() {
 
   if (tasks.length === 0) {
     panel.innerHTML = `
-      <div class="panel-head panel-head--tasks">
-        <h2>Daily Missions</h2>
-        <p id="taskRefreshNote">${getTaskRefreshLabel()}</p>
-        <div class="task-refresh-clock" aria-live="polite">
-          <span id="taskRefreshTimer">${getTaskRefreshCountdown()}</span>
-        </div>
-      </div>
+      ${renderTasksPanelHead()}
       <div class="tasks-list">
       ${dailyButton}
       <button class="task" type="button" disabled>
@@ -898,32 +956,10 @@ function renderDailyTasks() {
   }
 
   panel.innerHTML = `
-    <div class="panel-head panel-head--tasks">
-      <h2>Daily Missions</h2>
-      <p id="taskRefreshNote">${getTaskRefreshLabel()}</p>
-      <div class="task-refresh-clock" aria-live="polite">
-        <span id="taskRefreshTimer">${getTaskRefreshCountdown()}</span>
-      </div>
-    </div>
+    ${renderTasksPanelHead()}
     <div class="tasks-list">
     ${dailyButton}
-    ${tasks.map((task) => {
-      const title = task.title || "Daily Task";
-      const reward = format(task.reward || 0);
-      const progress = Number(task.progress || 0);
-      const target = Number(task.target || 1);
-      const claimed = Boolean(task.claimed);
-      const ready = !claimed && (task.ready || progress >= target);
-      const buttonText = claimed ? "Claimed" : ready ? `+${reward}` : `${format(progress)} / ${format(target)}`;
-      const statusText = claimed ? "Reward collected" : ready ? "Ready to claim" : "Progress";
-
-      return `
-        <button class="task ${claimed ? "completed" : ""}" type="button" data-daily-task="${task.id || ""}" ${claimed || !ready ? "disabled" : ""}>
-          <span><b>&#127873; ${title}</b><small>${statusText}</small></span>
-          <strong class="${claimed ? "completed" : ""}">${buttonText}</strong>
-        </button>
-      `;
-    }).join("")}
+    ${tasks.map((task) => renderDailyTaskCard(task)).join("")}
     </div>
   `;
 
@@ -2409,6 +2445,27 @@ async function backendUpgrade(name) {
   await applyBackendUser(result.user, `${name[0].toUpperCase() + name.slice(1)} upgraded.`);
 }
 
+async function handleDailyTaskClick(taskId) {
+  const tasks = Array.isArray(state.dailyTasks) ? state.dailyTasks : [];
+  const task = tasks.find((item) => item.id === taskId);
+  if (!task || task.claimed) return;
+
+  const isSocial = task.type === "social";
+  const ready = isSocial || task.ready || Number(task.progress || 0) >= Number(task.target || 1);
+  if (!ready) return;
+
+  if (isSocial && task.url) {
+    const tg = window.Telegram?.WebApp;
+    if (tg && typeof tg.openLink === "function") {
+      tg.openLink(task.url);
+    } else {
+      window.open(task.url, "_blank", "noopener,noreferrer");
+    }
+  }
+
+  await claimBackendTask(taskId);
+}
+
 async function claimBackendTask(taskId) {
   if (!(await ensureBackend())) {
     showToast("Server not connected. Tap Retry at top.");
@@ -2739,7 +2796,7 @@ if (els.tasksPanel) {
     const taskId = button.dataset.dailyTask;
     if (!taskId) return;
 
-    claimBackendTask(taskId);
+    handleDailyTaskClick(taskId);
   });
 }
 

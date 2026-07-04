@@ -35,6 +35,9 @@ app.use(ipRateLimit);
 const MAX_ENERGY = economy.DEFAULT_MAX_ENERGY;
 const TASK_REFRESH_MS = 12 * 60 * 60 * 1000;
 const TASKS_PER_CYCLE = 4;
+const SOCIAL_FOLLOW_X_URL = process.env.SOCIAL_FOLLOW_X_URL || "https://x.com/WealthiaGame";
+const SOCIAL_JOIN_TELEGRAM_URL =
+  process.env.SOCIAL_JOIN_TELEGRAM_URL || "https://t.me/weathia_official";
 const BOOST_DURATION_MS = 30 * 60 * 1000;
 const REFERRAL_BONUS = 500;
 const NEW_PLAYER_BONUS = 100;
@@ -720,10 +723,32 @@ function buildDailyTasks(row) {
     picked.push(pool[(start + i) % pool.length]);
   }
 
-  return picked;
+  const socialTasks = [
+    {
+      id: "social-follow-x",
+      title: "Follow X Account",
+      type: "social",
+      action: "follow_x",
+      url: SOCIAL_FOLLOW_X_URL,
+      target: 1,
+      reward: 120 + level * 10
+    },
+    {
+      id: "social-join-telegram",
+      title: "Join Telegram Group",
+      type: "social",
+      action: "join_telegram",
+      url: SOCIAL_JOIN_TELEGRAM_URL,
+      target: 1,
+      reward: 120 + level * 10
+    }
+  ];
+
+  return [...socialTasks, ...picked];
 }
 
 function taskProgress(row, task) {
+  if (task.type === "social") return 0;
   if (task.type === "taps") return number(row.taps);
   if (task.type === "city_value") return buildCityValue(row);
   if (task.type === "shop_level") return number(row.shop_level);
@@ -733,6 +758,7 @@ function taskProgress(row, task) {
 }
 
 function taskReady(row, task) {
+  if (task.type === "social") return true;
   return taskProgress(row, task) >= number(task.target);
 }
 
