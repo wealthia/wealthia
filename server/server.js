@@ -39,12 +39,24 @@ app.use(ipRateLimit);
 const MAX_ENERGY = economy.DEFAULT_MAX_ENERGY;
 const TASK_REFRESH_MS = 12 * 60 * 60 * 1000;
 const TASKS_PER_CYCLE = 4;
+
+function normalizeChannelUsername(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "@official_wealthia";
+  return raw.startsWith("@") ? raw : `@${raw}`;
+}
+
 const SOCIAL_JOIN_TELEGRAM_URL =
   process.env.SOCIAL_JOIN_TELEGRAM_URL || "https://t.me/official_wealthia";
-const OFFICIAL_CHANNEL_USERNAME =
-  process.env.OFFICIAL_CHANNEL_USERNAME || "@official_wealthia";
+const OFFICIAL_CHANNEL_USERNAME = normalizeChannelUsername(
+  process.env.OFFICIAL_CHANNEL_USERNAME || "@official_wealthia"
+);
+const OFFICIAL_CHANNEL_ID = String(process.env.OFFICIAL_CHANNEL_ID || "").trim();
 const OFFICIAL_CHANNEL_URL =
-  process.env.OFFICIAL_CHANNEL_URL || "https://t.me/official_wealthia";
+  process.env.OFFICIAL_CHANNEL_URL || `https://t.me/${OFFICIAL_CHANNEL_USERNAME.replace(/^@/, "")}`;
+const CONNECTION_ERROR_MESSAGE =
+  "Connection error. Please try again or restart the bot.";
+let resolvedOfficialChannelChatId = "";
 const BOOST_DURATION_MS = 30 * 60 * 1000;
 const REFERRAL_BONUS = 500;
 const NEW_PLAYER_BONUS = 100;
@@ -141,22 +153,157 @@ async function notifyOwnerStarsSale(details) {
 }
 
 async function telegramApi(method, body) {
+  const safe = await telegramApiSafe(method, body);
+  if (!safe.ok) {
+    throw new Error(safe.error || "Telegram API error");
+  }
+  return safe.result;
+}
+
+async function telegramApiSafe(method, body) {
   if (!TELEGRAM_BOT_TOKEN) {
-    throw new Error("TELEGRAM_BOT_TOKEN_MISSING");
+    return { ok: false, error: "TELEGRAM_BOT_TOKEN_MISSING", result: null };
   }
 
-  const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/${method}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/${method}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+
+    const data = await response.json();
+    if (!data.ok) {
+      return {
+        ok: false,
+        error: data.description || "Telegram API error",
+        result: null
+      };
+    }
+
+    return { ok: true, error: "", result: data.result };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error.message || "Telegram API request failed",
+      result: null
+    };
+  }
+}
+
+async function getOfficialChannelChatId() {
+  if (OFFICIAL_CHANNEL_ID) return OFFICIAL_CHANNEL_ID;
+  if (resolvedOfficialChannelChatId) return resolvedOfficialChannelChatId;
+
+  const lookup = await telegramApiSafe("getChat", {
+    chat_id: OFFICIAL_CHANNEL_USERNAME
   });
 
-  const data = await response.json();
-  if (!data.ok) {
-    throw new Error(data.description || "Telegram API error");
+  if (lookup.ok && lookup.result?.id) {
+    resolvedOfficialChannelChatId = String(lookup.result.id);
+    return resolvedOfficialChannelChatId;
   }
 
-  return data.result;
+  console.warn("OFFICIAL_CHANNEL_RESOLVE_FAILED:", lookup.error || "unknown");
+  return OFFICIAL_CHANNEL_USERNAME;
+}
+
+function isChannelMembershipLookupError(errorText) {
+  const text = String(errorText || "").toLowerCase();
+  return (
+    text.includes("user not found") ||
+    text.includes("user_not_participant") ||
+    text.includes("not a member") ||
+    text.includes("user_id_invalid") ||
+    text.includes("participant_id_invalid")
+  );
+}
+
+function isChannelConfigurationError(errorText) {
+  const text = String(errorText || "").toLowerCase();
+  return (
+    text.includes("chat not found") ||
+    text.includes("bot is not a member") ||
+    text.includes("have no rights") ||
+    text.includes("not enough rights") ||
+    text.includes("channel_private")
+  );
+}
+
+async function checkOfficialChannelMembership(telegramId) {
+  const result = {
+    isMember: false,
+    error: "",
+    fatal: false
+  };
+
+  if (!TELEGRAM_BOT_TOKEN || !telegramId) {
+    result.error = "BOT_OR_USER_MISSING";
+    result.fatal = true;
+    return result;
+  }
+
+  const chatId = await getOfficialChannelChatId();
+  const lookup = await telegramApiSafe("getChatMember", {
+    chat_id: chatId,
+    user_id: Number(telegramId)
+  });
+
+  if (!lookup.ok) {
+    result.error = lookup.error || "CHANNEL_LOOKUP_FAILED";
+
+    if (isChannelMembershipLookupError(result.error)) {
+      return result;
+    }
+
+    if (isChannelConfigurationError(result.error)) {
+      result.fatal = true;
+    }
+
+    return result;
+  }
+
+  result.isMember = CHANNEL_MEMBER_STATUSES.has(String(lookup.result?.status || ""));
+  return result;
+}
+
+async function inspectOfficialChannelAccess() {
+  const chatId = await getOfficialChannelChatId();
+  const chat = await telegramApiSafe("getChat", { chat_id: chatId });
+
+  if (!chat.ok) {
+    return {
+      ok: false,
+      chatId,
+      username: OFFICIAL_CHANNEL_USERNAME,
+      error: chat.error || "CHANNEL_NOT_FOUND"
+    };
+  }
+
+  const botInfo = await telegramApiSafe("getMe");
+  let botIsAdmin = false;
+
+  if (botInfo.ok && botInfo.result?.id) {
+    const membership = await telegramApiSafe("getChatMember", {
+      chat_id: chatId,
+      user_id: Number(botInfo.result.id)
+    });
+
+    if (membership.ok) {
+      const status = String(membership.result?.status || "");
+      botIsAdmin = status === "administrator" || status === "creator";
+    }
+  }
+
+  return {
+    ok: true,
+    chatId: String(chat.result?.id || chatId),
+    username: chat.result?.username
+      ? `@${chat.result.username}`
+      : OFFICIAL_CHANNEL_USERNAME,
+    title: chat.result?.title || "",
+    botIsAdmin
+  };
 }
 
 function extendBoostUntil(currentUntil) {
@@ -1003,18 +1150,8 @@ function toClientUser(row, extra = {}) {
 }
 
 async function isOfficialChannelMember(telegramId) {
-  if (!TELEGRAM_BOT_TOKEN || !telegramId) return false;
-
-  try {
-    const member = await telegramApi("getChatMember", {
-      chat_id: OFFICIAL_CHANNEL_USERNAME,
-      user_id: Number(telegramId)
-    });
-    return CHANNEL_MEMBER_STATUSES.has(String(member?.status || ""));
-  } catch (error) {
-    console.warn("OFFICIAL_CHANNEL_CHECK_FAILED:", error.message);
-    return false;
-  }
+  const check = await checkOfficialChannelMembership(telegramId);
+  return Boolean(check.isMember);
 }
 
 async function creditReferrerCoins(referrerId) {
@@ -1096,15 +1233,20 @@ async function qualifyReferralIfPending(referredUserId) {
 }
 
 async function isReferralBotAccount(userId, options = {}) {
-  if (options.isBot) return true;
+  if (options.isBot === true) return true;
+  if (options.isBot === false) return false;
   if (String(userId) === "web_demo") return true;
 
-  try {
-    const chat = await telegramApi("getChat", { chat_id: Number(userId) });
-    return Boolean(chat?.is_bot);
-  } catch {
+  const lookup = await telegramApiSafe("getChat", { chat_id: Number(userId) });
+  if (!lookup.ok) {
+    if (String(lookup.error || "").toLowerCase().includes("user not found")) {
+      return false;
+    }
+    console.warn("REFERRAL_BOT_LOOKUP_FAILED:", lookup.error);
     return false;
   }
+
+  return Boolean(lookup.result?.is_bot);
 }
 
 async function recordReferral(referrerId, referredUserId, options = {}) {
@@ -1353,11 +1495,16 @@ async function runDailyLottery(contestDate = yesterdayKey()) {
   };
 }
 
-async function getOrCreatePlayer(telegramUser, referrerId = "") {
-  const telegramId = String(telegramUser?.id || "web_demo");
+async function ensureUserProfile(telegramUser) {
+  const telegramId = String(telegramUser?.id || "");
   const name = telegramUser?.first_name || "Player";
   const username = telegramUser?.username || "";
-  const referrer = parseReferrerId(referrerId);
+
+  if (!telegramId) {
+    const error = new Error("TELEGRAM_USER_ID_MISSING");
+    error.code = "TELEGRAM_USER_ID_MISSING";
+    throw error;
+  }
 
   if (Boolean(telegramUser?.is_bot)) {
     const error = new Error("BOTS_NOT_ALLOWED");
@@ -1365,7 +1512,7 @@ async function getOrCreatePlayer(telegramUser, referrerId = "") {
     throw error;
   }
 
-  await supabase.from("users").upsert({
+  const { error: userError } = await supabase.from("users").upsert({
     id: telegramId,
     telegram_id: telegramId,
     first_name: name,
@@ -1373,11 +1520,15 @@ async function getOrCreatePlayer(telegramUser, referrerId = "") {
     last_seen_at: new Date().toISOString()
   });
 
-  const { data: existing } = await supabase
+  if (userError) throw userError;
+
+  const { data: existing, error: existingError } = await supabase
     .from("game_states")
     .select("*")
     .eq("user_id", telegramId)
     .maybeSingle();
+
+  if (existingError) throw existingError;
 
   if (existing) {
     let row = refreshDailyTasks(applyPassive(existing));
@@ -1418,14 +1569,39 @@ async function getOrCreatePlayer(telegramUser, referrerId = "") {
     .single();
 
   if (error) throw error;
+  return data;
+}
 
-  if (referrer) {
-    await registerPendingReferral(referrer, telegramId, {
-      isBot: Boolean(telegramUser?.is_bot)
-    });
+async function registerPendingReferralIfNew(telegramUser, referrerId) {
+  const telegramId = String(telegramUser?.id || "");
+  const referrer = parseReferrerId(referrerId);
+
+  if (!telegramId || !referrer || referrer === telegramId) return false;
+
+  const { data: existingReferral, error: existingError } = await supabase
+    .from("referrals")
+    .select("id")
+    .eq("referred_user_id", telegramId)
+    .maybeSingle();
+
+  if (existingError) throw existingError;
+  if (existingReferral) return false;
+
+  return registerPendingReferral(referrer, telegramId, {
+    isBot: Boolean(telegramUser?.is_bot)
+  });
+}
+
+async function getOrCreatePlayer(telegramUser, referrerId = "") {
+  const row = await ensureUserProfile(telegramUser);
+
+  try {
+    await registerPendingReferralIfNew(telegramUser, referrerId);
+  } catch (error) {
+    console.warn("PENDING_REFERRAL_REGISTER_FAILED:", error.message);
   }
 
-  return data;
+  return row;
 }
 
 async function loadGame(userId) {
@@ -1485,16 +1661,30 @@ app.get("/health", async (_req, res) => {
   }
 
   const telegram = await checkTelegramBot();
+  let officialChannel = { ok: false, username: OFFICIAL_CHANNEL_USERNAME };
+
+  if (telegram.ok) {
+    try {
+      officialChannel = await inspectOfficialChannelAccess();
+    } catch (error) {
+      officialChannel = {
+        ok: false,
+        username: OFFICIAL_CHANNEL_USERNAME,
+        error: error.message || "CHANNEL_CHECK_FAILED"
+      };
+    }
+  }
 
   res.json({
     ok: true,
     app: "Wealthia API",
     database,
     telegram,
+    officialChannel,
     session: {
       configured: Boolean(TELEGRAM_BOT_TOKEN || process.env.SESSION_SECRET || ADMIN_SECRET)
     },
-    version: "referral-channel-gate-v1"
+    version: "referral-channel-gate-v2"
   });
 });
 
@@ -1517,10 +1707,40 @@ app.post("/api/session", async (req, res) => {
     const referrerId = parseReferrerId(
       req.body.referrerId || req.body.referralId || telegramUser.start_param
     );
-    const row = await getOrCreatePlayer(telegramUser, referrerId);
-    const channelMember = await isOfficialChannelMember(telegramUser.id);
 
-    if (!channelMember) {
+    let row;
+    try {
+      row = await ensureUserProfile(telegramUser);
+    } catch (profileError) {
+      console.error("ENSURE_USER_PROFILE_FAILED:", profileError);
+      if (profileError.code === "BOTS_NOT_ALLOWED") {
+        res.status(403).json({ error: "BOTS_NOT_ALLOWED" });
+        return;
+      }
+      res.status(503).json({
+        error: "CONNECTION_ERROR",
+        message: CONNECTION_ERROR_MESSAGE
+      });
+      return;
+    }
+
+    try {
+      await registerPendingReferralIfNew(telegramUser, referrerId);
+    } catch (referralError) {
+      console.warn("PENDING_REFERRAL_REGISTER_FAILED:", referralError.message);
+    }
+
+    const channelCheck = await checkOfficialChannelMembership(telegramUser.id);
+    if (channelCheck.fatal) {
+      console.error("OFFICIAL_CHANNEL_CONFIG_ERROR:", channelCheck.error);
+      res.status(503).json({
+        error: "CONNECTION_ERROR",
+        message: CONNECTION_ERROR_MESSAGE
+      });
+      return;
+    }
+
+    if (!channelCheck.isMember) {
       res.json({
         userId: telegramUser.id,
         channelRequired: true,
@@ -1530,7 +1750,11 @@ app.post("/api/session", async (req, res) => {
       return;
     }
 
-    await qualifyReferralIfPending(telegramUser.id);
+    try {
+      await qualifyReferralIfPending(telegramUser.id);
+    } catch (qualifyError) {
+      console.warn("QUALIFY_REFERRAL_FAILED:", qualifyError.message);
+    }
 
     const session = createSessionToken(telegramUser.id);
     const referralCount = await getReferralCount(telegramUser.id);
@@ -1551,11 +1775,9 @@ app.post("/api/session", async (req, res) => {
       res.status(403).json({ error: "BOTS_NOT_ALLOWED" });
       return;
     }
-    res.status(500).json({
-      error: error.message,
-      details: error.details || "",
-      hint: error.hint || "",
-      code: error.code || ""
+    res.status(503).json({
+      error: "CONNECTION_ERROR",
+      message: CONNECTION_ERROR_MESSAGE
     });
   }
 });
