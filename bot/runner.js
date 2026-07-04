@@ -386,6 +386,7 @@ function startBotPolling() {
     poll();
     scheduleDailyPush();
     scheduleDailyLottery();
+    scheduleSystemBotsTick();
   });
 }
 
@@ -427,6 +428,38 @@ function scheduleDailyLottery() {
       runDailyLotteryCron();
     }
   }, 60 * 1000);
+}
+
+async function runSystemBotsTickCron() {
+  if (!CRON_SECRET) return;
+
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/cron/system-bots-tick`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-cron-secret": CRON_SECRET
+      },
+      body: JSON.stringify({})
+    });
+
+    const result = await response.json();
+    if (result && result.updated) {
+      console.log(`System bots tick updated ${result.updated} bot(s).`);
+    }
+  } catch (error) {
+    console.warn("System bots tick cron failed:", error.message);
+  }
+}
+
+function scheduleSystemBotsTick() {
+  const intervalMs = Math.max(
+    10,
+    Number(process.env.SYSTEM_BOT_TICK_MINUTES || 12)
+  ) * 60 * 1000;
+
+  runSystemBotsTickCron();
+  setInterval(runSystemBotsTickCron, intervalMs);
 }
 
 async function runDailyPushCron() {

@@ -13,6 +13,7 @@ const {
   contestSeedProfile,
   isContestSeedUserId
 } = require("./contest-seeds");
+const systemBots = require("./system-bots");
 const economy = require("./economy");
 
 const app = express();
@@ -363,18 +364,29 @@ function computeDailyRank(rows, userId, userTickets) {
   return 1 + sorted.filter((row) => ticketCount(row) > number(userTickets)).length;
 }
 
-function mergeDailyLeaderboardRows(today, dailyEligibleRows, realDailyScores, yourDailyGame, userId) {
-  const topRealDailyScore = realDailyScores.reduce((max, score) => Math.max(max, score), 0);
+function mergeDailyLeaderboardRows(
+  today,
+  dailyEligibleRows,
+  realDailyScores,
+  yourDailyGame,
+  userId,
+  systemBotRows = []
+) {
   const merged = [...dailyEligibleRows];
 
   if (yourDailyGame && userId && !merged.some((row) => row.user_id === userId)) {
     merged.push(yourDailyGame);
   }
 
-  merged.push(...contestSeedGameRows(today, {
-    topRealDailyScore,
-    realScores: realDailyScores
-  }));
+  if (systemBotRows.length) {
+    merged.push(...systemBotRows);
+  } else if (!systemBots.systemBotsEnabled()) {
+    const topRealDailyScore = realDailyScores.reduce((max, score) => Math.max(max, score), 0);
+    merged.push(...contestSeedGameRows(today, {
+      topRealDailyScore,
+      realScores: realDailyScores
+    }));
+  }
 
   const ticketCount = (row) => economy.computeTickets(row.daily_contest_score);
   const sortByTickets = (a, b) => {
@@ -1108,6 +1120,7 @@ async function resetDailyContestForAll() {
   const today = todayKey();
   const { error } = await supabase.rpc("reset_daily_contest", { p_today: today });
   if (error) throw error;
+  await systemBots.resetSystemBots(supabase, today);
 }
 
 async function runDailyLottery(contestDate = yesterdayKey()) {
@@ -2139,12 +2152,20 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
       }
     }
 
+    let systemBotRows = [];
+    try {
+      systemBotRows = await systemBots.loadSystemBotGameRows(supabase, today);
+    } catch (error) {
+      console.warn("SYSTEM_BOTS_LOAD_FAILED:", error.message);
+    }
+
     dailyMerged = mergeDailyLeaderboardRows(
       today,
       dailyEligibleRows,
       realDailyScores,
       yourDailyGame,
-      userId
+      userId,
+      systemBotRows
     );
     dailyTopData = dailyMerged.slice(0, 3);
 
@@ -2170,7 +2191,7 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
     const userMap = new Map((users || []).map((user) => [user.id, user]));
 
     function rowFromGame(gameRow, rank, valueKey = "cityValue") {
-      const seed = contestSeedProfile(gameRow.user_id);
+      const seed = contestSeedProfile(gameRow.user_id) || systemBots.systemBotProfile(gameRow.user_id);
       const profile = userMap.get(gameRow.user_id) || {};
       const dailyScore = number(gameRow.daily_contest_score);
       const tickets = economy.computeTickets(dailyScore);
@@ -2854,6 +2875,17 @@ async function sendPushMessage(telegramId, text) {
     return false;
   }
 }
+
+app.post("/api/cron/system-bots-tick", async (req, res) => {
+  if (!requireCron(req, res)) return;
+
+  try {
+    const result = await systemBots.tickSystemBots(supabase, todayKey());
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 app.post("/api/cron/daily-lottery", async (req, res) => {
   if (!requireCron(req, res)) return;
