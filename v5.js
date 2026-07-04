@@ -590,7 +590,7 @@ function showChannelGate(url, message) {
   const messageNode = document.getElementById("channelGateMessage");
   if (!modal) return;
 
-  channelGateUrl = String(url || CONFIG.PARTNER_CHANNEL_URL || "https://t.me/official_wealthia");
+  channelGateUrl = String(url || CONFIG.PARTNER_CHANNEL_URL || "https://t.me/weathia_official");
   if (messageNode) {
     messageNode.textContent = message || "Please subscribe to our official channel to unlock the game";
   }
@@ -616,7 +616,7 @@ function bindChannelGateModal() {
   const joinButton = document.getElementById("channelGateJoinButton");
   if (joinButton) {
     joinButton.addEventListener("click", () => {
-      openPartnerLink(channelGateUrl || CONFIG.PARTNER_CHANNEL_URL || "https://t.me/official_wealthia");
+      openPartnerLink(channelGateUrl || CONFIG.PARTNER_CHANNEL_URL || "https://t.me/weathia_official");
     });
   }
 
@@ -2937,6 +2937,9 @@ async function connectBackend(retries = 6) {
     if (result && result.error === "CONNECTION_ERROR") {
       backendReady = false;
       backendSessionToken = "";
+      if (els.syncBarText) {
+        els.syncBarText.textContent = CONNECTION_ERROR_TOAST;
+      }
       showConnectionErrorToast();
       renderSyncBar();
       render();
@@ -2951,7 +2954,7 @@ async function connectBackend(retries = 6) {
       if (els.syncBarText) {
         els.syncBarText.textContent = status === 0
           ? "Network error — retrying..."
-          : "Server error — retrying...";
+          : CONNECTION_ERROR_TOAST;
       }
       await sleep(2000 * (attempt + 1));
       continue;

@@ -2,7 +2,7 @@
 // Full monetization guide: MONETIZATION.md
 window.WEALTHIA_CONFIG = {
   API_URL: "https://wealthia-backend.onrender.com",
-  GAME_URL: "https://wealthia.github.io/wealthia/v5.html?v=2074",
+  GAME_URL: "https://wealthia.github.io/wealthia/v5.html?v=2075",
   ADMIN_URL: "https://wealthia.github.io/wealthia/admin.html",
 
   // Your bot username without @ — used for invite links
@@ -26,11 +26,11 @@ window.WEALTHIA_CONFIG = {
 
   // Partner monetization links (Earn tab rewards)
   SPONSOR_BOT_URL: "https://t.me/WealthiaGameBot",
-  PARTNER_CHANNEL_URL: "https://t.me/official_wealthia",
+  PARTNER_CHANNEL_URL: "https://t.me/weathia_official",
 
   // Social daily task (Tasks tab — URL also set on server via env)
   SOCIAL_TASKS: {
-    joinTelegram: "https://t.me/official_wealthia"
+    joinTelegram: "https://t.me/weathia_official"
   },
 
   // Premium boost prices shown in Earn tab (must match server STAR_PRODUCTS)
@@ -67,7 +67,7 @@ window.WEALTHIA_CONFIG = {
       second: 300,
       third: 200
     },
-    channelUrl: "https://t.me/official_wealthia"
+    channelUrl: "https://t.me/weathia_official"
   },
 
   // Daily contest — highest City Value gained today (UTC) wins prize (paid manually)
@@ -77,6 +77,6 @@ window.WEALTHIA_CONFIG = {
     prize: 10,
     currency: "USD",
     minReferrals: 3,
-    channelUrl: "https://t.me/official_wealthia"
+    channelUrl: "https://t.me/weathia_official"
   }
 };
