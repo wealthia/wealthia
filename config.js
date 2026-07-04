@@ -2,11 +2,14 @@
 // Full monetization guide: MONETIZATION.md
 window.WEALTHIA_CONFIG = {
   API_URL: "https://wealthia-backend.onrender.com",
-  GAME_URL: "https://wealthia.github.io/wealthia/v5.html?v=2069",
+  GAME_URL: "https://wealthia.github.io/wealthia/v5.html?v=2070",
   ADMIN_URL: "https://wealthia.github.io/wealthia/admin.html",
 
   // Your bot username without @ — used for invite links
   BOT_USERNAME: "WealthiaGameBot",
+
+  // Premium spin admin test bypass (Telegram user id)
+  ADMIN_TELEGRAM_ID: "1988089728",
 
   // AdsGram rewarded ads: https://partner.adsgram.ai
   // Setup guide: ADSGRAM-SETUP.md
