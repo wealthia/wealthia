@@ -38,7 +38,8 @@ const storageKey = "wealthiaV5State";
 
 const defaultState = {
   coins: 0,
-  energy: 100,
+  energy: 1000,
+  maxEnergy: 1000,
   taps: 0,
   spent: 0,
   lastSeen: Date.now(),
@@ -189,8 +190,12 @@ function format(value) {
   return Math.floor(Number(value || 0)).toLocaleString("en-US");
 }
 
+function tapValue() {
+  return Math.max(1, Number(state.buildings.shop || 1));
+}
+
 function tapPower() {
-  const base = Math.max(1, Number(state.buildings.shop || 1));
+  const base = tapValue();
   return state.boosts.tapActive ? base * 2 : base;
 }
 
@@ -401,15 +406,13 @@ function ensureTodayGainBaseline() {
 }
 
 function todayGainScore() {
-  ensureTodayGainBaseline();
+  const serverScore = Number(
+    state.dailyScore ||
+    dailyContestScore ||
+    Number(state.dailyContest?.score || 0)
+  );
 
-  const serverScore = dailyContestScore || Number(state.dailyContest?.score || 0);
-  const baseline = getTodayGainBaseline();
-
-  if (baseline === null) return serverScore;
-
-  const localGain = Math.max(0, cityValue() - baseline);
-  return Math.max(serverScore, localGain);
+  return serverScore;
 }
 
 function updateFriendsInvitePanel(link = getInviteLink()) {
@@ -666,11 +669,13 @@ async function startGoldRush() {
 function render() {
   if (els.coins) els.coins.textContent = format(state.coins);
   if (els.energy) els.energy.textContent = Math.floor(state.energy);
-  if (els.cityValue) els.cityValue.textContent = format(cityValue());
+  const maxEnergy = Math.max(1, Number(state.maxEnergy || 1000));
+  const energyMaxEl = document.getElementById("energyMax");
+  if (energyMaxEl) energyMaxEl.textContent = format(maxEnergy);
 
   if (els.energyBar) {
-    els.energyBar.style.width = `${Math.max(0, Math.min(100, state.energy))}%`;
-    els.energyBar.style.background = state.energy < 20 ? "var(--red)" : "var(--green)";
+    els.energyBar.style.width = `${Math.max(0, Math.min(100, (state.energy / maxEnergy) * 100))}%`;
+    els.energyBar.style.background = state.energy / maxEnergy < 0.2 ? "var(--red)" : "var(--green)";
   }
 
   if (els.tapPower) els.tapPower.textContent = tapPower();
@@ -678,10 +683,12 @@ function render() {
     if (isEndlessEnergy()) {
       els.tapLabel.textContent = state.boosts.tapActive ? "2x · ∞" : "∞ Energy";
     } else {
-      els.tapLabel.textContent = state.energy < 1 ? "No Energy" : state.boosts.tapActive ? "2x Tap" : "Tap";
+      els.tapLabel.textContent = state.energy < tapValue() ? "No Energy" : state.boosts.tapActive ? "2x Tap" : "Tap";
     }
   }
-  if (els.tapButton) els.tapButton.classList.toggle("no-energy", !isEndlessEnergy() && state.energy < 1);
+  if (els.tapButton) els.tapButton.classList.toggle("no-energy", !isEndlessEnergy() && state.energy < tapValue());
+
+  if (els.cityValue) els.cityValue.textContent = format(cityValue());
 
   if (els.shopLevel) els.shopLevel.textContent = state.buildings.shop;
   if (els.bankLevel) els.bankLevel.textContent = state.buildings.bank;
@@ -1665,6 +1672,28 @@ function finishOnboarding() {
   if (highlight) highlight.hidden = true;
 }
 
+function showOfflineModal(amount) {
+  const value = Math.floor(Number(amount || 0));
+  if (value < 1) return;
+
+  const modal = document.getElementById("offlineModal");
+  const text = document.getElementById("offlineModalText");
+  if (!modal || !text) return;
+
+  text.textContent = `While you were away, your buildings earned +${format(value)} coins!`;
+  modal.hidden = false;
+}
+
+function setupOfflineModal() {
+  const modal = document.getElementById("offlineModal");
+  const claim = document.getElementById("offlineModalClaim");
+  if (!modal || !claim) return;
+
+  claim.addEventListener("click", () => {
+    modal.hidden = true;
+  });
+}
+
 function showToast(message) {
   if (!els.toast) return;
 
@@ -1702,7 +1731,9 @@ function syncFromBackend(user) {
   const game = user.game;
 
   state.coins = Number(game.coins || 0);
-  state.energy = Number(game.energy || 0);
+  state.energy = Number(game.energy || game.currentEnergy || 0);
+  state.maxEnergy = Number(game.maxEnergy || 1000);
+  state.dailyScore = Number(game.dailyScore || game.dailyContest?.score || 0);
   state.taps = Number(game.taps || 0);
   state.spent = Number(game.spent || 0);
   state.dailyDate = game.dailyDate || "";
@@ -1781,13 +1812,13 @@ function syncFromBackend(user) {
 
   if (game.dailyContest) {
     state.dailyContest = {
-      score: Number(game.dailyContest.score || 0),
+      score: Number(game.dailyContest.score || game.dailyScore || 0),
       date: game.dailyContest.date || "",
       resetsAt: game.dailyContest.resetsAt || "",
       minReferrals: Number(game.dailyContest.minReferrals || 3),
       eligible: Boolean(game.dailyContest.eligible)
     };
-    dailyContestScore = Number(game.dailyContest.score || 0);
+    dailyContestScore = Number(game.dailyContest.score || game.dailyScore || 0);
     dailyContestResetsAt = game.dailyContest.resetsAt || "";
     dailyReferralsRequired = Number(game.dailyContest.minReferrals || 3);
     dailyPrizeEligible = Boolean(game.dailyContest.eligible);
@@ -1962,6 +1993,9 @@ async function applyBackendUser(user, message) {
   await loadLeaderboard();
 
   if (message) showToast(message);
+  if (user.game && Number(user.game.offlineEarnings || 0) > 0) {
+    showOfflineModal(user.game.offlineEarnings);
+  }
   startOnboardingIfNeeded();
   return true;
 }
@@ -2195,7 +2229,8 @@ async function joinTournament() {
 }
 
 function tapLocal(event) {
-  if (!isEndlessEnergy() && state.energy < 1) {
+  const cost = tapValue();
+  if (!isEndlessEnergy() && state.energy < cost) {
     showToast("No energy.");
     render();
     return false;
@@ -2204,8 +2239,11 @@ function tapLocal(event) {
   const amount = tapPower();
   state.coins = Number(state.coins || 0) + amount;
   state.taps = Number(state.taps || 0) + 1;
+  state.dailyScore = Number(state.dailyScore || 0) + amount;
+  if (state.dailyContest) state.dailyContest.score = state.dailyScore;
+  dailyContestScore = state.dailyScore;
   if (!isEndlessEnergy()) {
-    state.energy = Math.max(0, Number(state.energy || 0) - 1);
+    state.energy = Math.max(0, Number(state.energy || 0) - cost);
   }
 
   saveState();
@@ -2679,6 +2717,7 @@ function bootApp() {
   initTelegramWebApp();
   initAdsGram();
   setupOnboarding();
+  setupOfflineModal();
   setupTapControls();
   startContestSeedRefresh();
 

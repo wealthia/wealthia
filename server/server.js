@@ -13,6 +13,7 @@ const {
   contestSeedProfile,
   isContestSeedUserId
 } = require("./contest-seeds");
+const economy = require("./economy");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -31,10 +32,7 @@ app.use(cors());
 app.use(express.json());
 app.use(ipRateLimit);
 
-const MAX_ENERGY = 100;
-const ENERGY_RECOVERY_INTERVAL_MS = 10000;
-const ENERGY_PER_INTERVAL = 1;
-const OFFLINE_INCOME_PER_BANK_LEVEL_PER_MINUTE = 3;
+const MAX_ENERGY = economy.DEFAULT_MAX_ENERGY;
 const TASK_REFRESH_MS = 12 * 60 * 60 * 1000;
 const TASKS_PER_CYCLE = 4;
 const BOOST_DURATION_MS = 30 * 60 * 1000;
@@ -172,7 +170,7 @@ function applyStarProduct(row, productId) {
   };
 
   if (productId === "refill_energy") {
-    updated.energy = MAX_ENERGY;
+    updated.energy = economy.maxEnergy(row);
     return updated;
   }
 
@@ -183,7 +181,7 @@ function applyStarProduct(row, productId) {
 
   if (productId === "endless_energy_30") {
     updated.endless_energy_until = extendBoostUntil(row.endless_energy_until);
-    updated.energy = MAX_ENERGY;
+    updated.energy = economy.maxEnergy(row);
     return updated;
   }
 
@@ -333,10 +331,10 @@ function tournamentMatchesLevel(row, level) {
 
 function tapPower(row) {
   const boostActive = number(row.tap_boost_until) > nowMs();
-  const base = Math.max(1, number(row.shop_level));
-  let power = boostActive ? base * 2 : base;
+  let power = economy.tapValue(row);
+  if (boostActive) power *= 2;
   if (goldRushActive(row)) power *= GOLD_RUSH_MULTIPLIER;
-  return power;
+  return Math.floor(power);
 }
 
 function incomeMultiplier(row) {
@@ -390,19 +388,20 @@ function mergeDailyLeaderboardRows(today, dailyEligibleRows, realDailyScores, yo
 
 function syncDailyContest(row) {
   const today = todayKey();
-  const cityValueNow = buildCityValue(row);
-  let contestDate = String(row.contest_date || "");
-  let baseline = number(row.contest_baseline_city);
+  const contestDate = String(row.contest_date || "");
 
   if (contestDate !== today) {
-    contestDate = today;
-    baseline = cityValueNow;
+    return {
+      contest_date: today,
+      contest_baseline_city: buildCityValue(row),
+      daily_contest_score: 0
+    };
   }
 
   return {
     contest_date: contestDate,
-    contest_baseline_city: baseline,
-    daily_contest_score: Math.max(0, cityValueNow - baseline)
+    contest_baseline_city: number(row.contest_baseline_city),
+    daily_contest_score: number(row.daily_contest_score)
   };
 }
 
@@ -758,19 +757,11 @@ function refreshDailyTasks(row) {
 }
 
 function applyPassive(row) {
-  const current = nowMs();
-  const lastSeen = row.last_seen_at ? new Date(row.last_seen_at).getTime() : current;
-  const minutes = Math.max(0, (current - lastSeen) / 60000);
-  const elapsedMs = Math.max(0, current - lastSeen);
-  const energyGain = Math.floor(elapsedMs / ENERGY_RECOVERY_INTERVAL_MS) * ENERGY_PER_INTERVAL;
-  const bankIncome = Math.floor(minutes * number(row.bank_level) * OFFLINE_INCOME_PER_BANK_LEVEL_PER_MINUTE * incomeMultiplier(row));
-
-  row.energy = Math.min(MAX_ENERGY, number(row.energy) + energyGain);
-  row.coins = number(row.coins) + bankIncome;
-  row.city_value = buildCityValue(row);
-  row.last_seen_at = new Date(current).toISOString();
-
-  return row;
+  const result = economy.applyOfflineProgress(row, {
+    incomeMultiplier: incomeMultiplier(row)
+  });
+  result.row.city_value = buildCityValue(result.row);
+  return result.row;
 }
 
 function toClientUser(row, extra = {}) {
@@ -783,10 +774,18 @@ function toClientUser(row, extra = {}) {
     userId: row.user_id,
     game: {
       coins: number(row.coins),
+      totalBalance: number(row.coins),
       energy: number(row.energy),
+      currentEnergy: number(row.energy),
+      maxEnergy: economy.maxEnergy(row),
       taps: number(row.taps),
       spent: number(row.spent),
       cityValue: buildCityValue(row),
+      tapValue: economy.tapValue(row),
+      hourlyProfit: economy.totalHourlyProfit(row, incomeMultiplier(row)),
+      offlineEarnings: number(extra.offlineEarnings ?? row.__offlineEarnings ?? 0),
+      dailyScore: number(contest.daily_contest_score),
+      tickets: economy.computeTickets(contest.daily_contest_score),
       dailyDate: row.daily_date || "",
       dailyStreak: number(row.daily_streak),
       dailyTasksDate: row.daily_tasks_date || "",
@@ -1021,17 +1020,22 @@ async function getOrCreatePlayer(telegramUser, referrerId = "") {
 
   if (existing) {
     let row = refreshDailyTasks(applyPassive(existing));
+    const contest = syncDailyContest(row);
 
     const { data: saved, error } = await supabase
       .from("game_states")
       .update({
         coins: row.coins,
         energy: row.energy,
+        max_energy: economy.maxEnergy(row),
         city_value: row.city_value,
         last_seen_at: row.last_seen_at,
         daily_tasks_date: row.daily_tasks_date,
         daily_tasks_json: row.daily_tasks_json,
         daily_tasks_claimed_json: row.daily_tasks_claimed_json,
+        contest_date: contest.contest_date,
+        contest_baseline_city: contest.contest_baseline_city,
+        daily_contest_score: contest.daily_contest_score,
         updated_at: new Date().toISOString()
       })
       .eq("user_id", telegramId)
@@ -1039,13 +1043,15 @@ async function getOrCreatePlayer(telegramUser, referrerId = "") {
       .single();
 
     if (error) throw error;
+    saved.__offlineEarnings = row.__offlineEarnings || 0;
     return saved;
   }
 
   const fresh = refreshDailyTasks({
     user_id: telegramId,
     coins: NEW_PLAYER_BONUS,
-    energy: 100,
+    energy: MAX_ENERGY,
+    max_energy: MAX_ENERGY,
     taps: 0,
     spent: 0,
     city_value: NEW_PLAYER_BONUS,
@@ -1092,6 +1098,7 @@ async function loadGame(userId) {
     .update({
       coins: row.coins,
       energy: row.energy,
+      max_energy: economy.maxEnergy(row),
       city_value: row.city_value,
       last_seen_at: row.last_seen_at,
       daily_tasks_date: row.daily_tasks_date,
@@ -1181,7 +1188,10 @@ app.post("/api/session", async (req, res) => {
     const referralCount = await getReferralCount(telegramUser.id);
 
     res.json({
-      ...toClientUser(row, { referralCount }),
+      ...toClientUser(row, {
+        referralCount,
+        offlineEarnings: number(row.__offlineEarnings || 0)
+      }),
       token: session.token,
       expiresAt: session.expiresAt
     });
@@ -1256,22 +1266,34 @@ app.post("/api/tap", requirePlayer, async (req, res) => {
       return;
     }
 
-    if (!endless && number(row.energy) < 1) {
+    if (!endless && number(row.energy) < economy.tapValue(row)) {
       res.status(400).json({ error: "NO_ENERGY" });
       return;
     }
 
     const amount = tapPower(row);
-    const updated = mergeDailyContest(row, {
+    const tapCost = economy.tapValue(row);
+    const today = todayKey();
+    let dailyScore = number(row.daily_contest_score);
+    if (row.contest_date !== today) {
+      dailyScore = 0;
+    }
+
+    const updated = {
       coins: number(row.coins) + amount,
-      energy: endless ? number(row.energy) : Math.max(0, number(row.energy) - 1),
+      energy: endless ? number(row.energy) : Math.max(0, number(row.energy) - tapCost),
       taps: number(row.taps) + 1,
+      daily_contest_score: dailyScore + amount,
+      contest_date: today,
+      contest_baseline_city: row.contest_date === today
+        ? number(row.contest_baseline_city)
+        : buildCityValue(row),
       city_value: number(row.coins) + amount + number(row.spent),
       tap_window_start: rate.windowStart,
       tap_window_count: rate.count,
       tap_violations: rate.violations,
       updated_at: new Date().toISOString()
-    });
+    };
 
     const { data, error } = await supabase
       .from("game_states")
@@ -1532,7 +1554,7 @@ app.post("/api/buy-boost", requirePlayer, async (req, res) => {
     };
 
     if (option.type === "energy") {
-      updated.energy = MAX_ENERGY;
+      updated.energy = economy.maxEnergy(row);
     }
 
     if (option.type === "tap") {
@@ -1789,6 +1811,7 @@ app.post("/api/reset", requirePlayer, async (req, res) => {
       .update({
         coins: NEW_PLAYER_BONUS,
         energy: MAX_ENERGY,
+        max_energy: MAX_ENERGY,
         taps: 0,
         spent: 0,
         city_value: NEW_PLAYER_BONUS,
