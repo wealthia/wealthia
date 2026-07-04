@@ -514,8 +514,9 @@ async function getPlayerTelegramId(userId) {
   return String(data?.telegram_id || "");
 }
 
-function isPremiumSpinAdmin(telegramId) {
-  return String(telegramId || "") === ADMIN_TELEGRAM_ID;
+function isPremiumSpinAdmin(telegramId, userId = "") {
+  const id = String(telegramId || userId || "").trim();
+  return id === ADMIN_TELEGRAM_ID;
 }
 
 function ipRateLimit(req, res, next) {
@@ -2024,7 +2025,7 @@ app.post("/api/premium-spin/status", requirePlayer, async (req, res) => {
   try {
     const userId = req.playerId;
     const telegramId = await getPlayerTelegramId(userId);
-    const adminBypass = isPremiumSpinAdmin(telegramId);
+    const adminBypass = isPremiumSpinAdmin(telegramId, userId);
     const payment = adminBypass
       ? null
       : await premiumSpin.findPendingPremiumPayment(supabase, userId);
@@ -2053,7 +2054,7 @@ app.post("/api/premium-spin", requirePlayer, async (req, res) => {
 
     if (buyerError) throw buyerError;
 
-    const adminBypass = isPremiumSpinAdmin(buyer?.telegram_id);
+    const adminBypass = isPremiumSpinAdmin(buyer?.telegram_id, userId);
     let payment = null;
 
     if (!adminBypass) {

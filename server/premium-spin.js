@@ -59,7 +59,11 @@ async function getGlobalPremiumSpins(supabase) {
     .eq("counter_key", GLOBAL_COUNTER_KEY)
     .maybeSingle();
 
-  if (error) throw error;
+  if (error) {
+    console.warn("GLOBAL_PREMIUM_SPINS_READ_FAILED:", error.message);
+    return 0;
+  }
+
   return number(data?.counter_value);
 }
 

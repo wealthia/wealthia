@@ -28,6 +28,7 @@ let taskCountdownTimer = null;
 let lastGrandPrizeMilestone = 0;
 let premiumWheelRotation = 0;
 let premiumSpinBusy = false;
+let premiumWheelLoadingTimer = null;
 
 const PREMIUM_SPIN_STARS = Number((CONFIG.STAR_PRICES && CONFIG.STAR_PRICES.premium_spin) || 50);
 const ADMIN_TELEGRAM_ID = String(CONFIG.ADMIN_TELEGRAM_ID || "1988089728");
@@ -1026,21 +1027,67 @@ function animatePremiumWheelToSegment(segmentIndex) {
       return;
     }
 
-    const target = wheelRotationForSegment(segmentIndex);
-    const normalizedCurrent = premiumWheelRotation % 360;
-    const base = premiumWheelRotation - normalizedCurrent;
-    const finalRotation = base + target;
+    stopPremiumWheelLoadingSpin();
+
+    const segmentCenter = Number(segmentIndex) * 60 + 30;
+    const targetAngle = (360 - segmentCenter) % 360;
+    const currentAngle = ((premiumWheelRotation % 360) + 360) % 360;
+    let delta = targetAngle - currentAngle;
+    if (delta <= 0) delta += 360;
+
+    const fullSpins = 5;
+    const finalRotation = premiumWheelRotation + fullSpins * 360 + delta;
+
+    disc.classList.remove("premium-wheel__disc--loading");
+    disc.style.transition = "none";
+    disc.style.transform = `rotate(${premiumWheelRotation}deg)`;
+    void disc.offsetHeight;
 
     disc.classList.add("is-spinning");
+    disc.style.transition = "";
+
     requestAnimationFrame(() => {
-      setPremiumWheelRotation(finalRotation, true);
+      requestAnimationFrame(() => {
+        setPremiumWheelRotation(finalRotation, true);
+      });
     });
 
     window.setTimeout(() => {
       disc.classList.remove("is-spinning");
+      premiumWheelRotation = finalRotation;
       resolve();
     }, 3000);
   });
+}
+
+function startPremiumWheelLoadingSpin() {
+  const disc = document.getElementById("premiumWheelDisc");
+  if (!disc || premiumWheelLoadingTimer) return;
+
+  stopPremiumWheelLoadingSpin();
+  disc.classList.add("premium-wheel__disc--loading");
+  disc.style.transition = "none";
+
+  let lastTick = performance.now();
+  premiumWheelLoadingTimer = window.setInterval(() => {
+    const now = performance.now();
+    const elapsed = now - lastTick;
+    lastTick = now;
+    premiumWheelRotation += elapsed * 0.45;
+    disc.style.transform = `rotate(${premiumWheelRotation}deg)`;
+  }, 16);
+}
+
+function stopPremiumWheelLoadingSpin() {
+  if (premiumWheelLoadingTimer) {
+    window.clearInterval(premiumWheelLoadingTimer);
+    premiumWheelLoadingTimer = null;
+  }
+
+  const disc = document.getElementById("premiumWheelDisc");
+  if (disc) {
+    disc.classList.remove("premium-wheel__disc--loading");
+  }
 }
 
 function openPremiumSpinOverlay() {
@@ -1048,6 +1095,14 @@ function openPremiumSpinOverlay() {
   if (!overlay) return;
   overlay.hidden = false;
   document.body.classList.add("premium-spin-open-body");
+
+  stopPremiumWheelLoadingSpin();
+  premiumWheelRotation = 0;
+  const disc = document.getElementById("premiumWheelDisc");
+  if (disc) {
+    disc.style.transition = "none";
+    disc.style.transform = "rotate(0deg)";
+  }
 
   const spinButton = document.getElementById("premiumWheelSpinButton");
   if (spinButton) {
@@ -1060,6 +1115,7 @@ function openPremiumSpinOverlay() {
 function closePremiumSpinOverlay() {
   const overlay = document.getElementById("premiumSpinOverlay");
   if (!overlay) return;
+  stopPremiumWheelLoadingSpin();
   overlay.hidden = true;
   document.body.classList.remove("premium-spin-open-body");
 }
@@ -1152,12 +1208,16 @@ function premiumSpinResultMessage(prize) {
 }
 
 async function executePremiumSpin() {
-  const { ok, result } = await apiPost("/api/premium-spin");
+  const { ok, result, status } = await apiPost("/api/premium-spin");
   if (!ok || !result || !result.prize) {
     if (result && result.error === "NO_PAYMENT") {
-      showToast("Payment not ready yet. Try again.");
+      showToast(isPremiumSpinAdminUser()
+        ? "Admin spin failed. Deploy backend and open via Telegram."
+        : "Payment not ready yet. Try again.");
+    } else if (status === 401) {
+      showToast("Session expired. Reopen the game from the bot.");
     } else {
-      showToast("Premium spin failed.");
+      showToast(result?.error ? `Spin failed: ${result.error}` : "Premium spin failed.");
     }
     return null;
   }
@@ -1168,7 +1228,9 @@ async function executePremiumSpin() {
 
 function isPremiumSpinAdminUser() {
   const user = getTelegramUser();
-  return String(user?.id || "") === ADMIN_TELEGRAM_ID;
+  const telegramId = String(user?.id || "");
+  const playerId = String(backendUserId || "");
+  return telegramId === ADMIN_TELEGRAM_ID || playerId === ADMIN_TELEGRAM_ID;
 }
 
 async function finishPremiumSpinResult(spinResult) {
@@ -1193,10 +1255,17 @@ async function runPremiumSpinFlow() {
   premiumSpinBusy = true;
   if (spinButton) spinButton.disabled = true;
 
+  startPremiumWheelLoadingSpin();
+
   try {
     const spinResult = await executePremiumSpin();
+    if (!spinResult) {
+      stopPremiumWheelLoadingSpin();
+      return;
+    }
     await finishPremiumSpinResult(spinResult);
   } finally {
+    stopPremiumWheelLoadingSpin();
     premiumSpinBusy = false;
     if (spinButton) spinButton.disabled = false;
   }
@@ -1247,8 +1316,11 @@ async function startPremiumSpinPurchase() {
         return;
       }
 
+      startPremiumWheelLoadingSpin();
+
       const ready = await waitForPremiumSpinPayment();
       if (!ready) {
+        stopPremiumWheelLoadingSpin();
         showToast("Payment received. Spin is activating — try again shortly.");
         premiumSpinBusy = false;
         if (spinButton) spinButton.disabled = false;
@@ -1257,6 +1329,7 @@ async function startPremiumSpinPurchase() {
 
       const spinResult = await executePremiumSpin();
       if (!spinResult) {
+        stopPremiumWheelLoadingSpin();
         premiumSpinBusy = false;
         if (spinButton) spinButton.disabled = false;
         return;
@@ -1264,6 +1337,7 @@ async function startPremiumSpinPurchase() {
 
       await finishPremiumSpinResult(spinResult);
 
+      stopPremiumWheelLoadingSpin();
       premiumSpinBusy = false;
       if (spinButton) spinButton.disabled = false;
     });
