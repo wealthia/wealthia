@@ -2542,7 +2542,7 @@ app.post("/api/casino-spin", requirePlayer, async (req, res) => {
 
 app.post(
   "/api/premium-spin/status",
-  requireVerifiedTelegramPlayer,
+  requirePlayer,
   premiumSpinSecurity.premiumSpinRateLimit,
   async (req, res) => {
   try {
@@ -2562,7 +2562,7 @@ app.post(
 
 app.post(
   "/api/premium-spin",
-  requireVerifiedTelegramPlayer,
+  requirePlayer,
   premiumSpinSecurity.premiumSpinRateLimit,
   async (req, res) => {
   try {
