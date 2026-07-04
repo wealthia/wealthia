@@ -576,7 +576,14 @@ function bindResetConfirmModal() {
   }
 }
 
+const CONNECTION_ERROR_TOAST =
+  "⚠️ Connection error. Please try again or restart the bot.";
+
 let channelGateUrl = "";
+
+function showConnectionErrorToast() {
+  showToast(CONNECTION_ERROR_TOAST);
+}
 
 function showChannelGate(url, message) {
   const modal = document.getElementById("channelGateModal");
@@ -615,9 +622,13 @@ function bindChannelGateModal() {
 
   const retryButton = document.getElementById("channelGateRetryButton");
   if (retryButton) {
-    retryButton.addEventListener("click", () => {
-      backendReconnectAttempts = 0;
-      connectBackend(4);
+    retryButton.addEventListener("click", async () => {
+      try {
+        backendReconnectAttempts = 0;
+        await connectBackend(4);
+      } catch {
+        showConnectionErrorToast();
+      }
     });
   }
 }
@@ -2755,10 +2766,24 @@ async function apiPost(path, body = {}) {
       body: JSON.stringify(body)
     });
 
-    const result = await response.json();
+    let result = null;
+    const raw = await response.text();
+
+    if (raw) {
+      try {
+        result = JSON.parse(raw);
+      } catch {
+        result = { error: "CONNECTION_ERROR", message: CONNECTION_ERROR_TOAST };
+      }
+    }
+
     return { ok: response.ok, status: response.status, result };
   } catch {
-    return { ok: false, status: 0, result: null };
+    return {
+      ok: false,
+      status: 0,
+      result: { error: "CONNECTION_ERROR", message: CONNECTION_ERROR_TOAST }
+    };
   }
 }
 
@@ -2909,6 +2934,19 @@ async function connectBackend(retries = 6) {
       return false;
     }
 
+    if (result && result.error === "CONNECTION_ERROR") {
+      backendReady = false;
+      backendSessionToken = "";
+      showConnectionErrorToast();
+      renderSyncBar();
+      render();
+      if (attempt < retries && (status === 0 || status >= 500)) {
+        await sleep(2000 * (attempt + 1));
+        continue;
+      }
+      return false;
+    }
+
     if (attempt < retries && (status === 0 || status >= 500)) {
       if (els.syncBarText) {
         els.syncBarText.textContent = status === 0
@@ -2931,7 +2969,7 @@ async function connectBackend(retries = 6) {
     if (health && health.database === false) {
       showToast("Database offline. Tap works, sync paused.");
     } else {
-      showToast("Server waking up... retrying.");
+      showConnectionErrorToast();
     }
     scheduleBackendReconnect();
   }
@@ -3626,6 +3664,24 @@ function bootApp() {
   bindResetConfirmModal();
   bindChannelGateModal();
   bindPremiumSpinUi();
+
+  window.addEventListener("unhandledrejection", (event) => {
+    event.preventDefault();
+    showConnectionErrorToast();
+  });
+
+  window.addEventListener("error", (event) => {
+    if (!event || !event.message) return;
+    const message = String(event.message).toLowerCase();
+    if (
+      message.includes("user not found") ||
+      message.includes("network") ||
+      message.includes("fetch")
+    ) {
+      event.preventDefault();
+      showConnectionErrorToast();
+    }
+  });
 
   if (els.syncRetryButton) {
     els.syncRetryButton.addEventListener("click", () => {
