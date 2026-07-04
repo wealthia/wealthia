@@ -134,7 +134,8 @@ function welcomeText(firstName, referral) {
     return (
       `🏙️ Welcome to Wealthia, ${name}!\n\n` +
       `Your friend invited you to build a wealth empire.\n` +
-      `Tap, upgrade your city, complete daily missions and climb the leaderboard.\n\n` +
+      `Subscribe to our official Telegram channel, then open the game to unlock play.\n` +
+      `Your friend earns +500 coins when you join and play.\n\n` +
       `🎁 New players get a welcome bonus!\n` +
       channelLine +
       `👇 Press Play to start`

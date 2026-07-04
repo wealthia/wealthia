@@ -576,6 +576,52 @@ function bindResetConfirmModal() {
   }
 }
 
+let channelGateUrl = "";
+
+function showChannelGate(url, message) {
+  const modal = document.getElementById("channelGateModal");
+  const messageNode = document.getElementById("channelGateMessage");
+  if (!modal) return;
+
+  channelGateUrl = String(url || CONFIG.PARTNER_CHANNEL_URL || "https://t.me/official_wealthia");
+  if (messageNode) {
+    messageNode.textContent = message || "Please subscribe to our official channel to unlock the game";
+  }
+
+  modal.hidden = false;
+  document.body.classList.add("channel-gate-active");
+}
+
+function hideChannelGate() {
+  const modal = document.getElementById("channelGateModal");
+  if (!modal) return;
+
+  modal.hidden = true;
+  document.body.classList.remove("channel-gate-active");
+}
+
+function bindChannelGateModal() {
+  const modal = document.getElementById("channelGateModal");
+  if (!modal || modal.dataset.bound === "1") return;
+
+  modal.dataset.bound = "1";
+
+  const joinButton = document.getElementById("channelGateJoinButton");
+  if (joinButton) {
+    joinButton.addEventListener("click", () => {
+      openPartnerLink(channelGateUrl || CONFIG.PARTNER_CHANNEL_URL || "https://t.me/official_wealthia");
+    });
+  }
+
+  const retryButton = document.getElementById("channelGateRetryButton");
+  if (retryButton) {
+    retryButton.addEventListener("click", () => {
+      backendReconnectAttempts = 0;
+      connectBackend(4);
+    });
+  }
+}
+
 function updateFriendsInvitePanel(link = getInviteLink()) {
   const box = document.getElementById("friendsInviteLinkBox");
   const text = document.getElementById("friendsInviteLinkText");
@@ -1822,8 +1868,8 @@ function renderFriendsPanel() {
 
     <article class="friends-tips">
       <p><strong>1.</strong> Send your link to friends in Telegram</p>
-      <p><strong>2.</strong> They open the game — you get +500 coins each</p>
-      <p><strong>3.</strong> 3 friends unlocks the Daily $10 Race</p>
+      <p><strong>2.</strong> They subscribe to the official Wealthia Telegram channel</p>
+      <p><strong>3.</strong> They open the game and you earn +500 coins for each one</p>
     </article>
   `;
 
@@ -2802,7 +2848,20 @@ async function connectBackend(retries = 6) {
       referrerId: getReferrerId()
     });
 
+    if (ok && result && result.channelRequired) {
+      showChannelGate(
+        result.channelUrl,
+        result.channelMessage || "Please subscribe to our official channel to unlock the game"
+      );
+      backendReady = false;
+      backendSessionToken = "";
+      renderSyncBar();
+      render();
+      return false;
+    }
+
     if (ok && result && !result.error && result.game) {
+      hideChannelGate();
       backendUserId = result.userId;
       backendSessionToken = result.token || "";
       backendReconnectAttempts = 0;
@@ -3381,6 +3440,20 @@ async function refreshBackendState() {
     return;
   }
 
+  if (result.channelRequired) {
+    backendReady = false;
+    backendSessionToken = "";
+    showChannelGate(
+      result.channelUrl,
+      result.channelMessage || "Please subscribe to our official channel to unlock the game"
+    );
+    renderSyncBar();
+    render();
+    return;
+  }
+
+  hideChannelGate();
+
   if (result.token) {
     backendSessionToken = result.token;
   }
@@ -3551,6 +3624,7 @@ function bootApp() {
   startContestSeedRefresh();
   bindRankRulesModal();
   bindResetConfirmModal();
+  bindChannelGateModal();
   bindPremiumSpinUi();
 
   if (els.syncRetryButton) {
