@@ -20,6 +20,7 @@ let adsgramController = null;
 let adsgramBonusController = null;
 let onboardingStep = 1;
 let adCooldownTimer = null;
+let boostRefreshTimer = null;
 let goldRushTimer = null;
 let taskCountdownTimer = null;
 let lastGrandPrizeMilestone = 0;
@@ -196,7 +197,7 @@ function tapValue() {
 
 function tapPower() {
   const base = tapValue();
-  return state.boosts.tapActive ? base * 2 : base;
+  return isBoostActive(state.boosts.tapUntil) ? base * 2 : base;
 }
 
 function cityValue() {
@@ -216,12 +217,23 @@ function isEndlessEnergy() {
   return Number(state.boosts.endlessUntil || 0) > Date.now();
 }
 
-function boostTimeLeft(until) {
+function isBoostActive(until) {
+  return Number(until || 0) > Date.now();
+}
+
+function formatBoostCountdown(until) {
   const diff = Math.max(0, Number(until || 0) - Date.now());
-  const minutes = Math.ceil(diff / 60000);
   if (diff <= 0) return "";
-  if (minutes >= 60) return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-  return `${minutes}m`;
+
+  const hours = Math.floor(diff / 3600000);
+  const minutes = Math.floor((diff % 3600000) / 60000);
+  const seconds = Math.floor((diff % 60000) / 1000);
+
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function boostTimeLeft(until) {
+  return formatBoostCountdown(until);
 }
 
 function casinoRewardRange(level) {
@@ -682,9 +694,9 @@ function render() {
   if (els.tapPower) els.tapPower.textContent = tapPower();
   if (els.tapLabel) {
     if (isEndlessEnergy()) {
-      els.tapLabel.textContent = state.boosts.tapActive ? "2x · ∞" : "∞ Energy";
+      els.tapLabel.textContent = isBoostActive(state.boosts.tapUntil) ? "2x · ∞" : "∞ Energy";
     } else {
-      els.tapLabel.textContent = state.energy < tapValue() ? "No Energy" : state.boosts.tapActive ? "2x Tap" : "Tap";
+      els.tapLabel.textContent = state.energy < tapValue() ? "No Energy" : isBoostActive(state.boosts.tapUntil) ? "2x Tap" : "Tap";
     }
   }
   if (els.tapButton) els.tapButton.classList.toggle("no-energy", !isEndlessEnergy() && state.energy < tapValue());
@@ -1039,7 +1051,7 @@ function renderCooldownAdRow(type, title, subtitle, reward, onCooldown, refreshM
 function renderAdEarnRow() {
   return renderCooldownAdRow(
     "ad",
-    "Rewarded Ad",
+    "Premium Video Ad (+300 coins)",
     adRewardSubtitle(),
     300,
     !adRewardAvailable(),
@@ -1052,7 +1064,7 @@ function renderBonusAdEarnRow() {
   const reward = bonusAdRewardAmount();
   return renderCooldownAdRow(
     "bonus_ad",
-    "Bonus Ad",
+    `Quick Ad (+${reward} coins)`,
     bonusAdRewardSubtitle(),
     reward,
     !bonusAdRewardAvailable(),
@@ -1090,6 +1102,59 @@ function scheduleAdCooldownRefresh() {
   }, 1000);
 }
 
+function hasActiveBoost() {
+  return (
+    isBoostActive(state.boosts.tapUntil) ||
+    isBoostActive(state.boosts.incomeUntil) ||
+    isBoostActive(state.boosts.endlessUntil)
+  );
+}
+
+function updateBoostTimerLabels() {
+  const panel = els.earnPanel;
+  if (!panel) return;
+
+  panel.querySelectorAll("[data-boost-until]").forEach((button) => {
+    const until = Number(button.dataset.boostUntil || 0);
+    if (!isBoostActive(until)) return;
+
+    const price = button.querySelector(".earn-boost__price");
+    if (price) price.textContent = formatBoostCountdown(until);
+  });
+}
+
+function syncBoostFlagsFromUntil() {
+  state.boosts.tapActive = isBoostActive(state.boosts.tapUntil);
+  state.boosts.incomeActive = isBoostActive(state.boosts.incomeUntil);
+  state.boosts.endlessActive = isBoostActive(state.boosts.endlessUntil);
+}
+
+function scheduleBoostRefresh() {
+  syncBoostFlagsFromUntil();
+  if (!hasActiveBoost()) {
+    if (boostRefreshTimer) {
+      window.clearInterval(boostRefreshTimer);
+      boostRefreshTimer = null;
+    }
+    return;
+  }
+
+  updateBoostTimerLabels();
+  if (boostRefreshTimer) return;
+
+  boostRefreshTimer = window.setInterval(() => {
+    updateBoostTimerLabels();
+    syncBoostFlagsFromUntil();
+
+    if (!hasActiveBoost()) {
+      window.clearInterval(boostRefreshTimer);
+      boostRefreshTimer = null;
+      renderEarnPanel();
+      render();
+    }
+  }, 1000);
+}
+
 function renderEarnPanel() {
   const panel = els.earnPanel;
   if (!panel) return;
@@ -1101,13 +1166,16 @@ function renderEarnPanel() {
     </button>
   `;
 
-  const starButton = (id, icon, title, stars, active, until) => `
-    <button class="earn-boost" type="button" data-star="${id}" ${active ? "disabled" : ""}>
+  const starButton = (id, icon, title, stars, until) => {
+    const active = isBoostActive(until);
+    return `
+    <button class="earn-boost ${active ? "earn-boost--active" : ""}" type="button" data-star="${id}" data-boost-until="${until || 0}" ${active ? "disabled" : ""}>
       <span class="earn-boost__icon">${icon}</span>
       <span class="earn-boost__title">${title}</span>
-      <span class="earn-boost__price">${active ? boostTimeLeft(until) : `${stars} ⭐`}</span>
+      <span class="earn-boost__price">${active ? formatBoostCountdown(until) : `${stars} ⭐`}</span>
     </button>
   `;
+  };
 
   panel.innerHTML = `
     <div class="earn-compact-head">
@@ -1125,13 +1193,15 @@ function renderEarnPanel() {
         <small>Telegram Stars · 30 min</small>
       </div>
       <div class="earn-boosts__grid">
-        ${starButton("refill_energy", "&#x26A1;", "Refill", starPrice("refill_energy"), false, 0)}
-        ${starButton("tap_boost_30", "&#x1F4AA;", "2x Tap", starPrice("tap_boost_30"), state.boosts.tapActive, state.boosts.tapUntil)}
-        ${starButton("endless_energy_30", "&#x1F525;", "Endless", starPrice("endless_energy_30"), state.boosts.endlessActive, state.boosts.endlessUntil)}
-        ${starButton("income_boost_30", "&#x1F4C8;", "2x Income", starPrice("income_boost_30"), state.boosts.incomeActive, state.boosts.incomeUntil)}
+        ${starButton("refill_energy", "&#x26A1;", "Refill", starPrice("refill_energy"), 0)}
+        ${starButton("tap_boost_30", "&#x1F4AA;", "2x Tap", starPrice("tap_boost_30"), state.boosts.tapUntil)}
+        ${starButton("endless_energy_30", "&#x1F525;", "Endless", starPrice("endless_energy_30"), state.boosts.endlessUntil)}
+        ${starButton("income_boost_30", "&#x1F4C8;", "2x Income", starPrice("income_boost_30"), state.boosts.incomeUntil)}
       </div>
     </section>
   `;
+
+  scheduleBoostRefresh();
 }
 
 function leaderboardCandidateKey(row) {
@@ -1839,6 +1909,7 @@ function syncFromBackend(user) {
       incomeUntil: Number(game.boosts.incomeUntil || 0),
       endlessUntil: Number(game.boosts.endlessUntil || 0)
     };
+    syncBoostFlagsFromUntil();
   }
 
   if (game.tasks) {
@@ -2572,6 +2643,25 @@ const STAR_SUCCESS_LABELS = {
   income_boost_30: "2x Income active for 30 min!"
 };
 
+function starProductFulfilled(productId) {
+  if (productId === "refill_energy") {
+    return Number(state.energy) >= Number(state.maxEnergy);
+  }
+  if (productId === "tap_boost_30") return isBoostActive(state.boosts.tapUntil);
+  if (productId === "endless_energy_30") return isBoostActive(state.boosts.endlessUntil);
+  if (productId === "income_boost_30") return isBoostActive(state.boosts.incomeUntil);
+  return false;
+}
+
+async function waitForStarFulfillment(productId, attempts = 20) {
+  for (let i = 0; i < attempts; i += 1) {
+    await refreshBackendState();
+    if (starProductFulfilled(productId)) return true;
+    await sleep(1000);
+  }
+  return false;
+}
+
 async function buyStarsProduct(productId) {
   const tg = window.Telegram && window.Telegram.WebApp;
 
@@ -2601,10 +2691,14 @@ async function buyStarsProduct(productId) {
 
   tg.openInvoice(result.invoiceLink, async (status) => {
     if (status === "paid") {
-      await refreshBackendState();
-      showToast(STAR_SUCCESS_LABELS[productId] || "Premium boost activated!");
-      if (tg.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === "function") {
-        tg.HapticFeedback.notificationOccurred("success");
+      const fulfilled = await waitForStarFulfillment(productId);
+      if (fulfilled) {
+        showToast(STAR_SUCCESS_LABELS[productId] || "Premium boost activated!");
+        if (tg.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === "function") {
+          tg.HapticFeedback.notificationOccurred("success");
+        }
+      } else {
+        showToast("Payment received. Boost is activating — check again in a few seconds.");
       }
       return;
     }
@@ -2852,22 +2946,12 @@ window.setInterval(refreshBackendState, 10000);
 
 window.setInterval(() => {
   updateTaskRefreshLabel();
-
-  const now = Date.now();
-  if (state.boosts.tapUntil && state.boosts.tapUntil <= now) {
-    state.boosts.tapActive = false;
-  }
-  if (state.boosts.incomeUntil && state.boosts.incomeUntil <= now) {
-    state.boosts.incomeActive = false;
-  }
-  if (state.boosts.endlessUntil && state.boosts.endlessUntil <= now) {
-    state.boosts.endlessActive = false;
-  }
+  syncBoostFlagsFromUntil();
 
   const next = Date.parse(state.dailyTasksNextRefresh || "");
   if (next && Date.now() >= next) {
     refreshBackendState();
   }
-}, 60000);
+}, 1000);
 
 // Energy recovery is server-side only (1 per 10s via /api/session sync).

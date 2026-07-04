@@ -665,7 +665,20 @@ p {
 }
 
 .earn-boost:disabled {
-  opacity: 0.6;
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.earn-boost--active {
+  border-color: rgba(245, 196, 81, 0.45);
+  background: linear-gradient(145deg, rgba(245, 196, 81, 0.12), rgba(18, 24, 42, 0.95));
+}
+
+.earn-boost--active .earn-boost__price {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  font-size: 11px;
 }
 
 .earn-boost__icon {
