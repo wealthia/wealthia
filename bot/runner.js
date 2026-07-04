@@ -7,6 +7,8 @@ const STARS_WEBHOOK_SECRET = process.env.STARS_WEBHOOK_SECRET || process.env.ADM
 const CRON_SECRET = process.env.CRON_SECRET || STARS_WEBHOOK_SECRET || "";
 const ENABLE_DAILY_PUSH = process.env.ENABLE_DAILY_PUSH === "true";
 const DAILY_PUSH_HOUR_UTC = Number(process.env.DAILY_PUSH_HOUR_UTC || 10);
+const DISABLE_BOT_POLLING = process.env.DISABLE_BOT_POLLING === "true";
+const telegramStars = require("../server/telegram-stars");
 
 const STAR_PRODUCT_IDS = new Set([
   "refill_energy",
@@ -23,6 +25,18 @@ const STAR_PRODUCT_STARS = {
   income_boost_30: 15,
   premium_spin: 50
 };
+
+const STAR_PRODUCTS = Object.fromEntries(
+  Object.entries(STAR_PRODUCT_STARS).map(([id, stars]) => [
+    id,
+    {
+      stars,
+      title: id,
+      description: id,
+      successMessage: STAR_SUCCESS_MESSAGES[id] || "Premium purchase activated!"
+    }
+  ])
+);
 
 const STAR_SUCCESS_MESSAGES = {
   refill_energy: "Energy refilled to 100%!",
@@ -55,7 +69,7 @@ function getApiBase() {
   return `https://api.telegram.org/bot${TOKEN}`;
 }
 
-async function api(method, body) {
+async function apiSafe(method, body) {
   const response = await fetch(`${getApiBase()}/${method}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -64,10 +78,18 @@ async function api(method, body) {
 
   const data = await response.json();
   if (!data.ok) {
-    throw new Error(data.description || "Telegram API error");
+    return { ok: false, error: data.description || "Telegram API error", result: null };
   }
 
-  return data.result;
+  return { ok: true, error: "", result: data.result };
+}
+
+async function api(method, body) {
+  const safe = await apiSafe(method, body);
+  if (!safe.ok) {
+    throw new Error(safe.error || "Telegram API error");
+  }
+  return safe.result;
 }
 
 function parseStarPayload(payload) {
@@ -190,107 +212,24 @@ async function handleStart(chatId, user, startParam) {
 }
 
 async function handlePreCheckout(query) {
-  const parsed = parseStarPayload(query.invoice_payload);
-  const telegramId = String(query.from && query.from.id ? query.from.id : "");
-  const expectedStars = parsed ? STAR_PRODUCT_STARS[parsed.productId] : 0;
-
-  if (!parsed || !STAR_PRODUCT_IDS.has(parsed.productId)) {
-    await api("answerPreCheckoutQuery", {
-      pre_checkout_query_id: query.id,
-      ok: false,
-      error_message: "Unknown product."
-    });
-    return;
-  }
-
-  if (parsed.userId !== telegramId) {
-    await api("answerPreCheckoutQuery", {
-      pre_checkout_query_id: query.id,
-      ok: false,
-      error_message: "Payment user mismatch."
-    });
-    return;
-  }
-
-  if (query.currency !== "XTR") {
-    await api("answerPreCheckoutQuery", {
-      pre_checkout_query_id: query.id,
-      ok: false,
-      error_message: "Invalid currency."
-    });
-    return;
-  }
-
-  if (Number(query.total_amount) !== expectedStars) {
-    await api("answerPreCheckoutQuery", {
-      pre_checkout_query_id: query.id,
-      ok: false,
-      error_message: "Invalid Stars amount."
-    });
-    return;
-  }
-
-  await api("answerPreCheckoutQuery", {
-    pre_checkout_query_id: query.id,
-    ok: true
+  await telegramStars.answerPreCheckoutQuery(apiSafe, query, {
+    starProducts: STAR_PRODUCTS,
+    parseStarPayload
   });
 }
 
 async function handleSuccessfulPayment(message) {
-  const payment = message.successful_payment;
-  if (!payment) return;
-
-  const parsed = parseStarPayload(payment.invoice_payload);
-  const telegramId = String(message.from && message.from.id ? message.from.id : "");
-  const chatId = message.chat.id;
-
-  if (!parsed || !STAR_PRODUCT_IDS.has(parsed.productId) || parsed.userId !== telegramId) {
-    await api("sendMessage", {
-      chat_id: chatId,
-      text: "Payment received, but the boost could not be activated. Contact support."
-    });
-    return;
-  }
-
-  const expectedStars = STAR_PRODUCT_STARS[parsed.productId];
-  if (payment.currency !== "XTR" || Number(payment.total_amount) !== expectedStars) {
-    await api("sendMessage", {
-      chat_id: chatId,
-      text: "Payment amount mismatch. Contact support for a refund."
-    });
-    return;
-  }
-
-  const chargeId = String(payment.telegram_payment_charge_id || "").trim();
-  if (!chargeId || chargeId.length < 8) {
-    console.warn("STARS_PAYMENT_INVALID_CHARGE_ID:", telegramId, parsed.productId);
-    await api("sendMessage", {
-      chat_id: chatId,
-      text: "Payment received, but charge verification failed. Contact support."
-    });
-    return;
-  }
-
-  try {
-    await fulfillStarPayment(
-      parsed.userId,
-      parsed.productId,
-      chargeId,
-      expectedStars,
-      payment.invoice_payload
-    );
-
-    await api("sendMessage", {
-      chat_id: chatId,
-      text: `${STAR_SUCCESS_MESSAGES[parsed.productId] || "Premium boost activated!"}\n\nReturn to the game and keep building.`
-    });
-  } catch (error) {
-    console.error("Star fulfillment error:", error.message);
-    await api("sendMessage", {
-      chat_id: chatId,
-      text: "Payment received. Boost activation is processing — reopen the game in a few seconds."
-    });
-  }
+  await telegramStars.handleSuccessfulPayment(message, {
+    telegramApiSafe: apiSafe,
+    starProducts: STAR_PRODUCTS,
+    parseStarPayload,
+    fulfillPayment: async ({ userId, productId, chargeId, stars, invoicePayload }) => {
+      await fulfillStarPayment(userId, productId, chargeId, stars, invoicePayload);
+    },
+    sendBotMessage: async (chatId, text) => {
+      await api("sendMessage", { chat_id: chatId, text });
+    }
+  });
 }
 
 async function handleMessage(message) {
@@ -391,6 +330,17 @@ function startBotPolling() {
   }
 
   started = true;
+
+  if (DISABLE_BOT_POLLING) {
+    console.log("Telegram polling disabled — Stars payments handled by backend webhook.");
+    setupBotProfile().finally(() => {
+      scheduleDailyPush();
+      scheduleDailyLottery();
+      scheduleSystemBotsTick();
+    });
+    return;
+  }
+
   console.log("Telegram bot polling started.");
   console.log("WebApp:", WEBAPP_URL);
   if (CHANNEL_URL) console.log("Channel:", CHANNEL_URL);

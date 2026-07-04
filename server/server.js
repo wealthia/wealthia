@@ -17,6 +17,7 @@ const {
 const systemBots = require("./system-bots");
 const premiumSpin = require("./premium-spin");
 const premiumSpinSecurity = require("./premium-spin-security");
+const telegramStars = require("./telegram-stars");
 const economy = require("./economy");
 
 const app = express();
@@ -110,29 +111,43 @@ const STAR_PRODUCTS = {
   refill_energy: {
     stars: 5,
     title: "Full Energy Refill",
-    description: "Instantly refill your energy to 100%"
+    description: "Instantly refill your energy to 100%",
+    successMessage: "Energy refilled to 100%!"
   },
   tap_boost_30: {
     stars: 10,
     title: "2x Tap Boost",
-    description: "Double tap income for 30 minutes"
+    description: "Double tap income for 30 minutes",
+    successMessage: "2x Tap boost active for 30 minutes!"
   },
   endless_energy_30: {
     stars: 15,
     title: "Endless Energy",
-    description: "Tapping costs no energy for 30 minutes"
+    description: "Tapping costs no energy for 30 minutes",
+    successMessage: "Endless Energy active for 30 minutes!"
   },
   income_boost_30: {
     stars: 15,
     title: "2x Income Boost",
-    description: "Double offline income for 30 minutes"
+    description: "Double offline income for 30 minutes",
+    successMessage: "2x Income boost active for 30 minutes!"
   },
   premium_spin: {
     stars: premiumSpin.PREMIUM_SPIN_STARS,
     title: "Premium Lucky Spin",
-    description: "Spin the premium wheel for cash and coin prizes"
+    description: "Spin the premium wheel for cash and coin prizes",
+    successMessage: "Premium spin ready!"
   }
 };
+
+const TELEGRAM_WEBHOOK_SECRET =
+  String(process.env.TELEGRAM_WEBHOOK_SECRET || process.env.ADMIN_SECRET || "").trim();
+const WEBHOOK_BASE_URL = String(
+  process.env.WEBHOOK_BASE_URL ||
+  process.env.RENDER_EXTERNAL_URL ||
+  process.env.BACKEND_URL ||
+  ""
+).trim();
 
 async function notifyOwnerStarsSale(details) {
   if (!OWNER_TELEGRAM_ID || !TELEGRAM_BOT_TOKEN) return;
@@ -419,6 +434,120 @@ function parseStarPayload(payload) {
   const parts = String(payload || "").split("|");
   if (parts.length !== 3 || parts[0] !== "w") return null;
   return { userId: parts[1], productId: parts[2] };
+}
+
+function getTelegramStarsOptions() {
+  return {
+    telegramApiSafe,
+    starProducts: STAR_PRODUCTS,
+    parseStarPayload,
+    fulfillPayment: fulfillStarPaymentRecord,
+    sendBotMessage: async (chatId, text) => {
+      await telegramApiSafe("sendMessage", { chat_id: chatId, text });
+    }
+  };
+}
+
+async function fulfillStarPaymentRecord({
+  userId,
+  productId,
+  chargeId,
+  stars,
+  invoicePayload
+}) {
+  const starsAmount = number(stars);
+  const payload = parseStarPayload(invoicePayload);
+
+  if (!userId || !productId || !chargeId || !STAR_PRODUCTS[productId]) {
+    const error = new Error("BAD_REQUEST");
+    error.code = "BAD_REQUEST";
+    throw error;
+  }
+
+  if (!payload || payload.userId !== userId || payload.productId !== productId) {
+    const error = new Error("INVALID_PAYLOAD");
+    error.code = "INVALID_PAYLOAD";
+    throw error;
+  }
+
+  const expectedStars = number(STAR_PRODUCTS[productId].stars);
+  if (!expectedStars || starsAmount !== expectedStars) {
+    const error = new Error("INVALID_STARS_AMOUNT");
+    error.code = "INVALID_STARS_AMOUNT";
+    throw error;
+  }
+
+  if (!chargeId || chargeId.length < 8) {
+    const error = new Error("INVALID_CHARGE_ID");
+    error.code = "INVALID_CHARGE_ID";
+    throw error;
+  }
+
+  const { data: existing } = await supabase
+    .from("star_payments")
+    .select("id")
+    .eq("charge_id", chargeId)
+    .maybeSingle();
+
+  if (existing) {
+    if (productId === "premium_spin") {
+      await premiumSpinSecurity.logFraudEvent(supabase, {
+        userId,
+        eventType: "REPLAY_CHARGE_ID",
+        detail: `charge_id=${chargeId}`
+      });
+      const error = new Error("FRAUD_REPLAY");
+      error.code = "FRAUD_REPLAY";
+      throw error;
+    }
+    return { duplicate: true, user: await loadGame(userId) };
+  }
+
+  const row = await loadGame(userId);
+  const productUpdate = applyStarProduct(row, productId);
+
+  if (!productUpdate) {
+    const error = new Error("BAD_PRODUCT");
+    error.code = "BAD_PRODUCT";
+    throw error;
+  }
+
+  const { error: paymentError } = await supabase.from("star_payments").insert({
+    user_id: userId,
+    product_id: productId,
+    stars_amount: expectedStars,
+    charge_id: chargeId
+  });
+
+  if (paymentError) throw paymentError;
+
+  const { data, error } = await supabase
+    .from("game_states")
+    .update(productUpdate)
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+
+  const { data: buyer } = await supabase
+    .from("users")
+    .select("first_name, username")
+    .eq("id", userId)
+    .maybeSingle();
+
+  await notifyOwnerStarsSale({
+    playerName: buyer?.first_name || buyer?.username || `Player ${userId.slice(-4)}`,
+    productTitle: STAR_PRODUCTS[productId].title,
+    stars: expectedStars
+  });
+
+  return {
+    duplicate: false,
+    user: data,
+    productId,
+    premiumSpinReady: productId === "premium_spin"
+  };
 }
 
 function nowMs() {
@@ -1712,6 +1841,7 @@ app.get("/health", async (_req, res) => {
 
   const telegram = await checkTelegramBot();
   let officialChannel = { ok: false, username: OFFICIAL_CHANNEL_USERNAME };
+  let stars = { productionMode: telegramStars.STARS_PRODUCTION_MODE, balance: 0, webhook: false };
 
   if (telegram.ok) {
     try {
@@ -1723,6 +1853,11 @@ app.get("/health", async (_req, res) => {
         error: error.message || "CHANNEL_CHECK_FAILED"
       };
     }
+
+    const balance = await telegramStars.getBotStarBalance(telegramApiSafe);
+    stars.balance = balance.amount;
+    stars.balanceOk = balance.ok;
+    stars.webhook = Boolean(TELEGRAM_WEBHOOK_SECRET && WEBHOOK_BASE_URL);
   }
 
   res.json({
@@ -1731,10 +1866,11 @@ app.get("/health", async (_req, res) => {
     database,
     telegram,
     officialChannel,
+    stars,
     session: {
       configured: Boolean(TELEGRAM_BOT_TOKEN || process.env.SESSION_SECRET || ADMIN_SECRET)
     },
-    version: "referral-channel-gate-v3"
+    version: "stars-production-webhook-v1"
   });
 });
 
@@ -2234,18 +2370,25 @@ app.post("/api/stars/invoice", requirePlayer, async (req, res) => {
       return;
     }
 
-    const invoiceLink = await telegramApi("createInvoiceLink", {
-      title: product.title,
-      description: product.description,
-      payload: starPayload(userId, productId),
-      provider_token: "",
-      currency: "XTR",
-      prices: [{ label: product.title, amount: product.stars }]
-    });
+    if (!telegramStars.STARS_PRODUCTION_MODE) {
+      res.status(503).json({ error: "STARS_TEST_MODE_DISABLED" });
+      return;
+    }
+
+    const invoiceLink = await telegramApi(
+      "createInvoiceLink",
+      telegramStars.buildStarsInvoiceBody({
+        title: product.title,
+        description: product.description,
+        payload: starPayload(userId, productId),
+        stars: product.stars
+      })
+    );
 
     res.json({
       ok: true,
       invoiceLink,
+      productionMode: true,
       product: {
         id: productId,
         stars: product.stars,
@@ -2257,6 +2400,38 @@ app.post("/api/stars/invoice", requirePlayer, async (req, res) => {
   }
 });
 
+app.post("/api/telegram/webhook/:secret", async (req, res) => {
+  if (!TELEGRAM_WEBHOOK_SECRET || req.params.secret !== TELEGRAM_WEBHOOK_SECRET) {
+    res.status(401).json({ error: "UNAUTHORIZED" });
+    return;
+  }
+
+  res.json({ ok: true });
+
+  const update = req.body;
+  if (!update || typeof update !== "object") return;
+
+  try {
+    if (update.pre_checkout_query) {
+      await telegramStars.answerPreCheckoutQuery(
+        telegramApiSafe,
+        update.pre_checkout_query,
+        {
+          starProducts: STAR_PRODUCTS,
+          parseStarPayload
+        }
+      );
+      return;
+    }
+
+    if (update.message?.successful_payment) {
+      await telegramStars.handleSuccessfulPayment(update.message, getTelegramStarsOptions());
+    }
+  } catch (error) {
+    console.error("TELEGRAM_WEBHOOK_ERROR:", error.message);
+  }
+});
+
 app.post("/api/stars/fulfill", async (req, res) => {
   try {
     const secret = String(req.body.secret || "");
@@ -2265,96 +2440,42 @@ app.post("/api/stars/fulfill", async (req, res) => {
       return;
     }
 
-    const userId = String(req.body.userId || "");
-    const productId = String(req.body.productId || "");
-    const chargeId = String(req.body.chargeId || "");
-    const starsAmount = number(req.body.stars);
-    const invoicePayload = String(req.body.invoicePayload || "");
-    const payload = parseStarPayload(invoicePayload);
+    const result = await fulfillStarPaymentRecord({
+      userId: String(req.body.userId || ""),
+      productId: String(req.body.productId || ""),
+      chargeId: String(req.body.chargeId || ""),
+      stars: number(req.body.stars),
+      invoicePayload: String(req.body.invoicePayload || "")
+    });
 
-    if (!userId || !productId || !chargeId || !STAR_PRODUCTS[productId]) {
-      res.status(400).json({ error: "BAD_REQUEST" });
+    res.json({
+      ok: true,
+      duplicate: Boolean(result.duplicate),
+      productId: result.productId,
+      user: toClientUser(result.user),
+      premiumSpinReady: Boolean(result.premiumSpinReady)
+    });
+  } catch (error) {
+    if (error.code === "FRAUD_REPLAY") {
+      res.status(409).json({ error: "FRAUD_REPLAY", duplicate: true });
       return;
     }
-
-    if (!payload || payload.userId !== userId || payload.productId !== productId) {
+    if (error.code === "INVALID_PAYLOAD") {
       res.status(400).json({ error: "INVALID_PAYLOAD" });
       return;
     }
-
-    const expectedStars = number(STAR_PRODUCTS[productId].stars);
-    if (!expectedStars || starsAmount !== expectedStars) {
+    if (error.code === "INVALID_STARS_AMOUNT") {
       res.status(400).json({ error: "INVALID_STARS_AMOUNT" });
       return;
     }
-
-    if (!chargeId || chargeId.length < 8) {
+    if (error.code === "INVALID_CHARGE_ID") {
       res.status(400).json({ error: "INVALID_CHARGE_ID" });
       return;
     }
-
-    const { data: existing } = await supabase
-      .from("star_payments")
-      .select("id")
-      .eq("charge_id", chargeId)
-      .maybeSingle();
-
-    if (existing) {
-      if (productId === "premium_spin") {
-        await premiumSpinSecurity.logFraudEvent(supabase, {
-          userId,
-          eventType: "REPLAY_CHARGE_ID",
-          detail: `charge_id=${chargeId}`
-        });
-        res.status(409).json({ error: "FRAUD_REPLAY", duplicate: true });
-        return;
-      }
-
-      const row = await loadGame(userId);
-      res.json({ ok: true, duplicate: true, user: toClientUser(row) });
+    if (error.code === "BAD_REQUEST" || error.code === "BAD_PRODUCT") {
+      res.status(400).json({ error: error.code });
       return;
     }
-
-    const row = await loadGame(userId);
-    const productUpdate = applyStarProduct(row, productId);
-
-    if (!productUpdate) {
-      res.status(400).json({ error: "BAD_PRODUCT" });
-      return;
-    }
-
-    const { error: paymentError } = await supabase.from("star_payments").insert({
-      user_id: userId,
-      product_id: productId,
-      stars_amount: expectedStars,
-      charge_id: chargeId
-    });
-
-    if (paymentError) throw paymentError;
-
-    const { data, error } = await supabase
-      .from("game_states")
-      .update(productUpdate)
-      .eq("user_id", userId)
-      .select("*")
-      .single();
-
-    if (error) throw error;
-
-    const { data: buyer } = await supabase
-      .from("users")
-      .select("first_name, username")
-      .eq("id", userId)
-      .maybeSingle();
-
-    await notifyOwnerStarsSale({
-      playerName: buyer?.first_name || buyer?.username || `Player ${userId.slice(-4)}`,
-      productTitle: STAR_PRODUCTS[productId].title,
-      stars: expectedStars
-    });
-
-    res.json({ ok: true, productId, user: toClientUser(data), premiumSpinReady: productId === "premium_spin" });
-  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
@@ -2418,6 +2539,7 @@ app.post(
     res.json({
       ok: true,
       ready: adminBypass || Boolean(payment),
+      chargeId: payment?.charge_id || "",
       adminBypass
     });
   } catch (error) {
@@ -3640,7 +3762,14 @@ app.post("/api/cron/daily-push", async (req, res) => {
 app.listen(port, () => {
   console.log(`Wealthia backend running on port ${port}`);
 
-  if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_BOT_POLLING !== "false") {
+  if (TELEGRAM_BOT_TOKEN && TELEGRAM_WEBHOOK_SECRET && WEBHOOK_BASE_URL) {
+    telegramStars.registerTelegramWebhook(telegramApiSafe, {
+      secret: TELEGRAM_WEBHOOK_SECRET,
+      baseUrl: WEBHOOK_BASE_URL
+    }).catch((error) => {
+      console.warn("Telegram webhook setup skipped:", error.message);
+    });
+  } else if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_BOT_POLLING !== "false") {
     try {
       const { startBotPolling } = require("../bot/runner");
       startBotPolling();
@@ -3648,5 +3777,9 @@ app.listen(port, () => {
     } catch (error) {
       console.warn("Telegram bot polling skipped:", error.message);
     }
+  } else {
+    console.warn(
+      "Stars webhook not configured. Set WEBHOOK_BASE_URL and TELEGRAM_WEBHOOK_SECRET on the backend."
+    );
   }
 });
