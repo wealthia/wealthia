@@ -1,7 +1,7 @@
 const economy = require("./economy");
 
 const GLOBAL_COUNTER_KEY = "global_premium_spins";
-const PREMIUM_SPIN_STARS = 50;
+const PREMIUM_SPIN_STARS = 1;
 
 const PRIZE_SEGMENTS = [
   { id: "jackpot_1000", label: "💰 1000$ JACKPOT", segmentIndex: 0, type: "cash", amount: 1000 },
