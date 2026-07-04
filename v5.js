@@ -7,6 +7,7 @@ let backendReady = false;
 let leaderboardTop3 = [];
 let leaderboardYou = null;
 let dailyLeaderboardTop3 = [];
+let dailyLeaderboardRows = [];
 let dailyLeaderboardYou = null;
 let dailyYourRank = 0;
 let dailyContestResetsAt = "";
@@ -28,6 +29,7 @@ let lastGrandPrizeMilestone = 0;
 
 const TASK_REFRESH_MS = 12 * 60 * 60 * 1000;
 const TICKETS_PER_SCORE = 1000;
+const TICKET_EMOJI = "\u{1F39F}\uFE0F";
 
 const CONTEST_SEED_IDS = {
   Marcus: "contest_seed_1",
@@ -480,15 +482,28 @@ function renderTicketProgressHtml() {
   `;
 }
 
+function formatDailyWinnerLabel(winner) {
+  if (!winner) return "";
+
+  const rawName = String(winner.username || winner.displayName || winner.label || "Player").trim();
+  const handle = rawName.startsWith("@") ? rawName : `@${rawName.replace(/^@/, "")}`;
+  const tickets = Number(winner.tickets || 0);
+
+  return `${handle} (${TICKET_EMOJI} ${format(tickets)} Ticket${tickets === 1 ? "" : "s"})`;
+}
+
 function renderDailyWinnerBannerHtml(options = {}) {
-  if (!dailyLastWinner || !dailyLastWinner.label) return "";
+  if (!dailyLastWinner) return "";
+
+  const winnerLabel = dailyLastWinner.label || formatDailyWinnerLabel(dailyLastWinner);
+  if (!winnerLabel) return "";
 
   const listTop = Boolean(options.listTop);
   return `
     <article class="daily-winner-banner ${listTop ? "daily-winner-banner--list-top" : ""}">
       <span class="daily-winner-banner__icon">&#127942;</span>
       <div class="daily-winner-banner__text">
-        <strong>&#127942; Yesterday's $10 Winner: ${dailyLastWinner.label}</strong>
+        <strong>&#127942; Yesterday's $10 Winner: ${winnerLabel}</strong>
       </div>
     </article>
   `;
@@ -1502,17 +1517,20 @@ function renderRankRow(row, mode = "global", options = {}) {
     ? tickets
     : Number(row.cityValue || 0);
   const display = daily
-    ? `&#127915; ${format(tickets)} Ticket${tickets === 1 ? "" : "s"}`
+    ? `<span class="rank__ticket-icon">${TICKET_EMOJI}</span> ${format(tickets)} Ticket${tickets === 1 ? "" : "s"}`
     : format(value);
   const label = row.isYou
     ? (options.isYourPlaceRow ? `Your place · ${ordinalRank(rank)}` : "You")
     : row.name;
+  const ticketClass = daily
+    ? `rank__tickets${row.isYou ? " rank__tickets--you" : ""}`
+    : "";
 
   return `
     <li class="${row.isYou ? "rank__you" : ""}">
       <span class="rank__medal">${rankMark(rank)}</span>
       <span>${label}</span>
-      <strong class="${daily ? "rank__tickets" : ""}">${display}</strong>
+      <strong class="${ticketClass}">${display}</strong>
     </li>
   `;
 }
@@ -1523,6 +1541,50 @@ function buildDailyLeaderboardView() {
     Number(state.dailyContest?.score || 0),
     todayGainScore()
   );
+
+  if (dailyLeaderboardRows.length) {
+    const ranked = dailyLeaderboardRows.map((row) => ({
+      ...row,
+      dailyScore: Number(row.dailyScore || row.score || 0),
+      tickets: rowTicketCount(row),
+      name: row.isYou ? "You" : (row.name || "Player")
+    }));
+
+    const youRow = ranked.find((row) => row.isYou);
+    if (youRow) {
+      youRow.dailyScore = Math.max(youRow.dailyScore, yourScore);
+      youRow.tickets = rowTicketCount(youRow);
+    }
+
+    const youInList = ranked.some((row) => row.isYou);
+    const yourPlace = !youInList && dailyLeaderboardYou
+      ? {
+        ...dailyLeaderboardYou,
+        dailyScore: Math.max(Number(dailyLeaderboardYou.dailyScore || 0), yourScore),
+        tickets: rowTicketCount({
+          ...dailyLeaderboardYou,
+          dailyScore: Math.max(Number(dailyLeaderboardYou.dailyScore || 0), yourScore)
+        }),
+        isYou: true,
+        name: "You"
+      }
+      : null;
+
+    if (!ranked.length) {
+      return {
+        top3: [{
+          rank: 1,
+          name: "You",
+          dailyScore: yourScore,
+          tickets: Math.floor(yourScore / TICKETS_PER_SCORE),
+          isYou: true
+        }],
+        yourPlace: null
+      };
+    }
+
+    return { top3: ranked, yourPlace };
+  }
 
   const candidates = [];
   const seen = new Set();
@@ -2421,6 +2483,9 @@ async function loadLeaderboard() {
   leaderboardTop3 = Array.isArray(result.top3) ? result.top3 : [];
   leaderboardYou = result.you || null;
   dailyLeaderboardTop3 = Array.isArray(result.daily?.top3) ? result.daily.top3 : [];
+  dailyLeaderboardRows = Array.isArray(result.daily?.rows) && result.daily.rows.length
+    ? result.daily.rows
+    : dailyLeaderboardTop3;
   dailyLeaderboardYou = result.daily?.you || null;
   dailyYourRank = Number(result.daily?.yourRank || dailyLeaderboardYou?.rank || 0);
   dailyContestResetsAt = result.daily?.resetsAt || state.dailyContest?.resetsAt || "";
