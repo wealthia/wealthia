@@ -34,7 +34,7 @@
     }
     [hidden] { display: none !important; }
   </style>
-  <link rel="stylesheet" href="./v5.css?v=2066" />
+  <link rel="stylesheet" href="./v5.css?v=2067" />
 </head>
 <body>
   <div class="ambient" aria-hidden="true">
@@ -53,7 +53,7 @@
           <h1>Wealthia</h1>
         </div>
       </div>
-      <button class="round-button" id="resetButton" type="button" aria-label="Reset">
+      <button class="round-button round-button--reset" id="resetButton" type="button" aria-label="Reset daily progress">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path d="M4 12a8 8 0 0 1 13.66-5.66M20 4v5h-5M20 12a8 8 0 0 1-13.66 5.66M4 20v-5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
@@ -259,6 +259,18 @@
     </article>
   </div>
 
+  <div class="reset-modal" id="resetConfirmModal" hidden>
+    <div class="reset-modal__backdrop" data-close-reset-modal></div>
+    <article class="reset-modal__card" role="dialog" aria-labelledby="resetModalTitle" aria-modal="true">
+      <h2 id="resetModalTitle">&#9888;&#65039; Reset Progress?</h2>
+      <p class="reset-modal__desc">Are you sure you want to reset your daily progress? This will reset your score for today. This action cannot be undone.</p>
+      <div class="reset-modal__actions">
+        <button class="reset-modal__btn reset-modal__btn--cancel" type="button" data-close-reset-modal>Cancel</button>
+        <button class="reset-modal__btn reset-modal__btn--confirm" type="button" id="resetConfirmButton">Yes, Reset</button>
+      </div>
+    </article>
+  </div>
+
   <div class="onboarding" id="onboarding" hidden>
     <div class="onboarding__backdrop"></div>
     <div class="onboarding__card">
@@ -286,5 +298,5 @@
   </div>
 
   <script src="./config.js?v=14"></script>
-  <script src="./v5.js?v=10073"></script></body>
+  <script src="./v5.js?v=10074"></script></body>
 </html>

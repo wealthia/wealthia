@@ -537,6 +537,36 @@ function bindRankRulesModal() {
   });
 }
 
+function openResetConfirmModal() {
+  const modal = document.getElementById("resetConfirmModal");
+  if (!modal) return;
+  modal.hidden = false;
+}
+
+function closeResetConfirmModal() {
+  const modal = document.getElementById("resetConfirmModal");
+  if (!modal) return;
+  modal.hidden = true;
+}
+
+function bindResetConfirmModal() {
+  const modal = document.getElementById("resetConfirmModal");
+  if (!modal || modal.dataset.bound === "1") return;
+
+  modal.dataset.bound = "1";
+  modal.querySelectorAll("[data-close-reset-modal]").forEach((node) => {
+    node.addEventListener("click", closeResetConfirmModal);
+  });
+
+  const confirmButton = document.getElementById("resetConfirmButton");
+  if (confirmButton) {
+    confirmButton.addEventListener("click", () => {
+      closeResetConfirmModal();
+      performResetGame();
+    });
+  }
+}
+
 function updateFriendsInvitePanel(link = getInviteLink()) {
   const box = document.getElementById("friendsInviteLinkBox");
   const text = document.getElementById("friendsInviteLinkText");
@@ -2888,24 +2918,40 @@ async function buyStarsProduct(productId) {
   });
 }
 
-async function resetGame() {
+async function performResetGame() {
   if (!backendReady) {
     showToast("Backend offline.");
     return;
   }
 
-  if (!window.confirm("Reset your empire progress?")) return;
-
-  const { ok, result } = await apiPost("/api/reset", { userId: backendUserId });
+  const { ok, result } = await apiPost("/api/reset", {
+    userId: backendUserId,
+    mode: "daily"
+  });
 
   if (!ok || !result) {
     showToast("Reset failed.");
     return;
   }
 
-  localStorage.removeItem(storageKey);
-  state = structuredClone(defaultState);
-  await applyBackendUser(result.user, "Game reset.");
+  await applyBackendUser(result.user, "Daily progress reset.");
+  dailyContestScore = 0;
+  if (state.dailyContest) {
+    state.dailyContest.score = 0;
+    state.dailyContest.tickets = 0;
+  }
+  state.tickets = 0;
+  await loadLeaderboard();
+  renderCampaignBanner();
+}
+
+function resetGame() {
+  if (!backendReady) {
+    showToast("Backend offline.");
+    return;
+  }
+
+  openResetConfirmModal();
 }
 
 async function refreshBackendState() {
@@ -3097,6 +3143,7 @@ function bootApp() {
   setupTapControls();
   startContestSeedRefresh();
   bindRankRulesModal();
+  bindResetConfirmModal();
 
   if (els.syncRetryButton) {
     els.syncRetryButton.addEventListener("click", () => {
