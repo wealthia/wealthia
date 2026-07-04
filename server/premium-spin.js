@@ -94,11 +94,10 @@ async function findPendingPremiumPayment(supabase, userId) {
     .eq("telegram_settled", true)
     .is("consumed_at", null)
     .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+    .limit(1);
 
   if (error) throw error;
-  return data || null;
+  return Array.isArray(data) && data.length ? data[0] : null;
 }
 
 async function hasPendingPremiumPayment(supabase, userId) {

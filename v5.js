@@ -28,6 +28,7 @@ let taskCountdownTimer = null;
 let lastGrandPrizeMilestone = 0;
 let premiumWheelRotation = 0;
 let premiumSpinBusy = false;
+let premiumSpinAwaitingRetry = false;
 
 const PREMIUM_SPIN_STARS = Number((CONFIG.STAR_PRICES && CONFIG.STAR_PRICES.premium_spin) || 1);
 const PREMIUM_WHEEL_SLICE_DEG = 60;
@@ -1105,26 +1106,40 @@ function animatePremiumWheelToSegment(sliceId) {
 
     const finalRotation = currentRotation + PREMIUM_WHEEL_EXTRA_ROTATION_DEG + delta;
 
+    const finish = () => {
+      disc.classList.remove("is-spinning");
+      disc.style.transition = "";
+      premiumWheelRotation = finalRotation;
+      disc.style.transform = `rotate(${finalRotation}deg)`;
+      resolve();
+    };
+
+    const onTransitionEnd = (event) => {
+      if (event.target !== disc || event.propertyName !== "transform") return;
+      disc.removeEventListener("transitionend", onTransitionEnd);
+      window.clearTimeout(fallbackTimer);
+      finish();
+    };
+
     disc.classList.remove("premium-wheel__disc--loading");
+    disc.classList.remove("is-spinning");
     disc.style.transition = "none";
     disc.style.transform = `rotate(${currentRotation}deg)`;
     void disc.offsetHeight;
 
-    disc.classList.add("is-spinning");
-    disc.style.transition = `transform ${PREMIUM_WHEEL_DECEL_MS}ms ease-out`;
+    disc.addEventListener("transitionend", onTransitionEnd);
+    const fallbackTimer = window.setTimeout(() => {
+      disc.removeEventListener("transitionend", onTransitionEnd);
+      finish();
+    }, PREMIUM_WHEEL_DECEL_MS + 150);
 
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        setPremiumWheelRotation(finalRotation, true);
+        disc.classList.add("is-spinning");
+        disc.style.transition = `transform ${PREMIUM_WHEEL_DECEL_MS}ms ease-out`;
+        disc.style.transform = `rotate(${finalRotation}deg)`;
       });
     });
-
-    window.setTimeout(() => {
-      disc.classList.remove("is-spinning");
-      disc.style.transition = "";
-      premiumWheelRotation = finalRotation;
-      resolve();
-    }, PREMIUM_WHEEL_DECEL_MS);
   });
 }
 
@@ -1136,15 +1151,30 @@ function openPremiumSpinOverlay() {
 
   const disc = document.getElementById("premiumWheelDisc");
   premiumWheelRotation = 0;
+  premiumSpinAwaitingRetry = false;
   if (disc) {
     disc.style.transition = "none";
     disc.style.transform = "rotate(0deg)";
   }
 
   const spinButton = document.getElementById("premiumWheelSpinButton");
-  if (spinButton) {
-    spinButton.textContent = `SPIN (${PREMIUM_SPIN_STARS} ⭐)`;
+  resetPremiumSpinButton(spinButton);
+  void refreshPremiumSpinPaymentState();
+}
+
+async function refreshPremiumSpinPaymentState() {
+  const spinButton = document.getElementById("premiumWheelSpinButton");
+  if (!spinButton || premiumSpinBusy) return;
+
+  const ready = await isPremiumSpinPaymentReady();
+  if (!ready) {
+    premiumSpinAwaitingRetry = false;
+    resetPremiumSpinButton(spinButton);
+    return;
   }
+
+  premiumSpinAwaitingRetry = true;
+  spinButton.textContent = `SPIN (PAID)`;
 }
 
 function closePremiumSpinOverlay() {
@@ -1317,19 +1347,33 @@ async function executePremiumSpin() {
   }
 
   if (result && result.error === "NO_PAYMENT") {
-    showToast("Payment not confirmed by Telegram yet. Try again.");
+    showToast("Payment not found. Please pay with Stars first.");
   } else if (result && result.error === "PAYMENT_NOT_SETTLED") {
-    showToast("Payment not confirmed by Telegram yet. Try again.");
+    showToast("Payment not confirmed by Telegram yet. Wait a few seconds and tap SPIN again.");
   } else if (status === 401) {
     showToast("Session expired. Reopen the game from the bot.");
   } else if (status === 403) {
-    showToast("Telegram verification failed. Reopen from @WealthiaGameBot.");
+    showToast(result?.reason === "INIT_DATA_EXPIRED"
+      ? "Session expired. Close and reopen from @WealthiaGameBot."
+      : "Telegram verification failed. Reopen from @WealthiaGameBot.");
   } else if (status === 429) {
     showToast("Too fast. Wait a second before spinning again.");
   } else if (status === 409 && result?.error === "FRAUD_REPLAY") {
-    showToast("This payment was already used.");
+    showToast("This payment was already used. Tap SPIN to pay again.");
+    premiumSpinAwaitingRetry = false;
   } else {
-    showToast(result?.error ? `Spin failed: ${result.error}` : "Premium spin failed.");
+    showToast(result?.error ? `Spin failed: ${result.error}` : "Premium spin failed. Tap SPIN to try again.");
+  }
+  return null;
+}
+
+async function requestPremiumSpinResult(maxAttempts = 4) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const spinResult = await executePremiumSpin();
+    if (spinResult) return spinResult;
+    if (attempt < maxAttempts - 1) {
+      await sleep(1200);
+    }
   }
   return null;
 }
@@ -1372,18 +1416,67 @@ async function runPremiumSpinAfterPayment() {
   if (premiumSpinBusy) return;
 
   premiumSpinBusy = true;
-  setPremiumSpinButton(spinButton, true, "Loading result...");
+  setPremiumSpinButton(spinButton, true, "Please wait...");
 
   try {
-    const spinResult = await executePremiumSpin();
-    if (!spinResult) return;
+    await waitForTelegramInitData(4000);
+    const spinResult = await requestPremiumSpinResult();
+    if (!spinResult) {
+      premiumSpinAwaitingRetry = await isPremiumSpinPaymentReady();
+      return;
+    }
 
+    premiumSpinAwaitingRetry = false;
     setPremiumSpinButton(spinButton, true, "Spinning...");
     await finishPremiumSpinResult(spinResult);
   } finally {
     premiumSpinBusy = false;
-    resetPremiumSpinButton(spinButton);
+    if (premiumSpinAwaitingRetry) {
+      const spinButtonAfter = document.getElementById("premiumWheelSpinButton");
+      if (spinButtonAfter) spinButtonAfter.textContent = "SPIN (PAID)";
+    } else {
+      resetPremiumSpinButton(spinButton);
+    }
   }
+}
+
+async function openPremiumSpinInvoice(spinButton, tg) {
+  setPremiumSpinButton(spinButton, true, "Opening payment...");
+
+  const { ok, result } = await apiPost("/api/stars/invoice", {
+    userId: backendUserId,
+    productId: "premium_spin"
+  });
+
+  if (!ok || !result || !result.invoiceLink) {
+    showToast("Could not open Stars payment.");
+    resetPremiumSpinButton(spinButton);
+    return;
+  }
+
+  resetPremiumSpinButton(spinButton);
+
+  tg.openInvoice(result.invoiceLink, async (status) => {
+    if (status !== "paid") {
+      if (status === "failed") showToast("Payment failed.");
+      if (status === "cancelled") showToast("Payment cancelled.");
+      resetPremiumSpinButton(spinButton);
+      return;
+    }
+
+    setPremiumSpinButton(spinButton, true, "Confirming payment...");
+    const ready = await waitForPremiumSpinPayment(60);
+    if (!ready) {
+      premiumSpinAwaitingRetry = true;
+      showToast("Payment received. Tap SPIN again in a few seconds.");
+      if (spinButton) spinButton.textContent = "SPIN (PAID)";
+      spinButton.disabled = false;
+      return;
+    }
+
+    premiumSpinAwaitingRetry = true;
+    await runPremiumSpinAfterPayment();
+  });
 }
 
 async function startPremiumSpinPurchase() {
@@ -1402,45 +1495,15 @@ async function startPremiumSpinPurchase() {
 
   const spinButton = document.getElementById("premiumWheelSpinButton");
 
-  if (await isPremiumSpinPaymentReady()) {
+  if (premiumSpinAwaitingRetry && await isPremiumSpinPaymentReady()) {
     await runPremiumSpinAfterPayment();
     return;
   }
 
-  setPremiumSpinButton(spinButton, true, "Opening payment...");
+  premiumSpinAwaitingRetry = false;
 
   try {
-    const { ok, result } = await apiPost("/api/stars/invoice", {
-      userId: backendUserId,
-      productId: "premium_spin"
-    });
-
-    if (!ok || !result || !result.invoiceLink) {
-      showToast("Could not open Stars payment.");
-      resetPremiumSpinButton(spinButton);
-      return;
-    }
-
-    resetPremiumSpinButton(spinButton);
-
-    tg.openInvoice(result.invoiceLink, async (status) => {
-      if (status !== "paid") {
-        if (status === "failed") showToast("Payment failed.");
-        if (status === "cancelled") showToast("Payment cancelled.");
-        resetPremiumSpinButton(spinButton);
-        return;
-      }
-
-      setPremiumSpinButton(spinButton, true, "Confirming payment...");
-      const ready = await waitForPremiumSpinPayment(45);
-      if (!ready) {
-        showToast("Payment received. Tap SPIN again in a few seconds.");
-        resetPremiumSpinButton(spinButton);
-        return;
-      }
-
-      await runPremiumSpinAfterPayment();
-    });
+    await openPremiumSpinInvoice(spinButton, tg);
   } catch {
     showToast("Premium spin failed.");
     resetPremiumSpinButton(spinButton);
