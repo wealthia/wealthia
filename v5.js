@@ -1315,76 +1315,20 @@ function leaderboardCandidateKey(row) {
   return `name:${String(row.name || "").toLowerCase()}`;
 }
 
-function getContestSeedPreview() {
-  const now = new Date();
-  const hour = now.getUTCHours();
-  const minute = now.getUTCMinutes();
-  const frozen = hour >= 23;
-  const totalMinutes = frozen ? (22 * 60 + 59) : hour * 60 + minute;
-  const slotIndex = Math.floor(totalMinutes / 20);
-  const base = slotIndex * 14;
-  const noonMinutes = 12 * 60;
-  const endMinutes = 22 * 60 + 59;
-  let postNoonBlend = 0;
-  if (totalMinutes >= noonMinutes) {
-    postNoonBlend = Math.min(1, (totalMinutes - noonMinutes) / (endMinutes - noonMinutes));
-  }
-
-  const morningSecond = Math.floor(base * 0.3);
-  const morningFirst = morningSecond > 0 ? morningSecond + 520 : 0;
-  const morningThird = morningSecond > 0 ? Math.max(0, morningSecond - 520) : 0;
-  const endSecond = base + 180;
-  const endFirst = endSecond + 520;
-  const endThird = Math.max(0, endSecond - 520);
-  const climb = Math.pow(postNoonBlend, 0.55);
-
-  const scores = [
-    { userId: "contest_seed_1", name: "Marcus", dailyScore: Math.floor(morningFirst + (endFirst - morningFirst) * climb) },
-    { userId: "contest_seed_2", name: "Emma", dailyScore: Math.floor(morningSecond + (endSecond - morningSecond) * climb) },
-    { userId: "contest_seed_3", name: "Ryan", dailyScore: Math.floor(morningThird + (endThird - morningThird) * climb) }
-  ];
-
-  return scores
-    .sort((a, b) => {
-      const byTickets = Math.floor(b.dailyScore / TICKETS_PER_SCORE) - Math.floor(a.dailyScore / TICKETS_PER_SCORE);
-      if (byTickets !== 0) return byTickets;
-      return b.dailyScore - a.dailyScore;
-    })
-    .map((row, index) => ({
-      ...row,
-      tickets: Math.floor(row.dailyScore / TICKETS_PER_SCORE),
-      rank: index + 1,
-      isYou: false
-    }));
-}
-
-const CONTEST_SEED_REFRESH_MS = 20 * 60 * 1000;
+const SYSTEM_BOT_REFRESH_MS = 12 * 60 * 1000;
 let contestSeedRefreshTimer = null;
-
-function enrichContestSeedScores(candidates) {
-  const previewById = new Map(
-    getContestSeedPreview().map((row) => [row.userId, row.dailyScore])
-  );
-
-  return candidates.map((row) => {
-    const seedId = row.userId || CONTEST_SEED_IDS[row.name];
-    if (!seedId || !previewById.has(seedId)) return row;
-
-    return {
-      ...row,
-      userId: seedId,
-      dailyScore: Math.max(Number(row.dailyScore || 0), Number(previewById.get(seedId) || 0))
-    };
-  });
-}
 
 function startContestSeedRefresh() {
   if (contestSeedRefreshTimer || !getDailyPrizeConfig()) return;
 
   contestSeedRefreshTimer = window.setInterval(() => {
+    if (backendReady) {
+      loadLeaderboard();
+      return;
+    }
     renderRankPanel();
     renderCampaignBanner();
-  }, CONTEST_SEED_REFRESH_MS);
+  }, SYSTEM_BOT_REFRESH_MS);
 }
 
 function renderFriendsPanel() {
@@ -1600,11 +1544,7 @@ function buildDailyLeaderboardView() {
   for (const row of dailyLeaderboardTop3) addCandidate(row);
   if (dailyLeaderboardYou) addCandidate({ ...dailyLeaderboardYou, isYou: true });
 
-  if (getDailyPrizeConfig()) {
-    for (const seed of getContestSeedPreview()) addCandidate(seed);
-  }
-
-  let merged = enrichContestSeedScores(candidates);
+  let merged = candidates;
 
   const youRow = merged.find((row) => row.isYou);
   if (youRow) {
@@ -1638,7 +1578,13 @@ function buildDailyLeaderboardView() {
 
   if (!top3.length) {
     return {
-      top3: [{ rank: 1, name: "You", dailyScore: yourScore, isYou: true }],
+      top3: [{
+        rank: 1,
+        name: "You",
+        dailyScore: yourScore,
+        tickets: Math.floor(yourScore / TICKETS_PER_SCORE),
+        isYou: true
+      }],
       yourPlace: null
     };
   }
