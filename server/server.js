@@ -764,6 +764,35 @@ function applyPassive(row) {
   return result.row;
 }
 
+function passiveDbPatch(row, contest) {
+  return {
+    coins: row.coins,
+    energy: row.energy,
+    max_energy: economy.maxEnergy(row),
+    spent: number(row.spent),
+    shop_level: number(row.shop_level),
+    bank_level: number(row.bank_level),
+    factory_level: number(row.factory_level),
+    casino_level: number(row.casino_level),
+    city_value: row.city_value,
+    last_seen_at: row.last_seen_at,
+    daily_tasks_date: row.daily_tasks_date,
+    daily_tasks_json: row.daily_tasks_json,
+    daily_tasks_claimed_json: row.daily_tasks_claimed_json,
+    contest_date: contest.contest_date,
+    contest_baseline_city: contest.contest_baseline_city,
+    daily_contest_score: contest.daily_contest_score,
+    updated_at: new Date().toISOString()
+  };
+}
+
+function attachPassiveMeta(target, source) {
+  target.__offlineEarnings = number(source.__offlineEarnings || 0);
+  target.__offlineCashAdded = number(source.__offlineCashAdded || 0);
+  target.__autoUpgrades = Array.isArray(source.__autoUpgrades) ? source.__autoUpgrades : [];
+  return target;
+}
+
 function toClientUser(row, extra = {}) {
   const tasks = safeJson(row.daily_tasks_json, []);
   const claimed = safeJson(row.daily_tasks_claimed_json, []);
@@ -784,6 +813,11 @@ function toClientUser(row, extra = {}) {
       tapValue: economy.tapValue(row),
       hourlyProfit: economy.totalHourlyProfit(row, incomeMultiplier(row)),
       offlineEarnings: number(extra.offlineEarnings ?? row.__offlineEarnings ?? 0),
+      offlineCashAdded: number(extra.offlineCashAdded ?? row.__offlineCashAdded ?? 0),
+      autoUpgrades: Array.isArray(extra.autoUpgrades ?? row.__autoUpgrades)
+        ? (extra.autoUpgrades ?? row.__autoUpgrades)
+        : [],
+      autoBuyEnabled: number(row.bank_level) >= economy.AUTO_BUY_MIN_BANK_LEVEL,
       dailyScore: number(contest.daily_contest_score),
       tickets: economy.computeTickets(contest.daily_contest_score),
       dailyDate: row.daily_date || "",
@@ -1024,27 +1058,13 @@ async function getOrCreatePlayer(telegramUser, referrerId = "") {
 
     const { data: saved, error } = await supabase
       .from("game_states")
-      .update({
-        coins: row.coins,
-        energy: row.energy,
-        max_energy: economy.maxEnergy(row),
-        city_value: row.city_value,
-        last_seen_at: row.last_seen_at,
-        daily_tasks_date: row.daily_tasks_date,
-        daily_tasks_json: row.daily_tasks_json,
-        daily_tasks_claimed_json: row.daily_tasks_claimed_json,
-        contest_date: contest.contest_date,
-        contest_baseline_city: contest.contest_baseline_city,
-        daily_contest_score: contest.daily_contest_score,
-        updated_at: new Date().toISOString()
-      })
+      .update(passiveDbPatch(row, contest))
       .eq("user_id", telegramId)
       .select("*")
       .single();
 
     if (error) throw error;
-    saved.__offlineEarnings = row.__offlineEarnings || 0;
-    return saved;
+    return attachPassiveMeta(saved, row);
   }
 
   const fresh = refreshDailyTasks({
@@ -1095,26 +1115,13 @@ async function loadGame(userId) {
 
   const { data: saved, error: saveError } = await supabase
     .from("game_states")
-    .update({
-      coins: row.coins,
-      energy: row.energy,
-      max_energy: economy.maxEnergy(row),
-      city_value: row.city_value,
-      last_seen_at: row.last_seen_at,
-      daily_tasks_date: row.daily_tasks_date,
-      daily_tasks_json: row.daily_tasks_json,
-      daily_tasks_claimed_json: row.daily_tasks_claimed_json,
-      contest_date: contest.contest_date,
-      contest_baseline_city: contest.contest_baseline_city,
-      daily_contest_score: contest.daily_contest_score,
-      updated_at: new Date().toISOString()
-    })
+    .update(passiveDbPatch(row, contest))
     .eq("user_id", String(userId))
     .select("*")
     .single();
 
   if (saveError) throw saveError;
-  return saved;
+  return attachPassiveMeta(saved, row);
 }
 
 app.get("/", (_req, res) => {
@@ -1190,7 +1197,9 @@ app.post("/api/session", async (req, res) => {
     res.json({
       ...toClientUser(row, {
         referralCount,
-        offlineEarnings: number(row.__offlineEarnings || 0)
+        offlineEarnings: number(row.__offlineEarnings || 0),
+        offlineCashAdded: number(row.__offlineCashAdded || 0),
+        autoUpgrades: row.__autoUpgrades || []
       }),
       token: session.token,
       expiresAt: session.expiresAt
