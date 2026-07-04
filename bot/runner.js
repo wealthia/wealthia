@@ -1,5 +1,5 @@
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
-const WEBAPP_URL = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2055";
+const WEBAPP_URL = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2058";
 const BOT_USERNAME = process.env.BOT_USERNAME || "WealthiaGameBot";
 const CHANNEL_URL = process.env.CHANNEL_URL || "";
 const BACKEND_URL = process.env.BACKEND_URL || "https://wealthia-backend.onrender.com";
@@ -14,6 +14,13 @@ const STAR_PRODUCT_IDS = new Set([
   "endless_energy_30",
   "income_boost_30"
 ]);
+
+const STAR_PRODUCT_STARS = {
+  refill_energy: 5,
+  tap_boost_30: 10,
+  endless_energy_30: 15,
+  income_boost_30: 15
+};
 
 const STAR_SUCCESS_MESSAGES = {
   refill_energy: "Energy refilled to 100%!",
@@ -66,7 +73,7 @@ function parseStarPayload(payload) {
   return { userId: parts[1], productId: parts[2] };
 }
 
-async function fulfillStarPayment(userId, productId, chargeId, stars) {
+async function fulfillStarPayment(userId, productId, chargeId, stars, invoicePayload) {
   if (!STARS_WEBHOOK_SECRET) {
     throw new Error("STARS_WEBHOOK_SECRET or ADMIN_SECRET missing");
   }
@@ -79,7 +86,8 @@ async function fulfillStarPayment(userId, productId, chargeId, stars) {
       userId,
       productId,
       chargeId,
-      stars
+      stars,
+      invoicePayload
     })
   });
 
@@ -180,6 +188,7 @@ async function handleStart(chatId, user, startParam) {
 async function handlePreCheckout(query) {
   const parsed = parseStarPayload(query.invoice_payload);
   const telegramId = String(query.from && query.from.id ? query.from.id : "");
+  const expectedStars = parsed ? STAR_PRODUCT_STARS[parsed.productId] : 0;
 
   if (!parsed || !STAR_PRODUCT_IDS.has(parsed.productId)) {
     await api("answerPreCheckoutQuery", {
@@ -195,6 +204,24 @@ async function handlePreCheckout(query) {
       pre_checkout_query_id: query.id,
       ok: false,
       error_message: "Payment user mismatch."
+    });
+    return;
+  }
+
+  if (query.currency !== "XTR") {
+    await api("answerPreCheckoutQuery", {
+      pre_checkout_query_id: query.id,
+      ok: false,
+      error_message: "Invalid currency."
+    });
+    return;
+  }
+
+  if (Number(query.total_amount) !== expectedStars) {
+    await api("answerPreCheckoutQuery", {
+      pre_checkout_query_id: query.id,
+      ok: false,
+      error_message: "Invalid Stars amount."
     });
     return;
   }
@@ -221,12 +248,22 @@ async function handleSuccessfulPayment(message) {
     return;
   }
 
+  const expectedStars = STAR_PRODUCT_STARS[parsed.productId];
+  if (payment.currency !== "XTR" || Number(payment.total_amount) !== expectedStars) {
+    await api("sendMessage", {
+      chat_id: chatId,
+      text: "Payment amount mismatch. Contact support for a refund."
+    });
+    return;
+  }
+
   try {
     await fulfillStarPayment(
       parsed.userId,
       parsed.productId,
       payment.telegram_payment_charge_id,
-      Number(payment.total_amount || 0)
+      expectedStars,
+      payment.invoice_payload
     );
 
     await api("sendMessage", {

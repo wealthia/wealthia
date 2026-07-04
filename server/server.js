@@ -1690,9 +1690,27 @@ app.post("/api/stars/fulfill", async (req, res) => {
     const productId = String(req.body.productId || "");
     const chargeId = String(req.body.chargeId || "");
     const starsAmount = number(req.body.stars);
+    const invoicePayload = String(req.body.invoicePayload || "");
+    const payload = parseStarPayload(invoicePayload);
 
     if (!userId || !productId || !chargeId || !STAR_PRODUCTS[productId]) {
       res.status(400).json({ error: "BAD_REQUEST" });
+      return;
+    }
+
+    if (!payload || payload.userId !== userId || payload.productId !== productId) {
+      res.status(400).json({ error: "INVALID_PAYLOAD" });
+      return;
+    }
+
+    const expectedStars = number(STAR_PRODUCTS[productId].stars);
+    if (!expectedStars || starsAmount !== expectedStars) {
+      res.status(400).json({ error: "INVALID_STARS_AMOUNT" });
+      return;
+    }
+
+    if (!chargeId || chargeId.length < 8) {
+      res.status(400).json({ error: "INVALID_CHARGE_ID" });
       return;
     }
 
@@ -1719,7 +1737,7 @@ app.post("/api/stars/fulfill", async (req, res) => {
     const { error: paymentError } = await supabase.from("star_payments").insert({
       user_id: userId,
       product_id: productId,
-      stars_amount: starsAmount || STAR_PRODUCTS[productId].stars,
+      stars_amount: expectedStars,
       charge_id: chargeId
     });
 
@@ -1743,7 +1761,7 @@ app.post("/api/stars/fulfill", async (req, res) => {
     await notifyOwnerStarsSale({
       playerName: buyer?.first_name || buyer?.username || `Player ${userId.slice(-4)}`,
       productTitle: STAR_PRODUCTS[productId].title,
-      stars: starsAmount || STAR_PRODUCTS[productId].stars
+      stars: expectedStars
     });
 
     res.json({ ok: true, productId, user: toClientUser(data) });
