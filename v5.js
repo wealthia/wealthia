@@ -442,12 +442,15 @@ async function shareInviteLink() {
   try {
     const copied = await copyTextToClipboard(link);
     updateFriendsInvitePanel(link);
-    switchToFriendsTab();
-    showToast(copied ? "Link copied! Send it to your friends." : "Your invite link is ready below.");
+    if (copied) {
+      showToast("Link kopyalandı! 📋");
+    } else {
+      updateFriendsInvitePanel(link);
+      showToast("Linki aşağıdan kopyalayın.");
+    }
   } catch {
     updateFriendsInvitePanel(link);
-    switchToFriendsTab();
-    showToast("Copy the link below and send to friends.");
+    showToast("Linki aşağıdan kopyalayın.");
   }
 }
 
@@ -1302,20 +1305,20 @@ function renderFriendsPanel() {
       <code id="friendsInviteLinkText">${link}</code>
     </div>
 
-    <article class="friends-stat-row">
-      <div class="friends-stat">
+    <article class="friends-stat-row" aria-label="Referral stats">
+      <div class="friends-stat friends-stat--info">
         <span>Friends</span>
         <strong>${referrals}/${required}</strong>
       </div>
-      <div class="friends-stat">
+      <div class="friends-stat friends-stat--info">
         <span>Coins</span>
         <strong>+${format(referralCoins)}</strong>
       </div>
-      <div class="friends-stat">
+      <div class="friends-stat friends-stat--info">
         <span>Prize</span>
-        <strong>${eligible ? "On" : "Off"}</strong>
+        <strong class="${eligible ? "friends-stat__on" : "friends-stat__off"}">${eligible ? "On" : "Off"}</strong>
       </div>
-      <div class="friends-stat">
+      <div class="friends-stat friends-stat--info">
         <span>Each</span>
         <strong>+500</strong>
       </div>
@@ -1329,9 +1332,9 @@ function renderFriendsPanel() {
       <div class="friends-progress" role="progressbar" aria-valuenow="${progressPct}" aria-valuemin="0" aria-valuemax="100">
         <span style="width:${progressPct}%"></span>
       </div>
-      <p>${eligible
-    ? "You are in today's race. Climb on the Rank tab."
-    : `Invite ${Math.max(0, required - referrals)} more friend(s) to unlock the $10 contest.`}</p>
+      ${eligible
+    ? `<p class="friends-progress-card__qualified">&#127881; Təbriklər! Yarışa vəsiqə qazandın. Bilet yığmağa davam et!</p>`
+    : `<p class="friends-progress-card__hint">Invite ${Math.max(0, required - referrals)} more friend(s) to unlock the $10 contest.</p>`}
     </article>
 
     <article class="friends-tips">
