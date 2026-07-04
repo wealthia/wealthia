@@ -66,7 +66,6 @@ let resolvedOfficialChannelUrl = "";
 const BOOST_DURATION_MS = 30 * 60 * 1000;
 const REFERRAL_BONUS = 500;
 const NEW_PLAYER_BONUS = 100;
-const ADMIN_TELEGRAM_ID = "1988089728";
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
 const AD_REWARD_COOLDOWN_MS = 5 * 60 * 1000;
 const BONUS_AD_REWARD_COOLDOWN_MS = 15 * 60 * 1000;
@@ -859,10 +858,6 @@ async function getPlayerTelegramId(userId) {
   return String(data?.telegram_id || "");
 }
 
-function isPremiumSpinAdmin(telegramId, userId = "") {
-  const id = String(telegramId || userId || "").trim();
-  return id === ADMIN_TELEGRAM_ID;
-}
 
 function ipRateLimit(req, res, next) {
   if (!req.path.startsWith("/api/")) {
@@ -2552,18 +2547,13 @@ app.post(
   async (req, res) => {
   try {
     const userId = req.playerId;
-    const telegramId = await getPlayerTelegramId(userId);
-    const adminBypass = isPremiumSpinAdmin(telegramId, userId);
-    const payment = adminBypass
-      ? null
-      : await premiumSpin.findPendingPremiumPayment(supabase, userId);
+    const payment = await premiumSpin.findPendingPremiumPayment(supabase, userId);
 
     res.json({
       ok: true,
-      ready: adminBypass || Boolean(payment),
+      ready: Boolean(payment),
       chargeId: payment?.charge_id || "",
-      telegramConfirmed: adminBypass || Boolean(payment?.telegram_settled),
-      adminBypass
+      telegramConfirmed: Boolean(payment?.telegram_settled)
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -2606,70 +2596,63 @@ app.post(
 
     if (buyerError) throw buyerError;
 
-    const adminBypass = isPremiumSpinAdmin(buyer?.telegram_id, userId);
-    let payment = null;
+    const payment = await premiumSpin.findPendingPremiumPayment(supabase, userId);
 
-    if (!adminBypass) {
-      payment = await premiumSpin.findPendingPremiumPayment(supabase, userId);
-
-      if (!payment) {
-        res.status(402).json({ error: "NO_PAYMENT" });
-        return;
-      }
-
-      if (!payment.telegram_settled) {
-        res.status(402).json({ error: "PAYMENT_NOT_SETTLED" });
-        return;
-      }
-
-      if (!payment.charge_id) {
-        res.status(402).json({ error: "MISSING_CHARGE_ID" });
-        return;
-      }
-
-      if (number(payment.stars_amount) !== premiumSpin.PREMIUM_SPIN_STARS) {
-        await premiumSpinSecurity.logFraudEvent(supabase, {
-          userId,
-          eventType: "INVALID_PAYMENT_AMOUNT",
-          detail: `payment_id=${payment.id}`
-        });
-        res.status(403).json({ error: "INVALID_PAYMENT" });
-        return;
-      }
-
-      const now = new Date().toISOString();
-      const { data: consumed, error: consumeError } = await supabase
-        .from("star_payments")
-        .update({ consumed_at: now })
-        .eq("id", payment.id)
-        .eq("user_id", userId)
-        .eq("product_id", "premium_spin")
-        .is("consumed_at", null)
-        .select("id")
-        .maybeSingle();
-
-      if (consumeError) throw consumeError;
-      if (!consumed) {
-        await premiumSpinSecurity.logFraudEvent(supabase, {
-          userId,
-          eventType: "PAYMENT_REPLAY_RACE",
-          detail: `payment_id=${payment.id}`
-        });
-        res.status(409).json({ error: "FRAUD_REPLAY" });
-        return;
-      }
+    if (!payment) {
+      res.status(402).json({ error: "NO_PAYMENT" });
+      return;
     }
 
-    const globalSpins = adminBypass
-      ? await premiumSpin.getGlobalPremiumSpins(supabase)
-      : await premiumSpin.incrementGlobalPremiumSpins(supabase);
-    const prize = premiumSpin.rollPremiumPrize(globalSpins, { adminTest: adminBypass });
+    if (!payment.telegram_settled) {
+      res.status(402).json({ error: "PAYMENT_NOT_SETTLED" });
+      return;
+    }
+
+    if (!payment.charge_id) {
+      res.status(402).json({ error: "MISSING_CHARGE_ID" });
+      return;
+    }
+
+    if (number(payment.stars_amount) !== premiumSpin.PREMIUM_SPIN_STARS) {
+      await premiumSpinSecurity.logFraudEvent(supabase, {
+        userId,
+        eventType: "INVALID_PAYMENT_AMOUNT",
+        detail: `payment_id=${payment.id}`
+      });
+      res.status(403).json({ error: "INVALID_PAYMENT" });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const { data: consumed, error: consumeError } = await supabase
+      .from("star_payments")
+      .update({ consumed_at: now })
+      .eq("id", payment.id)
+      .eq("user_id", userId)
+      .eq("product_id", "premium_spin")
+      .is("consumed_at", null)
+      .select("id")
+      .maybeSingle();
+
+    if (consumeError) throw consumeError;
+    if (!consumed) {
+      await premiumSpinSecurity.logFraudEvent(supabase, {
+        userId,
+        eventType: "PAYMENT_REPLAY_RACE",
+        detail: `payment_id=${payment.id}`
+      });
+      res.status(409).json({ error: "FRAUD_REPLAY" });
+      return;
+    }
+
+    const globalSpins = await premiumSpin.incrementGlobalPremiumSpins(supabase);
+    const prize = premiumSpin.rollPremiumPrize(globalSpins);
     const row = await loadGame(userId);
 
     const username = String(buyer?.username || "").trim();
     const displayName = buyer?.first_name || `Player ${String(userId).slice(-4)}`;
 
-    if (prize.type === "cash" && !adminBypass) {
+    if (prize.type === "cash") {
       await premiumSpin.createPendingPayout(supabase, {
         userId,
         username,
