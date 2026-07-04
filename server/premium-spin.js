@@ -90,6 +90,7 @@ async function findPendingPremiumPayment(supabase, userId) {
     .select("id, charge_id, stars_amount, created_at")
     .eq("user_id", userId)
     .eq("product_id", "premium_spin")
+    .eq("stars_amount", PREMIUM_SPIN_STARS)
     .is("consumed_at", null)
     .order("created_at", { ascending: true })
     .limit(1)
