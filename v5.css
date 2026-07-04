@@ -959,6 +959,103 @@ p {
   font-size: 12px;
 }
 
+.app.view-rank .panel-head--rank-lottery {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.rank-rules-btn {
+  flex-shrink: 0;
+  border: 1px solid rgba(245, 196, 81, 0.35);
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: rgba(245, 196, 81, 0.1);
+  color: var(--gold-light);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.daily-winner-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(245, 196, 81, 0.55);
+  background: linear-gradient(145deg, rgba(245, 196, 81, 0.22), rgba(18, 24, 42, 0.95));
+  box-shadow: 0 0 24px rgba(245, 196, 81, 0.16);
+}
+
+.daily-winner-banner__icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.daily-winner-banner__text {
+  display: grid;
+  gap: 2px;
+}
+
+.daily-winner-banner__title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gold-light);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.daily-winner-banner__text strong {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: #fff4d0;
+}
+
+.daily-prize__tickets {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.daily-prize__tickets-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.daily-prize__tickets-label {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff4d0;
+}
+
+.daily-prize__tickets-next {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.daily-prize__ticket-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  border: 1px solid rgba(245, 196, 81, 0.25);
+}
+
+.daily-prize__ticket-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #d89a24, #ffe08a);
+}
+
 .app.view-rank .grand-prize-card {
   padding: 10px;
 }
@@ -2482,6 +2579,78 @@ button.completed strong {
   font-size: 15px;
   font-weight: 800;
   cursor: pointer;
+}
+
+.rules-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.rules-modal[hidden] {
+  display: none;
+}
+
+.rules-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 8, 18, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.rules-modal__card {
+  position: relative;
+  width: min(100%, 360px);
+  padding: 18px 16px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(245, 196, 81, 0.35);
+  background: linear-gradient(160deg, rgba(26, 34, 58, 0.98), rgba(12, 16, 32, 0.98));
+  box-shadow: var(--shadow);
+}
+
+.rules-modal__badge {
+  display: inline-block;
+  margin-bottom: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(245, 196, 81, 0.14);
+  color: var(--gold-light);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.rules-modal__card h2 {
+  margin: 0 0 12px;
+  font-family: var(--font-display);
+  font-size: 20px;
+}
+
+.rules-modal__list {
+  margin: 0 0 14px;
+  padding-left: 18px;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.rules-modal__list li + li {
+  margin-top: 8px;
+}
+
+.rules-modal__close {
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, #f6c85f, #d89a24);
+  color: #1a1408;
+  font-size: 14px;
+  font-weight: 800;
 }
 
 /* Toast */
