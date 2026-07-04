@@ -24,6 +24,7 @@ const els = {
   logRevenueForm: document.getElementById("logRevenueForm"),
   revenueSummary: document.getElementById("revenueSummary"),
   metricsTable: document.getElementById("metricsTable"),
+  payoutsTable: document.getElementById("payoutsTable"),
   toast: document.getElementById("toast")
 };
 
@@ -221,7 +222,8 @@ function switchView(view) {
     dashboard: "Dashboard",
     players: "Players",
     tournaments: "Tournaments",
-    revenue: "Revenue"
+    revenue: "Revenue",
+    payouts: "Payouts"
   };
 
   if (els.viewTitle) els.viewTitle.textContent = titles[view] || "Dashboard";
@@ -233,6 +235,7 @@ async function loadCurrentView(view = getActiveView()) {
   if (view === "players") await loadPlayers();
   if (view === "tournaments") await loadTournaments();
   if (view === "revenue") await loadRevenue();
+  if (view === "payouts") await loadPayouts();
 }
 
 function getActiveView() {
@@ -482,6 +485,60 @@ async function loadRevenue() {
   dashboardData = result;
   renderRevenueSummary(result);
   renderMetrics(metricsRes.ok ? metricsRes.result.rows || [] : []);
+}
+
+function renderPayouts(rows) {
+  if (!els.payoutsTable) return;
+
+  if (!rows.length) {
+    els.payoutsTable.innerHTML = '<tr><td colspan="6" class="empty">No pending payouts.</td></tr>';
+    return;
+  }
+
+  els.payoutsTable.innerHTML = rows.map((row) => {
+    const handle = row.username ? `@${row.username}` : (row.display_name || row.user_id);
+    const completeDisabled = row.status === "completed" ? "disabled" : "";
+    return `
+      <tr>
+        <td>${handle}</td>
+        <td>${formatMoney(row.amount_usd)}</td>
+        <td>${row.prize_id || "—"}</td>
+        <td><span class="badge ${row.status === "completed" ? "badge--active" : "badge--draft"}">${row.status}</span></td>
+        <td>${formatDate(row.created_at)}</td>
+        <td>
+          <button type="button" data-complete-payout="${row.id}" ${completeDisabled}>Mark completed</button>
+        </td>
+      </tr>
+    `;
+  }).join("");
+
+  els.payoutsTable.querySelectorAll("[data-complete-payout]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const payoutId = Number(button.dataset.completePayout);
+      const { ok, result } = await api("/api/admin/payouts/status", {
+        method: "POST",
+        body: JSON.stringify({ id: payoutId, status: "completed" })
+      });
+
+      if (!ok) {
+        showToast(result.error || "Could not update payout.");
+        return;
+      }
+
+      showToast("Payout marked completed.");
+      await loadPayouts();
+    });
+  });
+}
+
+async function loadPayouts() {
+  const { ok, result } = await api("/api/admin/payouts?status=pending");
+  if (!ok) {
+    showLogin("Session expired.");
+    return;
+  }
+
+  renderPayouts(result.rows || []);
 }
 
 async function logRevenue(event) {

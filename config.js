@@ -2,7 +2,7 @@
 // Full monetization guide: MONETIZATION.md
 window.WEALTHIA_CONFIG = {
   API_URL: "https://wealthia-backend.onrender.com",
-  GAME_URL: "https://wealthia.github.io/wealthia/v5.html?v=2067",
+  GAME_URL: "https://wealthia.github.io/wealthia/v5.html?v=2068",
   ADMIN_URL: "https://wealthia.github.io/wealthia/admin.html",
 
   // Your bot username without @ — used for invite links
@@ -35,8 +35,12 @@ window.WEALTHIA_CONFIG = {
     refill_energy: 5,
     tap_boost_30: 10,
     endless_energy_30: 15,
-    income_boost_30: 15
+    income_boost_30: 15,
+    premium_spin: 50
   },
+
+  // Premium spin cash prize claim support
+  SUPPORT_TELEGRAM_URL: "https://t.me/WealthiaGameBot",
 
   // Onboarding version — change to show tutorial again
   ONBOARDING_VERSION: "v1",

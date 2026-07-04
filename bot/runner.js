@@ -12,21 +12,24 @@ const STAR_PRODUCT_IDS = new Set([
   "refill_energy",
   "tap_boost_30",
   "endless_energy_30",
-  "income_boost_30"
+  "income_boost_30",
+  "premium_spin"
 ]);
 
 const STAR_PRODUCT_STARS = {
   refill_energy: 5,
   tap_boost_30: 10,
   endless_energy_30: 15,
-  income_boost_30: 15
+  income_boost_30: 15,
+  premium_spin: 50
 };
 
 const STAR_SUCCESS_MESSAGES = {
   refill_energy: "Energy refilled to 100%!",
   tap_boost_30: "2x Tap boost active for 30 minutes!",
   endless_energy_30: "Endless Energy active for 30 minutes!",
-  income_boost_30: "2x Income boost active for 30 minutes!"
+  income_boost_30: "2x Income boost active for 30 minutes!",
+  premium_spin: "Premium spin ready!"
 };
 
 const BOT_DESCRIPTION = process.env.BOT_DESCRIPTION || [

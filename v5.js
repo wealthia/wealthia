@@ -26,6 +26,11 @@ let boostRefreshTimer = null;
 let goldRushTimer = null;
 let taskCountdownTimer = null;
 let lastGrandPrizeMilestone = 0;
+let premiumWheelRotation = 0;
+let premiumSpinBusy = false;
+
+const PREMIUM_SPIN_STARS = Number((CONFIG.STAR_PRICES && CONFIG.STAR_PRICES.premium_spin) || 50);
+const SUPPORT_TELEGRAM_URL = CONFIG.SUPPORT_TELEGRAM_URL || "https://t.me/WealthiaGameBot";
 
 const TASK_REFRESH_MS = 12 * 60 * 60 * 1000;
 const TICKETS_PER_SCORE = 1000;
@@ -127,7 +132,9 @@ const els = {
   factoryCost: document.getElementById("factoryCost"),
   casinoCardDesc: document.getElementById("casinoCardDesc"),
   casinoCost: document.getElementById("casinoCost"),
-  casinoSpinMount: document.getElementById("casinoSpinMount"),
+  premiumSpinMount: document.getElementById("premiumSpinMount"),
+  premiumSpinCard: null,
+  premiumSpinOpenButton: null,
   casinoSpinCard: null,
   casinoSpinButton: null,
   casinoSpinHint: null,
@@ -868,6 +875,7 @@ function render() {
 
   renderCasinoCard();
   renderCasinoSpin();
+  renderPremiumSpinCard();
   renderCampaignBanner();
   renderGoldRushBanner();
 
@@ -961,6 +969,243 @@ function renderCasinoSpin() {
       els.casinoSpinHint.textContent =
         `Free daily spin · Win ${format(small)} to ${format(jackpot)} coins (5% jackpot)`;
     }
+  }
+}
+
+function ensurePremiumSpinCard() {
+  const mount = els.premiumSpinMount || document.getElementById("premiumSpinMount");
+  if (!mount) return;
+
+  if (els.premiumSpinCard) return;
+
+  const card = document.createElement("article");
+  card.className = "card card--premium-spin";
+  card.id = "premiumSpinCard";
+  card.innerHTML = `
+    <div class="card__icon">&#x1F3B0;</div>
+    <div class="card__body">
+      <h2>Premium Lucky Spin</h2>
+      <p id="premiumSpinHint">Win cash prizes, boosts and coins · ${PREMIUM_SPIN_STARS} ⭐ per spin</p>
+    </div>
+    <button class="buy-button premium-spin-open" type="button" id="premiumSpinOpenButton">
+      Open Wheel
+    </button>
+  `;
+
+  mount.appendChild(card);
+  els.premiumSpinCard = card;
+  els.premiumSpinOpenButton = card.querySelector("#premiumSpinOpenButton");
+  els.premiumSpinOpenButton.addEventListener("click", openPremiumSpinOverlay);
+}
+
+function renderPremiumSpinCard() {
+  ensurePremiumSpinCard();
+}
+
+function wheelRotationForSegment(segmentIndex) {
+  const segmentCenter = Number(segmentIndex) * 60 + 30;
+  const fullSpins = 6;
+  return fullSpins * 360 + (360 - segmentCenter);
+}
+
+function setPremiumWheelRotation(degrees, animate = false) {
+  const disc = document.getElementById("premiumWheelDisc");
+  if (!disc) return;
+
+  disc.classList.toggle("is-spinning", animate);
+  disc.style.transform = `rotate(${degrees}deg)`;
+  premiumWheelRotation = degrees;
+}
+
+function animatePremiumWheelToSegment(segmentIndex) {
+  return new Promise((resolve) => {
+    const disc = document.getElementById("premiumWheelDisc");
+    if (!disc) {
+      resolve();
+      return;
+    }
+
+    const target = wheelRotationForSegment(segmentIndex);
+    const normalizedCurrent = premiumWheelRotation % 360;
+    const base = premiumWheelRotation - normalizedCurrent;
+    const finalRotation = base + target;
+
+    disc.classList.add("is-spinning");
+    requestAnimationFrame(() => {
+      setPremiumWheelRotation(finalRotation, true);
+    });
+
+    window.setTimeout(() => {
+      disc.classList.remove("is-spinning");
+      resolve();
+    }, 3000);
+  });
+}
+
+function openPremiumSpinOverlay() {
+  const overlay = document.getElementById("premiumSpinOverlay");
+  if (!overlay) return;
+  overlay.hidden = false;
+  document.body.classList.add("premium-spin-open-body");
+}
+
+function closePremiumSpinOverlay() {
+  const overlay = document.getElementById("premiumSpinOverlay");
+  if (!overlay) return;
+  overlay.hidden = true;
+  document.body.classList.remove("premium-spin-open-body");
+}
+
+function openPremiumCashWinModal(amount) {
+  const modal = document.getElementById("premiumCashWinModal");
+  const title = document.getElementById("premiumCashWinTitle");
+  const desc = document.getElementById("premiumCashWinDesc");
+  if (!modal) return;
+
+  if (title) title.textContent = "🎉 Congratulations!";
+  if (desc) {
+    desc.textContent =
+      `You have won $${amount}! Cash rewards are verified and processed manually by our finance team.`;
+  }
+
+  modal.hidden = false;
+}
+
+function closePremiumCashWinModal() {
+  const modal = document.getElementById("premiumCashWinModal");
+  if (modal) modal.hidden = true;
+}
+
+function bindPremiumSpinUi() {
+  const overlay = document.getElementById("premiumSpinOverlay");
+  if (!overlay || overlay.dataset.bound === "1") return;
+
+  overlay.dataset.bound = "1";
+  overlay.querySelectorAll("[data-close-premium-spin]").forEach((node) => {
+    node.addEventListener("click", closePremiumSpinOverlay);
+  });
+
+  const spinButton = document.getElementById("premiumWheelSpinButton");
+  if (spinButton) {
+    spinButton.addEventListener("click", startPremiumSpinPurchase);
+  }
+
+  const cashModal = document.getElementById("premiumCashWinModal");
+  if (cashModal && cashModal.dataset.bound !== "1") {
+    cashModal.dataset.bound = "1";
+    cashModal.querySelectorAll("[data-close-premium-cash]").forEach((node) => {
+      node.addEventListener("click", closePremiumCashWinModal);
+    });
+  }
+
+  const claimButton = document.getElementById("premiumCashClaimButton");
+  if (claimButton) {
+    claimButton.addEventListener("click", () => {
+      openPartnerLink(SUPPORT_TELEGRAM_URL);
+    });
+  }
+}
+
+async function waitForPremiumSpinPayment(attempts = 25) {
+  for (let i = 0; i < attempts; i += 1) {
+    const { ok, result } = await apiPost("/api/premium-spin/status");
+    if (ok && result && result.ready) return true;
+    await sleep(800);
+  }
+  return false;
+}
+
+function premiumSpinResultMessage(prize) {
+  if (!prize) return "Premium spin complete!";
+  if (prize.type === "cash") return `You won ${prize.label}!`;
+  if (prize.type === "refund") return "Spin Again — 50 Stars refunded!";
+  if (prize.type === "boost") return "2x Income Boost active for 30 minutes!";
+  if (prize.type === "coins") return "You won 500 Coins!";
+  return `You won ${prize.label}!`;
+}
+
+async function executePremiumSpin() {
+  const { ok, result } = await apiPost("/api/premium-spin");
+  if (!ok || !result || !result.prize) {
+    if (result && result.error === "NO_PAYMENT") {
+      showToast("Payment not ready yet. Try again.");
+    } else {
+      showToast("Premium spin failed.");
+    }
+    return null;
+  }
+
+  await applyBackendUser(result.user);
+  return result;
+}
+
+async function startPremiumSpinPurchase() {
+  if (premiumSpinBusy) return;
+
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (!tg || typeof tg.openInvoice !== "function") {
+    showToast("Open in Telegram to pay with Stars.");
+    return;
+  }
+
+  if (!(await ensureBackend())) {
+    showToast("Server not connected. Tap Retry at top.");
+    return;
+  }
+
+  const spinButton = document.getElementById("premiumWheelSpinButton");
+  premiumSpinBusy = true;
+  if (spinButton) spinButton.disabled = true;
+
+  try {
+    const { ok, result } = await apiPost("/api/stars/invoice", {
+      userId: backendUserId,
+      productId: "premium_spin"
+    });
+
+    if (!ok || !result || !result.invoiceLink) {
+      showToast("Could not open Stars payment.");
+      return;
+    }
+
+    tg.openInvoice(result.invoiceLink, async (status) => {
+      if (status !== "paid") {
+        if (status === "failed") showToast("Payment failed.");
+        if (status === "cancelled") showToast("Payment cancelled.");
+        premiumSpinBusy = false;
+        if (spinButton) spinButton.disabled = false;
+        return;
+      }
+
+      const ready = await waitForPremiumSpinPayment();
+      if (!ready) {
+        showToast("Payment received. Spin is activating — try again shortly.");
+        premiumSpinBusy = false;
+        if (spinButton) spinButton.disabled = false;
+        return;
+      }
+
+      const spinResult = await executePremiumSpin();
+      if (!spinResult) {
+        premiumSpinBusy = false;
+        if (spinButton) spinButton.disabled = false;
+        return;
+      }
+
+      await animatePremiumWheelToSegment(spinResult.prize.segmentIndex);
+      showToast(premiumSpinResultMessage(spinResult.prize));
+
+      if (spinResult.prize.type === "cash" && spinResult.prize.amount) {
+        openPremiumCashWinModal(spinResult.prize.amount);
+      }
+
+      premiumSpinBusy = false;
+      if (spinButton) spinButton.disabled = false;
+    });
+  } catch {
+    showToast("Premium spin failed.");
+    premiumSpinBusy = false;
+    if (spinButton) spinButton.disabled = false;
   }
 }
 
@@ -2844,7 +3089,8 @@ const STAR_SUCCESS_LABELS = {
   refill_energy: "Energy refilled!",
   tap_boost_30: "2x Tap active for 30 min!",
   endless_energy_30: "Endless Energy for 30 min!",
-  income_boost_30: "2x Income active for 30 min!"
+  income_boost_30: "2x Income active for 30 min!",
+  premium_spin: "Premium spin ready!"
 };
 
 function starProductFulfilled(productId) {
@@ -3144,6 +3390,7 @@ function bootApp() {
   startContestSeedRefresh();
   bindRankRulesModal();
   bindResetConfirmModal();
+  bindPremiumSpinUi();
 
   if (els.syncRetryButton) {
     els.syncRetryButton.addEventListener("click", () => {

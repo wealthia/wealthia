@@ -41,6 +41,7 @@
         <button class="nav-item" type="button" data-view="players">Players</button>
         <button class="nav-item" type="button" data-view="tournaments">Tournaments</button>
         <button class="nav-item" type="button" data-view="revenue">Revenue</button>
+        <button class="nav-item" type="button" data-view="payouts">Payouts</button>
       </nav>
       <button class="sidebar__logout" id="logoutButton" type="button">Sign out</button>
     </aside>
@@ -192,6 +193,28 @@
                 </tr>
               </thead>
               <tbody id="metricsTable"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="view" id="payoutsView">
+        <article class="card">
+          <h2>Pending Cash Payouts</h2>
+          <p class="empty">Premium spin cash wins awaiting manual payout.</p>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Player</th>
+                  <th>Amount</th>
+                  <th>Prize</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="payoutsTable"></tbody>
             </table>
           </div>
         </article>
