@@ -34,7 +34,7 @@
     }
     [hidden] { display: none !important; }
   </style>
-  <link rel="stylesheet" href="./v5.css?v=2067" />
+  <link rel="stylesheet" href="./v5.css?v=2068" />
 </head>
 <body>
   <div class="ambient" aria-hidden="true">
@@ -184,6 +184,7 @@
       </article>
 
       <div id="casinoSpinMount"></div>
+      <div id="premiumSpinMount"></div>
     </section>
 
     <section class="panel" id="tasksPanel"></section>
@@ -271,6 +272,38 @@
     </article>
   </div>
 
+  <div class="premium-spin-overlay" id="premiumSpinOverlay" hidden>
+    <button class="premium-spin-overlay__close" type="button" data-close-premium-spin aria-label="Close">&times;</button>
+    <div class="premium-spin-overlay__content">
+      <span class="premium-spin-overlay__badge">PREMIUM</span>
+      <h2>Premium Lucky Spin</h2>
+      <p class="premium-spin-overlay__sub">Spin for cash prizes, boosts and coins</p>
+      <div class="premium-wheel">
+        <div class="premium-wheel__pointer" aria-hidden="true"></div>
+        <div class="premium-wheel__disc" id="premiumWheelDisc">
+          <span class="premium-wheel__label" style="--i:0">&#x1F4B0; 1000$ JACKPOT</span>
+          <span class="premium-wheel__label" style="--i:1">&#x1F4B5; 15$</span>
+          <span class="premium-wheel__label" style="--i:2">&#x1F4B5; 5$</span>
+          <span class="premium-wheel__label" style="--i:3">&#x1F504; SPIN AGAIN</span>
+          <span class="premium-wheel__label" style="--i:4">&#x26A1; 2x BOOST</span>
+          <span class="premium-wheel__label" style="--i:5">&#x1FA99; 500 COINS</span>
+        </div>
+        <button class="premium-wheel__spin" type="button" id="premiumWheelSpinButton">SPIN (50 &#11088;&#65039;)</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="premium-cash-modal" id="premiumCashWinModal" hidden>
+    <div class="premium-cash-modal__backdrop" data-close-premium-cash></div>
+    <article class="premium-cash-modal__card" role="dialog" aria-modal="true">
+      <h2 id="premiumCashWinTitle">&#127881; Congratulations!</h2>
+      <p id="premiumCashWinDesc">You have won $0! Cash rewards are verified and processed manually by our finance team.</p>
+      <p class="premium-cash-modal__notice">&#9203; Payouts are usually processed within 3-5 hours.</p>
+      <button class="premium-cash-modal__claim" type="button" id="premiumCashClaimButton">[ &#128172; Contact Admin to Claim ]</button>
+      <button class="premium-cash-modal__close" type="button" data-close-premium-cash>Close</button>
+    </article>
+  </div>
+
   <div class="onboarding" id="onboarding" hidden>
     <div class="onboarding__backdrop"></div>
     <div class="onboarding__card">
@@ -298,5 +331,5 @@
   </div>
 
   <script src="./config.js?v=14"></script>
-  <script src="./v5.js?v=10074"></script></body>
+  <script src="./v5.js?v=10075"></script></body>
 </html>

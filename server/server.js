@@ -14,6 +14,7 @@ const {
   isContestSeedUserId
 } = require("./contest-seeds");
 const systemBots = require("./system-bots");
+const premiumSpin = require("./premium-spin");
 const economy = require("./economy");
 
 const app = express();
@@ -94,6 +95,11 @@ const STAR_PRODUCTS = {
     stars: 15,
     title: "2x Income Boost",
     description: "Double offline income for 30 minutes"
+  },
+  premium_spin: {
+    stars: premiumSpin.PREMIUM_SPIN_STARS,
+    title: "Premium Lucky Spin",
+    description: "Spin the premium wheel for cash and coin prizes"
   }
 };
 
@@ -193,7 +199,26 @@ function applyStarProduct(row, productId) {
     return updated;
   }
 
+  if (productId === "premium_spin") {
+    return { updated_at: new Date().toISOString() };
+  }
+
   return null;
+}
+
+async function refundPremiumSpinPayment(telegramId, chargeId) {
+  if (!TELEGRAM_BOT_TOKEN || !telegramId || !chargeId) return false;
+
+  try {
+    await telegramApi("refundStarPayment", {
+      user_id: Number(telegramId),
+      telegram_payment_charge_id: chargeId
+    });
+    return true;
+  } catch (error) {
+    console.warn("PREMIUM_SPIN_REFUND_FAILED:", error.message);
+    return false;
+  }
 }
 
 function starPayload(userId, productId) {
@@ -1945,7 +1970,7 @@ app.post("/api/stars/fulfill", async (req, res) => {
       stars: expectedStars
     });
 
-    res.json({ ok: true, productId, user: toClientUser(data) });
+    res.json({ ok: true, productId, user: toClientUser(data), premiumSpinReady: productId === "premium_spin" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -1988,6 +2013,106 @@ app.post("/api/casino-spin", requirePlayer, async (req, res) => {
       reward,
       tier: spin.tier,
       user: toClientUser(data)
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/premium-spin/status", requirePlayer, async (req, res) => {
+  try {
+    const userId = req.playerId;
+    const payment = await premiumSpin.findPendingPremiumPayment(supabase, userId);
+    const globalSpins = await premiumSpin.getGlobalPremiumSpins(supabase);
+
+    res.json({
+      ok: true,
+      ready: Boolean(payment),
+      globalSpins,
+      segments: premiumSpin.PRIZE_SEGMENTS
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/premium-spin", requirePlayer, async (req, res) => {
+  try {
+    const userId = req.playerId;
+    const payment = await premiumSpin.findPendingPremiumPayment(supabase, userId);
+
+    if (!payment) {
+      res.status(402).json({ error: "NO_PAYMENT" });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const { data: consumed, error: consumeError } = await supabase
+      .from("star_payments")
+      .update({ consumed_at: now })
+      .eq("id", payment.id)
+      .is("consumed_at", null)
+      .select("id")
+      .maybeSingle();
+
+    if (consumeError) throw consumeError;
+    if (!consumed) {
+      res.status(409).json({ error: "PAYMENT_ALREADY_USED" });
+      return;
+    }
+
+    const globalSpins = await premiumSpin.incrementGlobalPremiumSpins(supabase);
+    const prize = premiumSpin.rollPremiumPrize(globalSpins);
+    const row = await loadGame(userId);
+
+    const { data: buyer } = await supabase
+      .from("users")
+      .select("first_name, username, telegram_id")
+      .eq("id", userId)
+      .maybeSingle();
+
+    const username = String(buyer?.username || "").trim();
+    const displayName = buyer?.first_name || `Player ${String(userId).slice(-4)}`;
+    let refundIssued = false;
+
+    if (prize.type === "refund") {
+      refundIssued = await refundPremiumSpinPayment(buyer?.telegram_id, payment.charge_id);
+    }
+
+    if (prize.type === "cash") {
+      await premiumSpin.createPendingPayout(supabase, {
+        userId,
+        username,
+        displayName,
+        amountUsd: prize.amount,
+        prizeId: prize.id,
+        spinPaymentId: payment.id
+      });
+    }
+
+    const productUpdate = premiumSpin.buildPremiumSpinUpdate(row, prize, extendBoostUntil);
+
+    let saved = row;
+    if (Object.keys(productUpdate).length > 1) {
+      const { data, error } = await supabase
+        .from("game_states")
+        .update(productUpdate)
+        .eq("user_id", userId)
+        .select("*")
+        .single();
+
+      if (error) throw error;
+      saved = data;
+    }
+
+    res.json({
+      ok: true,
+      prize: premiumSpin.formatPrizeResult(prize, {
+        refundIssued,
+        cashPrize: prize.type === "cash"
+      }),
+      globalSpins,
+      user: toClientUser(saved)
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -2734,6 +2859,65 @@ app.get("/api/admin/metrics", async (req, res) => {
     if (error) throw error;
 
     res.json({ rows: data || [] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/admin/payouts", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const status = String(req.query.status || "pending").trim() || "pending";
+    let query = supabase
+      .from("pending_payouts")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (status !== "all") {
+      query = query.eq("status", status);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    res.json({ rows: data || [] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/admin/payouts/status", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const payoutId = number(req.body.id);
+    const status = String(req.body.status || "").trim();
+
+    if (!payoutId || !["pending", "completed"].includes(status)) {
+      res.status(400).json({ error: "BAD_REQUEST" });
+      return;
+    }
+
+    const patch = {
+      status
+    };
+
+    if (status === "completed") {
+      patch.completed_at = new Date().toISOString();
+    }
+
+    const { data, error } = await supabase
+      .from("pending_payouts")
+      .update(patch)
+      .eq("id", payoutId)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    res.json({ ok: true, payout: data });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
