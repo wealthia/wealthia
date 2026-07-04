@@ -339,6 +339,17 @@
     <div class="onboarding__highlight" id="onboardingHighlight" aria-hidden="true"></div>
   </div>
 
-  <script src="./config.js?v=14"></script>
-  <script src="./v5.js?v=10079"></script></body>
+  <div class="channel-gate-modal" id="channelGateModal" hidden>
+    <div class="channel-gate-modal__backdrop"></div>
+    <article class="channel-gate-modal__card" role="dialog" aria-modal="true" aria-labelledby="channelGateTitle">
+      <span class="channel-gate-modal__badge">&#128274; Channel required</span>
+      <h2 id="channelGateTitle">Subscribe to unlock</h2>
+      <p id="channelGateMessage">Please subscribe to our official channel to unlock the game</p>
+      <button class="channel-gate-modal__join" id="channelGateJoinButton" type="button">Join official channel</button>
+      <button class="channel-gate-modal__retry" id="channelGateRetryButton" type="button">I subscribed — continue</button>
+    </article>
+  </div>
+
+  <script src="./config.js?v=15"></script>
+  <script src="./v5.js?v=10080"></script></body>
 </html>
