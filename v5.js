@@ -1076,6 +1076,17 @@ function closePremiumCashWinModal() {
   if (modal) modal.hidden = true;
 }
 
+function openPremiumNoLuckModal() {
+  const modal = document.getElementById("premiumNoLuckModal");
+  if (!modal) return;
+  modal.hidden = false;
+}
+
+function closePremiumNoLuckModal() {
+  const modal = document.getElementById("premiumNoLuckModal");
+  if (modal) modal.hidden = true;
+}
+
 function bindPremiumSpinUi() {
   const overlay = document.getElementById("premiumSpinOverlay");
   if (!overlay || overlay.dataset.bound === "1") return;
@@ -1104,6 +1115,14 @@ function bindPremiumSpinUi() {
       openPartnerLink(SUPPORT_TELEGRAM_URL);
     });
   }
+
+  const noLuckModal = document.getElementById("premiumNoLuckModal");
+  if (noLuckModal && noLuckModal.dataset.bound !== "1") {
+    noLuckModal.dataset.bound = "1";
+    noLuckModal.querySelectorAll("[data-close-premium-noluck]").forEach((node) => {
+      node.addEventListener("click", closePremiumNoLuckModal);
+    });
+  }
 }
 
 async function waitForPremiumSpinPayment(attempts = 25) {
@@ -1117,8 +1136,8 @@ async function waitForPremiumSpinPayment(attempts = 25) {
 
 function premiumSpinResultMessage(prize) {
   if (!prize) return "Premium spin complete!";
+  if (prize.type === "none") return "";
   if (prize.type === "cash") return `You won ${prize.label}!`;
-  if (prize.type === "refund") return "Spin Again — 50 Stars refunded!";
   if (prize.type === "boost") return "2x Income Boost active for 30 minutes!";
   if (prize.type === "coins") return "You won 500 Coins!";
   return `You won ${prize.label}!`;
@@ -1193,7 +1212,13 @@ async function startPremiumSpinPurchase() {
       }
 
       await animatePremiumWheelToSegment(spinResult.prize.segmentIndex);
-      showToast(premiumSpinResultMessage(spinResult.prize));
+
+      if (spinResult.prize.type === "none") {
+        openPremiumNoLuckModal();
+      } else {
+        const message = premiumSpinResultMessage(spinResult.prize);
+        if (message) showToast(message);
+      }
 
       if (spinResult.prize.type === "cash" && spinResult.prize.amount) {
         openPremiumCashWinModal(spinResult.prize.amount);
