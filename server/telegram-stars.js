@@ -1,26 +1,40 @@
 const STARS_PRODUCTION_MODE = process.env.STARS_TEST_MODE !== "true";
 
 function buildStarsInvoiceBody({ title, description, payload, stars }) {
-  const body = {
+  const productionPayload = String(payload || "").startsWith("prod|")
+    ? String(payload)
+    : `prod|${String(payload || "")}`;
+
+  return {
     title: String(title || "Wealthia"),
     description: String(description || "Premium purchase"),
-    payload: String(payload || ""),
+    payload: productionPayload,
     currency: "XTR",
     prices: [{ label: String(title || "Wealthia"), amount: Number(stars) }]
   };
+}
 
-  // Telegram Stars: provider_token must be omitted (not even an empty string).
-  return body;
+function normalizeInvoicePayload(payload) {
+  const raw = String(payload || "");
+  if (raw.startsWith("prod|")) {
+    return raw.slice(5);
+  }
+  if (raw.startsWith("test|")) {
+    return "";
+  }
+  return raw;
 }
 
 function isValidStarCheckout(query, starProducts, parseStarPayload) {
-  const parsed = parseStarPayload(query?.invoice_payload);
+  if (!STARS_PRODUCTION_MODE) return false;
+
+  const invoicePayload = normalizeInvoicePayload(query?.invoice_payload);
+  const parsed = parseStarPayload(invoicePayload);
   const telegramId = String(query?.from?.id || "");
   const product = parsed ? starProducts[parsed.productId] : null;
   const expectedStars = product ? Number(product.stars) : 0;
 
   return Boolean(
-    STARS_PRODUCTION_MODE &&
     parsed &&
     product &&
     telegramId &&
@@ -38,28 +52,41 @@ async function answerPreCheckoutQuery(telegramApiSafe, query, options = {}) {
     return { ok: false, error: "MISSING_QUERY_ID" };
   }
 
-  const approved = isValidStarCheckout(query, starProducts, parseStarPayload);
+  try {
+    const approved = isValidStarCheckout(query, starProducts, parseStarPayload);
+    const response = await telegramApiSafe("answerPreCheckoutQuery", approved
+      ? {
+        pre_checkout_query_id: queryId,
+        ok: true
+      }
+      : {
+        pre_checkout_query_id: queryId,
+        ok: false,
+        error_message: "Payment verification failed. Please restart the bot and try again."
+      });
 
-  const response = await telegramApiSafe("answerPreCheckoutQuery", approved
-    ? {
-      pre_checkout_query_id: queryId,
-      ok: true
+    if (!response.ok) {
+      console.error("ANSWER_PRE_CHECKOUT_FAILED:", response.error);
     }
-    : {
-      pre_checkout_query_id: queryId,
-      ok: false,
-      error_message: "Payment verification failed. Please restart the bot and try again."
-    });
 
-  if (!response.ok) {
-    console.error("ANSWER_PRE_CHECKOUT_FAILED:", response.error);
+    return {
+      ok: response.ok,
+      approved,
+      error: response.error || ""
+    };
+  } catch (error) {
+    console.error("ANSWER_PRE_CHECKOUT_EXCEPTION:", error.message);
+    try {
+      await telegramApiSafe("answerPreCheckoutQuery", {
+        pre_checkout_query_id: queryId,
+        ok: false,
+        error_message: "Payment could not be verified. Please try again."
+      });
+    } catch (answerError) {
+      console.error("ANSWER_PRE_CHECKOUT_FALLBACK_FAILED:", answerError.message);
+    }
+    return { ok: false, error: error.message || "PRE_CHECKOUT_EXCEPTION" };
   }
-
-  return {
-    ok: response.ok,
-    approved,
-    error: response.error || ""
-  };
 }
 
 async function verifyStarCharge(telegramApiSafe, chargeId, expectedStars) {
@@ -67,13 +94,12 @@ async function verifyStarCharge(telegramApiSafe, chargeId, expectedStars) {
 
   const lookup = await telegramApiSafe("getStarTransactions", { limit: 100 });
   if (!lookup.ok || !lookup.result?.transactions) {
-    console.warn("STAR_TRANSACTION_LOOKUP_FAILED:", lookup.error || "unknown");
-    return true;
+    return false;
   }
 
   return lookup.result.transactions.some((entry) => {
     const source = entry?.source || {};
-    const amount = Number(source.amount || entry?.amount || 0);
+    const amount = Math.abs(Number(source.amount || entry?.amount || 0));
     const txId = String(
       source.telegram_payment_charge_id ||
       source.transaction_id ||
@@ -97,11 +123,16 @@ async function handleSuccessfulPayment(message, options = {}) {
   const payment = message?.successful_payment;
   if (!payment) return { ok: false, error: "NO_PAYMENT" };
 
-  const parsed = parseStarPayload(payment.invoice_payload);
+  const invoicePayload = normalizeInvoicePayload(payment.invoice_payload);
+  const parsed = parseStarPayload(invoicePayload);
   const telegramId = String(message?.from?.id || "");
   const chatId = message?.chat?.id;
   const product = parsed ? starProducts[parsed.productId] : null;
   const expectedStars = product ? Number(product.stars) : 0;
+
+  if (!STARS_PRODUCTION_MODE) {
+    return { ok: false, error: "STARS_TEST_MODE_DISABLED" };
+  }
 
   if (!parsed || !product || parsed.userId !== telegramId) {
     if (chatId && sendBotMessage) {
@@ -125,19 +156,20 @@ async function handleSuccessfulPayment(message, options = {}) {
     return { ok: false, error: "INVALID_CHARGE_ID" };
   }
 
-  const verified = await verifyStarCharge(telegramApiSafe, chargeId, expectedStars);
-  if (!verified) {
-    console.warn("STAR_CHARGE_NOT_FOUND_IN_LEDGER:", chargeId);
-  }
-
   try {
-    await fulfillPayment({
+    const result = await fulfillPayment({
       userId: parsed.userId,
       productId: parsed.productId,
       chargeId,
       stars: expectedStars,
-      invoicePayload: payment.invoice_payload
+      invoicePayload: payment.invoice_payload,
+      telegramSettled: true
     });
+
+    const verified = await verifyStarCharge(telegramApiSafe, chargeId, expectedStars);
+    if (!verified) {
+      console.warn("STAR_CHARGE_NOT_FOUND_IN_LEDGER:", chargeId);
+    }
 
     if (chatId && sendBotMessage) {
       await sendBotMessage(
@@ -146,7 +178,14 @@ async function handleSuccessfulPayment(message, options = {}) {
       );
     }
 
-    return { ok: true, chargeId, productId: parsed.productId, userId: parsed.userId };
+    return {
+      ok: true,
+      chargeId,
+      productId: parsed.productId,
+      userId: parsed.userId,
+      telegramVerified: verified,
+      duplicate: Boolean(result?.duplicate)
+    };
   } catch (error) {
     console.error("STAR_FULFILLMENT_ERROR:", error.message);
     if (chatId && sendBotMessage) {
@@ -208,13 +247,72 @@ async function getBotStarBalance(telegramApiSafe) {
   };
 }
 
+function startPaymentPolling(telegramApiSafe, options = {}) {
+  let offset = 0;
+  let running = true;
+
+  const loop = async () => {
+    if (!running) return;
+
+    try {
+      const response = await telegramApiSafe("getUpdates", {
+        offset,
+        timeout: 25,
+        allowed_updates: ["pre_checkout_query", "message"]
+      });
+
+      if (response.ok && Array.isArray(response.result)) {
+        for (const update of response.result) {
+          offset = update.update_id + 1;
+          try {
+            await processTelegramUpdate(update, {
+              telegramApiSafe,
+              ...options
+            });
+          } catch (error) {
+            console.error("STARS_PAYMENT_UPDATE_ERROR:", error.message);
+          }
+        }
+      } else if (!response.ok) {
+        console.warn("STARS_PAYMENT_POLL_FAILED:", response.error);
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      }
+    } catch (error) {
+      console.error("STARS_PAYMENT_POLL_EXCEPTION:", error.message);
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    }
+
+    setImmediate(loop);
+  };
+
+  loop();
+
+  return () => {
+    running = false;
+  };
+}
+
+async function startStarsPaymentListener(telegramApiSafe, options = {}) {
+  const webhook = await registerTelegramWebhook(telegramApiSafe, options);
+  if (webhook.ok) {
+    return { mode: "webhook", stop: () => {} };
+  }
+
+  console.warn("Stars webhook unavailable, using payment polling fallback.");
+  const stop = startPaymentPolling(telegramApiSafe, options);
+  return { mode: "polling", stop };
+}
+
 module.exports = {
   STARS_PRODUCTION_MODE,
   buildStarsInvoiceBody,
+  normalizeInvoicePayload,
   answerPreCheckoutQuery,
   handleSuccessfulPayment,
   processTelegramUpdate,
   registerTelegramWebhook,
   getBotStarBalance,
-  verifyStarCharge
+  verifyStarCharge,
+  startStarsPaymentListener,
+  startPaymentPolling
 };

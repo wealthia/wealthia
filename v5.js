@@ -1246,10 +1246,18 @@ function bindPremiumSpinUi() {
   }
 }
 
-async function waitForPremiumSpinPayment(attempts = 25) {
+async function waitForPremiumSpinPayment(attempts = 30) {
   for (let i = 0; i < attempts; i += 1) {
     const { ok, result } = await apiPostSecure("/api/premium-spin/status");
-    if (ok && result && result.ready) return true;
+    if (
+      ok &&
+      result &&
+      result.ready &&
+      result.telegramConfirmed &&
+      result.chargeId
+    ) {
+      return true;
+    }
     await sleep(800);
   }
   return false;
@@ -1384,7 +1392,7 @@ async function startPremiumSpinPurchase() {
       const ready = await waitForPremiumSpinPayment();
       if (!ready) {
         stopPremiumWheelLoadingSpin();
-        showToast("Payment received. Spin is activating — try again shortly.");
+        showToast("Payment not confirmed by Telegram yet. Please wait and try again.");
         premiumSpinBusy = false;
         if (spinButton) spinButton.disabled = false;
         return;

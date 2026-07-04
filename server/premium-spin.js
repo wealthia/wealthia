@@ -87,10 +87,11 @@ async function incrementGlobalPremiumSpins(supabase) {
 async function findPendingPremiumPayment(supabase, userId) {
   const { data, error } = await supabase
     .from("star_payments")
-    .select("id, charge_id, stars_amount, created_at")
+    .select("id, charge_id, stars_amount, telegram_settled, created_at")
     .eq("user_id", userId)
     .eq("product_id", "premium_spin")
     .eq("stars_amount", PREMIUM_SPIN_STARS)
+    .eq("telegram_settled", true)
     .is("consumed_at", null)
     .order("created_at", { ascending: true })
     .limit(1)

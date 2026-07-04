@@ -441,7 +441,10 @@ function getTelegramStarsOptions() {
     telegramApiSafe,
     starProducts: STAR_PRODUCTS,
     parseStarPayload,
-    fulfillPayment: fulfillStarPaymentRecord,
+    fulfillPayment: async (payload) => fulfillStarPaymentRecord({
+      ...payload,
+      telegramSettled: true
+    }),
     sendBotMessage: async (chatId, text) => {
       await telegramApiSafe("sendMessage", { chat_id: chatId, text });
     }
@@ -453,10 +456,11 @@ async function fulfillStarPaymentRecord({
   productId,
   chargeId,
   stars,
-  invoicePayload
+  invoicePayload,
+  telegramSettled = false
 }) {
   const starsAmount = number(stars);
-  const payload = parseStarPayload(invoicePayload);
+  const payload = parseStarPayload(telegramStars.normalizeInvoicePayload(invoicePayload));
 
   if (!userId || !productId || !chargeId || !STAR_PRODUCTS[productId]) {
     const error = new Error("BAD_REQUEST");
@@ -480,6 +484,12 @@ async function fulfillStarPaymentRecord({
   if (!chargeId || chargeId.length < 8) {
     const error = new Error("INVALID_CHARGE_ID");
     error.code = "INVALID_CHARGE_ID";
+    throw error;
+  }
+
+  if (!telegramSettled) {
+    const error = new Error("TELEGRAM_SETTLEMENT_REQUIRED");
+    error.code = "TELEGRAM_SETTLEMENT_REQUIRED";
     throw error;
   }
 
@@ -516,7 +526,9 @@ async function fulfillStarPaymentRecord({
     user_id: userId,
     product_id: productId,
     stars_amount: expectedStars,
-    charge_id: chargeId
+    charge_id: chargeId,
+    telegram_settled: true,
+    settled_at: new Date().toISOString()
   });
 
   if (paymentError) throw paymentError;
@@ -1870,7 +1882,7 @@ app.get("/health", async (_req, res) => {
     session: {
       configured: Boolean(TELEGRAM_BOT_TOKEN || process.env.SESSION_SECRET || ADMIN_SECRET)
     },
-    version: "stars-production-webhook-v1"
+    version: "stars-settlement-v1"
   });
 });
 
@@ -2406,10 +2418,11 @@ app.post("/api/telegram/webhook/:secret", async (req, res) => {
     return;
   }
 
-  res.json({ ok: true });
-
   const update = req.body;
-  if (!update || typeof update !== "object") return;
+  if (!update || typeof update !== "object") {
+    res.json({ ok: true });
+    return;
+  }
 
   try {
     if (update.pre_checkout_query) {
@@ -2421,15 +2434,23 @@ app.post("/api/telegram/webhook/:secret", async (req, res) => {
           parseStarPayload
         }
       );
+      res.json({ ok: true });
       return;
     }
 
     if (update.message?.successful_payment) {
-      await telegramStars.handleSuccessfulPayment(update.message, getTelegramStarsOptions());
+      const result = await telegramStars.handleSuccessfulPayment(
+        update.message,
+        getTelegramStarsOptions()
+      );
+      res.json({ ok: true, settled: Boolean(result?.ok) });
+      return;
     }
   } catch (error) {
     console.error("TELEGRAM_WEBHOOK_ERROR:", error.message);
   }
+
+  res.json({ ok: true });
 });
 
 app.post("/api/stars/fulfill", async (req, res) => {
@@ -2445,7 +2466,8 @@ app.post("/api/stars/fulfill", async (req, res) => {
       productId: String(req.body.productId || ""),
       chargeId: String(req.body.chargeId || ""),
       stars: number(req.body.stars),
-      invoicePayload: String(req.body.invoicePayload || "")
+      invoicePayload: String(req.body.invoicePayload || ""),
+      telegramSettled: true
     });
 
     res.json({
@@ -2540,6 +2562,7 @@ app.post(
       ok: true,
       ready: adminBypass || Boolean(payment),
       chargeId: payment?.charge_id || "",
+      telegramConfirmed: adminBypass || Boolean(payment?.telegram_settled),
       adminBypass
     });
   } catch (error) {
@@ -2591,6 +2614,16 @@ app.post(
 
       if (!payment) {
         res.status(402).json({ error: "NO_PAYMENT" });
+        return;
+      }
+
+      if (!payment.telegram_settled) {
+        res.status(402).json({ error: "PAYMENT_NOT_SETTLED" });
+        return;
+      }
+
+      if (!payment.charge_id) {
+        res.status(402).json({ error: "MISSING_CHARGE_ID" });
         return;
       }
 
@@ -3762,24 +3795,20 @@ app.post("/api/cron/daily-push", async (req, res) => {
 app.listen(port, () => {
   console.log(`Wealthia backend running on port ${port}`);
 
-  if (TELEGRAM_BOT_TOKEN && TELEGRAM_WEBHOOK_SECRET && WEBHOOK_BASE_URL) {
-    telegramStars.registerTelegramWebhook(telegramApiSafe, {
+  if (TELEGRAM_BOT_TOKEN) {
+    telegramStars.startStarsPaymentListener(telegramApiSafe, {
       secret: TELEGRAM_WEBHOOK_SECRET,
-      baseUrl: WEBHOOK_BASE_URL
+      baseUrl: WEBHOOK_BASE_URL,
+      starProducts: STAR_PRODUCTS,
+      parseStarPayload,
+      fulfillPayment: fulfillStarPaymentRecord,
+      sendBotMessage: async (chatId, text) => {
+        await telegramApiSafe("sendMessage", { chat_id: chatId, text });
+      }
+    }).then((listener) => {
+      console.log(`Stars payment listener mode: ${listener.mode}`);
     }).catch((error) => {
-      console.warn("Telegram webhook setup skipped:", error.message);
+      console.warn("Stars payment listener failed:", error.message);
     });
-  } else if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_BOT_POLLING !== "false") {
-    try {
-      const { startBotPolling } = require("../bot/runner");
-      startBotPolling();
-      console.log("Telegram bot polling embedded in backend.");
-    } catch (error) {
-      console.warn("Telegram bot polling skipped:", error.message);
-    }
-  } else {
-    console.warn(
-      "Stars webhook not configured. Set WEBHOOK_BASE_URL and TELEGRAM_WEBHOOK_SECRET on the backend."
-    );
   }
 });
