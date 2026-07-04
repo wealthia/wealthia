@@ -31,7 +31,10 @@ let premiumSpinBusy = false;
 let premiumWheelLoadingTimer = null;
 
 const PREMIUM_SPIN_STARS = Number((CONFIG.STAR_PRICES && CONFIG.STAR_PRICES.premium_spin) || 1);
+const PREMIUM_WHEEL_SLICE_DEG = 60;
+const PREMIUM_WHEEL_POINTER_DEG = 270;
 const PREMIUM_WHEEL_DECEL_MS = 4500;
+const PREMIUM_WHEEL_WIN_MODAL_DELAY_MS = 500;
 const PREMIUM_WHEEL_LOADING_DEG_PER_MS = 0.72;
 const SUPPORT_TELEGRAM_URL = CONFIG.SUPPORT_TELEGRAM_URL || "https://t.me/WealthiaGameBot";
 
@@ -1062,10 +1065,20 @@ function renderPremiumSpinCard() {
   ensurePremiumSpinCard();
 }
 
-function wheelRotationForSegment(segmentIndex) {
-  const segmentCenter = Number(segmentIndex) * 60 + 30;
-  const fullSpins = 6;
-  return fullSpins * 360 + (360 - segmentCenter);
+function premiumWheelTargetAngle(sliceId) {
+  const segmentCenter = Number(sliceId) * PREMIUM_WHEEL_SLICE_DEG + PREMIUM_WHEEL_SLICE_DEG / 2;
+  return (PREMIUM_WHEEL_POINTER_DEG - segmentCenter + 360) % 360;
+}
+
+function premiumWheelWinnerSliceId(spinResult) {
+  if (!spinResult) return 0;
+  if (spinResult.winnerSliceId !== undefined && spinResult.winnerSliceId !== null) {
+    return Number(spinResult.winnerSliceId);
+  }
+  if (spinResult.prize?.winnerSliceId !== undefined && spinResult.prize?.winnerSliceId !== null) {
+    return Number(spinResult.prize.winnerSliceId);
+  }
+  return Number(spinResult.prize?.segmentIndex || 0);
 }
 
 function setPremiumWheelRotation(degrees, animate = false) {
@@ -1077,7 +1090,7 @@ function setPremiumWheelRotation(degrees, animate = false) {
   premiumWheelRotation = degrees;
 }
 
-function animatePremiumWheelToSegment(segmentIndex) {
+function animatePremiumWheelToSegment(sliceId) {
   return new Promise((resolve) => {
     const disc = document.getElementById("premiumWheelDisc");
     if (!disc) {
@@ -1087,8 +1100,7 @@ function animatePremiumWheelToSegment(segmentIndex) {
 
     stopPremiumWheelLoadingSpin();
 
-    const segmentCenter = Number(segmentIndex) * 60 + 30;
-    const targetAngle = (360 - segmentCenter) % 360;
+    const targetAngle = premiumWheelTargetAngle(sliceId);
     const currentAngle = ((premiumWheelRotation % 360) + 360) % 360;
     let delta = targetAngle - currentAngle;
     if (delta <= 0) delta += 360;
@@ -1177,24 +1189,69 @@ function closePremiumSpinOverlay() {
   document.body.classList.remove("premium-spin-open-body");
 }
 
-function openPremiumCashWinModal(amount) {
+function premiumWinModalCopy(prize) {
+  if (!prize) {
+    return {
+      title: "🎉 Congratulations!",
+      body: "Premium spin complete!",
+      showClaim: false
+    };
+  }
+
+  if (prize.type === "cash") {
+    const amount = Number(prize.amount || 0);
+    return {
+      title: "💰 Cash Prize!",
+      body: `You won $${amount}! Our support team will process the amount within 3-5 days.`,
+      showClaim: true
+    };
+  }
+
+  if (prize.type === "coins") {
+    const amount = Number(prize.amount || 500);
+    return {
+      title: "🎉 Congratulations!",
+      body: `You won ${format(amount)} Coins!`,
+      showClaim: false
+    };
+  }
+
+  if (prize.type === "boost") {
+    return {
+      title: "🎉 Congratulations!",
+      body: "You won 2x Income Boost for 30 minutes!",
+      showClaim: false
+    };
+  }
+
+  return {
+    title: "🎉 Congratulations!",
+    body: "Premium spin complete!",
+    showClaim: false
+  };
+}
+
+function openPremiumWinModal(prize) {
   const modal = document.getElementById("premiumCashWinModal");
   const title = document.getElementById("premiumCashWinTitle");
   const desc = document.getElementById("premiumCashWinDesc");
+  const notice = modal?.querySelector(".premium-cash-modal__notice");
+  const claimButton = document.getElementById("premiumCashClaimButton");
   if (!modal) return;
 
-  if (title) title.textContent = "🎉 Congratulations!";
-  if (desc) {
-    desc.textContent =
-      `You have won $${amount}! Cash rewards are verified and processed manually by our finance team.`;
-  }
+  const copy = premiumWinModalCopy(prize);
+  if (title) title.textContent = copy.title;
+  if (desc) desc.textContent = copy.body;
+  if (notice) notice.hidden = prize?.type !== "cash";
+  if (claimButton) claimButton.hidden = !copy.showClaim;
 
   modal.hidden = false;
 }
 
-function closePremiumCashWinModal() {
+async function closePremiumWinModal() {
   const modal = document.getElementById("premiumCashWinModal");
   if (modal) modal.hidden = true;
+  await fetchUserData();
 }
 
 function openPremiumNoLuckModal() {
@@ -1203,9 +1260,10 @@ function openPremiumNoLuckModal() {
   modal.hidden = false;
 }
 
-function closePremiumNoLuckModal() {
+async function closePremiumNoLuckModal() {
   const modal = document.getElementById("premiumNoLuckModal");
   if (modal) modal.hidden = true;
+  await fetchUserData();
 }
 
 function bindPremiumSpinUi() {
@@ -1226,7 +1284,9 @@ function bindPremiumSpinUi() {
   if (cashModal && cashModal.dataset.bound !== "1") {
     cashModal.dataset.bound = "1";
     cashModal.querySelectorAll("[data-close-premium-cash]").forEach((node) => {
-      node.addEventListener("click", closePremiumCashWinModal);
+      node.addEventListener("click", () => {
+        closePremiumWinModal();
+      });
     });
   }
 
@@ -1241,7 +1301,9 @@ function bindPremiumSpinUi() {
   if (noLuckModal && noLuckModal.dataset.bound !== "1") {
     noLuckModal.dataset.bound = "1";
     noLuckModal.querySelectorAll("[data-close-premium-noluck]").forEach((node) => {
-      node.addEventListener("click", closePremiumNoLuckModal);
+      node.addEventListener("click", () => {
+        closePremiumNoLuckModal();
+      });
     });
   }
 }
@@ -1264,12 +1326,7 @@ async function waitForPremiumSpinPayment(attempts = 30) {
 }
 
 function premiumSpinResultMessage(prize) {
-  if (!prize) return "Premium spin complete!";
-  if (prize.type === "none") return "";
-  if (prize.type === "cash") return `You won $${Number(prize.amount || 0)}!`;
-  if (prize.type === "boost") return "2x Income Boost active for 30 minutes!";
-  if (prize.type === "coins") return `You won ${Number(prize.amount || 500)} Coins!`;
-  return "Premium spin complete!";
+  return premiumWinModalCopy(prize).body;
 }
 
 async function executePremiumSpin() {
@@ -1293,25 +1350,28 @@ async function executePremiumSpin() {
     return null;
   }
 
-  await applyBackendUser(result.user);
   return result;
 }
 
 async function finishPremiumSpinResult(spinResult) {
-  if (!spinResult) return;
+  if (!spinResult || !spinResult.prize) return;
 
-  await animatePremiumWheelToSegment(spinResult.prize.segmentIndex);
+  const sliceId = premiumWheelWinnerSliceId(spinResult);
+  await animatePremiumWheelToSegment(sliceId);
+  await sleep(PREMIUM_WHEEL_WIN_MODAL_DELAY_MS);
 
-  if (spinResult.prize.type === "none") {
+  const prize = spinResult.prize;
+  if (prize.type === "coins" || prize.type === "boost") {
+    await applyBackendUser(spinResult.user);
+  }
+
+  if (prize.type === "none") {
+    await fetchUserData();
     openPremiumNoLuckModal();
-  } else {
-    const message = premiumSpinResultMessage(spinResult.prize);
-    if (message) showToast(message);
+    return;
   }
 
-  if (spinResult.prize.type === "cash" && spinResult.prize.amount) {
-    openPremiumCashWinModal(spinResult.prize.amount);
-  }
+  openPremiumWinModal(prize);
 }
 
 async function isPremiumSpinPaymentReady() {
@@ -3456,6 +3516,10 @@ function resetGame() {
   }
 
   openResetConfirmModal();
+}
+
+async function fetchUserData() {
+  await refreshBackendState();
 }
 
 async function refreshBackendState() {
