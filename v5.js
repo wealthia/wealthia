@@ -235,7 +235,8 @@ function casinoRewardRange(level) {
 function upgradeCost(name) {
   const base = { shop: 50, bank: 120, factory: 200, casino: 300 }[name];
   const level = Number(state.buildings[name] || 0);
-  return Math.floor(base * Math.pow(1.75, Math.max(0, level - 1)));
+  const costLevel = name === "shop" ? level : level + 1;
+  return Math.floor(base * Math.pow(1.75, Math.max(0, costLevel - 1)));
 }
 
 function goldRushTimeLeft(until) {
@@ -2376,14 +2377,17 @@ function upgradeLocal(name) {
 }
 
 async function backendUpgrade(name) {
-  const snapshot = {
-    coins: state.coins,
-    spent: Number(state.spent || 0),
-    level: Number(state.buildings[name] || 0)
-  };
+  const cost = upgradeCost(name);
 
-  if (!upgradeLocal(name)) return;
-  if (!backendReady) return;
+  if (state.coins < cost) {
+    showToast("Not enough Wealth Coin.");
+    return;
+  }
+
+  if (!backendReady) {
+    upgradeLocal(name);
+    return;
+  }
 
   const { ok, result } = await apiPost("/api/upgrade", {
     userId: backendUserId,
@@ -2391,14 +2395,9 @@ async function backendUpgrade(name) {
   });
 
   if (!ok || !result || !result.user) {
-    state.coins = snapshot.coins;
-    state.spent = snapshot.spent;
-    state.buildings[name] = snapshot.level;
-    saveState();
-    render();
-
     if (result && result.error === "NOT_ENOUGH_COINS") {
-      showToast("Not enough Wealth Coin.");
+      await refreshBackendState();
+      showToast("Not enough Wealth Coin. Balance synced.");
     } else if (name === "casino") {
       showToast("Casino save failed. Run migration-casino-level.sql in Supabase.");
     } else {
@@ -2407,9 +2406,7 @@ async function backendUpgrade(name) {
     return;
   }
 
-  syncFromBackend(result.user);
-  saveState();
-  render();
+  await applyBackendUser(result.user, `${name[0].toUpperCase() + name.slice(1)} upgraded.`);
 }
 
 async function claimBackendTask(taskId) {
