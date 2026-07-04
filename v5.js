@@ -1294,35 +1294,44 @@ function premiumSpinResultMessage(prize) {
   return premiumWinModalCopy(prize).body;
 }
 
+function isValidPremiumSpinResult(result) {
+  if (!result || !result.prize) return false;
+  const sliceId = premiumWheelWinnerSliceId(result);
+  return Number.isFinite(sliceId) && sliceId >= 0;
+}
+
+function setPremiumSpinButton(spinButton, disabled, label) {
+  if (!spinButton) return;
+  spinButton.disabled = Boolean(disabled);
+  if (label) spinButton.textContent = label;
+}
+
+function resetPremiumSpinButton(spinButton) {
+  setPremiumSpinButton(spinButton, false, `SPIN (${PREMIUM_SPIN_STARS} ⭐)`);
+}
+
 async function executePremiumSpin() {
   const { ok, result, status } = await apiPostSecure("/api/premium-spin");
-  if (
-    !ok ||
-    !result ||
-    result.success !== true ||
-    result.winnerSliceId === undefined ||
-    result.winnerSliceId === null ||
-    !result.prize
-  ) {
-    if (result && result.error === "NO_PAYMENT") {
-      showToast("Payment not confirmed by Telegram yet. Try again.");
-    } else if (result && result.error === "PAYMENT_NOT_SETTLED") {
-      showToast("Payment not confirmed by Telegram yet. Try again.");
-    } else if (status === 401) {
-      showToast("Session expired. Reopen the game from the bot.");
-    } else if (status === 403) {
-      showToast("Telegram verification failed. Reopen from @WealthiaGameBot.");
-    } else if (status === 429) {
-      showToast("Too fast. Wait a second before spinning again.");
-    } else if (status === 409 && result?.error === "FRAUD_REPLAY") {
-      showToast("This payment was already used.");
-    } else {
-      showToast(result?.error ? `Spin failed: ${result.error}` : "Premium spin failed.");
-    }
-    return null;
+  if (ok && isValidPremiumSpinResult(result)) {
+    return result;
   }
 
-  return result;
+  if (result && result.error === "NO_PAYMENT") {
+    showToast("Payment not confirmed by Telegram yet. Try again.");
+  } else if (result && result.error === "PAYMENT_NOT_SETTLED") {
+    showToast("Payment not confirmed by Telegram yet. Try again.");
+  } else if (status === 401) {
+    showToast("Session expired. Reopen the game from the bot.");
+  } else if (status === 403) {
+    showToast("Telegram verification failed. Reopen from @WealthiaGameBot.");
+  } else if (status === 429) {
+    showToast("Too fast. Wait a second before spinning again.");
+  } else if (status === 409 && result?.error === "FRAUD_REPLAY") {
+    showToast("This payment was already used.");
+  } else {
+    showToast(result?.error ? `Spin failed: ${result.error}` : "Premium spin failed.");
+  }
+  return null;
 }
 
 async function finishPremiumSpinResult(spinResult) {
@@ -1358,24 +1367,22 @@ async function isPremiumSpinPaymentReady() {
   );
 }
 
-async function runPremiumSpinFlow() {
+async function runPremiumSpinAfterPayment() {
   const spinButton = document.getElementById("premiumWheelSpinButton");
+  if (premiumSpinBusy) return;
+
   premiumSpinBusy = true;
-  if (spinButton) {
-    spinButton.disabled = true;
-    spinButton.textContent = "Processing...";
-  }
+  setPremiumSpinButton(spinButton, true, "Loading result...");
 
   try {
     const spinResult = await executePremiumSpin();
     if (!spinResult) return;
+
+    setPremiumSpinButton(spinButton, true, "Spinning...");
     await finishPremiumSpinResult(spinResult);
   } finally {
     premiumSpinBusy = false;
-    if (spinButton) {
-      spinButton.disabled = false;
-      spinButton.textContent = `SPIN (${PREMIUM_SPIN_STARS} ⭐)`;
-    }
+    resetPremiumSpinButton(spinButton);
   }
 }
 
@@ -1393,14 +1400,14 @@ async function startPremiumSpinPurchase() {
     return;
   }
 
+  const spinButton = document.getElementById("premiumWheelSpinButton");
+
   if (await isPremiumSpinPaymentReady()) {
-    await runPremiumSpinFlow();
+    await runPremiumSpinAfterPayment();
     return;
   }
 
-  const spinButton = document.getElementById("premiumWheelSpinButton");
-  premiumSpinBusy = true;
-  if (spinButton) spinButton.disabled = true;
+  setPremiumSpinButton(spinButton, true, "Opening payment...");
 
   try {
     const { ok, result } = await apiPost("/api/stars/invoice", {
@@ -1410,34 +1417,33 @@ async function startPremiumSpinPurchase() {
 
     if (!ok || !result || !result.invoiceLink) {
       showToast("Could not open Stars payment.");
-      premiumSpinBusy = false;
-      if (spinButton) spinButton.disabled = false;
+      resetPremiumSpinButton(spinButton);
       return;
     }
+
+    resetPremiumSpinButton(spinButton);
 
     tg.openInvoice(result.invoiceLink, async (status) => {
       if (status !== "paid") {
         if (status === "failed") showToast("Payment failed.");
         if (status === "cancelled") showToast("Payment cancelled.");
-        premiumSpinBusy = false;
-        if (spinButton) spinButton.disabled = false;
+        resetPremiumSpinButton(spinButton);
         return;
       }
 
-      const ready = await waitForPremiumSpinPayment();
+      setPremiumSpinButton(spinButton, true, "Confirming payment...");
+      const ready = await waitForPremiumSpinPayment(45);
       if (!ready) {
-        showToast("Payment not confirmed by Telegram yet. Please wait and try again.");
-        premiumSpinBusy = false;
-        if (spinButton) spinButton.disabled = false;
+        showToast("Payment received. Tap SPIN again in a few seconds.");
+        resetPremiumSpinButton(spinButton);
         return;
       }
 
-      await runPremiumSpinFlow();
+      await runPremiumSpinAfterPayment();
     });
   } catch {
     showToast("Premium spin failed.");
-    premiumSpinBusy = false;
-    if (spinButton) spinButton.disabled = false;
+    resetPremiumSpinButton(spinButton);
   }
 }
 
