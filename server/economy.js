@@ -6,9 +6,14 @@ const BUILDING_BASES = {
 };
 
 const BUILDING_GROWTH = 1.15;
+const UPGRADE_BASES = { shop: 50, bank: 120, factory: 200, casino: 300 };
+const UPGRADE_GROWTH = 1.75;
 const OFFLINE_CAP_SECONDS = 4 * 60 * 60;
 const DEFAULT_MAX_ENERGY = 1000;
 const TICKETS_PER_SCORE = 1000;
+const AUTO_BUY_MIN_BANK_LEVEL = 7;
+const AUTO_BUY_BUDGET_RATIO = 0.2;
+const BUILDING_KEYS = ["shop", "bank", "factory", "casino"];
 
 function number(value) {
   return Number(value || 0);
@@ -48,6 +53,77 @@ function computeTickets(dailyScore) {
   return Math.floor(number(dailyScore) / TICKETS_PER_SCORE);
 }
 
+function upgradeCost(building, level) {
+  const base = UPGRADE_BASES[building] || 50;
+  return Math.floor(base * Math.pow(UPGRADE_GROWTH, Math.max(0, number(level) - 1)));
+}
+
+function nextUpgradeCost(row, building) {
+  const level = number(row[`${building}_level`]);
+  const costLevel = building === "shop" ? level : level + 1;
+  return upgradeCost(building, costLevel);
+}
+
+function cheapestUpgrade(row) {
+  let cheapest = null;
+
+  for (const building of BUILDING_KEYS) {
+    const cost = nextUpgradeCost(row, building);
+    if (!cheapest || cost < cheapest.cost) {
+      cheapest = { building, cost };
+    }
+  }
+
+  return cheapest;
+}
+
+function applyAutoBuy(row, offlineEarnings) {
+  const upgrades = [];
+  const gross = Math.floor(number(offlineEarnings));
+
+  if (gross <= 0 || number(row.bank_level) < AUTO_BUY_MIN_BANK_LEVEL) {
+    row.coins = number(row.coins) + gross;
+    return {
+      upgrades,
+      coinsAdded: gross,
+      autoBuyBudget: 0,
+      autoBuySpent: 0
+    };
+  }
+
+  let budget = Math.floor(gross * AUTO_BUY_BUDGET_RATIO);
+  let coinsAdded = gross - budget;
+  let autoBuySpent = 0;
+
+  while (budget > 0) {
+    const option = cheapestUpgrade(row);
+    if (!option || budget < option.cost) break;
+
+    const column = `${option.building}_level`;
+    const nextLevel = number(row[column]) + 1;
+
+    budget -= option.cost;
+    autoBuySpent += option.cost;
+    row[column] = nextLevel;
+    row.spent = number(row.spent) + option.cost;
+    upgrades.push({
+      building: option.building,
+      level: nextLevel,
+      cost: option.cost
+    });
+  }
+
+  coinsAdded += budget;
+  row.coins = number(row.coins) + coinsAdded;
+
+  return {
+    upgrades,
+    coinsAdded,
+    autoBuyBudget: Math.floor(gross * AUTO_BUY_BUDGET_RATIO),
+    autoBuySpent
+  };
+}
+
 function applyOfflineProgress(row, options = {}) {
   const current = options.nowMs || Date.now();
   const lastSeen = row.last_seen_at ? new Date(row.last_seen_at).getTime() : current;
@@ -63,32 +139,41 @@ function applyOfflineProgress(row, options = {}) {
     ? Math.floor(factoryEnergyRegenPerSecond(row.factory_level) * cappedSeconds)
     : 0;
 
-  row.coins = number(row.coins) + offlineEarnings;
+  const autoBuy = applyAutoBuy(row, offlineEarnings);
+
   row.energy = Math.min(energyCap, number(row.energy) + energyGain);
   row.max_energy = energyCap;
   row.last_seen_at = new Date(current).toISOString();
   row.__offlineEarnings = offlineEarnings;
+  row.__offlineCashAdded = autoBuy.coinsAdded;
   row.__energyRecovered = energyGain;
+  row.__autoUpgrades = autoBuy.upgrades;
 
   return {
     row,
     offlineEarnings,
+    offlineCashAdded: autoBuy.coinsAdded,
+    autoUpgrades: autoBuy.upgrades,
     energyGain,
     elapsedSeconds: cappedSeconds
   };
 }
 
 module.exports = {
+  AUTO_BUY_MIN_BANK_LEVEL,
   BUILDING_BASES,
   BUILDING_GROWTH,
   DEFAULT_MAX_ENERGY,
   OFFLINE_CAP_SECONDS,
   TICKETS_PER_SCORE,
+  applyAutoBuy,
   applyOfflineProgress,
   buildingHourlyProfit,
   computeTickets,
   factoryEnergyRegenPerSecond,
   maxEnergy,
+  nextUpgradeCost,
   tapValue,
-  totalHourlyProfit
+  totalHourlyProfit,
+  upgradeCost
 };

@@ -1672,15 +1672,63 @@ function finishOnboarding() {
   if (highlight) highlight.hidden = true;
 }
 
-function showOfflineModal(amount) {
-  const value = Math.floor(Number(amount || 0));
-  if (value < 1) return;
+const BUILDING_LABELS = {
+  shop: "Shop",
+  bank: "Bank",
+  factory: "Factory",
+  casino: "Casino"
+};
+
+function summarizeAutoUpgrades(autoUpgrades) {
+  const latest = new Map();
+
+  for (const item of autoUpgrades) {
+    if (!item || !item.building) continue;
+    latest.set(item.building, Number(item.level || 0));
+  }
+
+  return [...latest.entries()].map(([building, level]) => ({
+    building,
+    label: BUILDING_LABELS[building] || building,
+    level
+  }));
+}
+
+function showOfflineModal(payload, autoUpgrades = []) {
+  const gross = Math.floor(Number(payload?.offlineEarnings ?? payload ?? 0));
+  const cashAdded = Math.floor(Number(payload?.offlineCashAdded ?? payload ?? 0));
+  const upgrades = summarizeAutoUpgrades(Array.isArray(autoUpgrades) ? autoUpgrades : []);
+
+  if (gross < 1 && upgrades.length < 1) return;
 
   const modal = document.getElementById("offlineModal");
   const text = document.getElementById("offlineModalText");
+  const list = document.getElementById("offlineModalUpgrades");
   if (!modal || !text) return;
 
-  text.textContent = `While you were away, your buildings earned +${format(value)} coins!`;
+  if (cashAdded > 0) {
+    text.textContent = `While you were away, your buildings earned +${format(cashAdded)} coins!`;
+  } else if (gross > 0) {
+    text.textContent = "While you were away, your empire kept growing.";
+  } else {
+    text.textContent = "Auto-Buy upgraded your city while you were away.";
+  }
+
+  if (list) {
+    if (upgrades.length) {
+      list.innerHTML = upgrades.map((item) => `
+        <li>
+          <strong>${item.label}</strong>
+          <span>Lv. ${item.level}</span>
+        </li>
+      `).join("");
+      list.hidden = false;
+    } else {
+      list.innerHTML = "";
+      list.hidden = true;
+    }
+  }
+
   modal.hidden = false;
 }
 
@@ -1993,8 +2041,18 @@ async function applyBackendUser(user, message) {
   await loadLeaderboard();
 
   if (message) showToast(message);
-  if (user.game && Number(user.game.offlineEarnings || 0) > 0) {
-    showOfflineModal(user.game.offlineEarnings);
+  if (user.game) {
+    const offlineEarnings = Number(user.game.offlineEarnings || 0);
+    const autoUpgrades = Array.isArray(user.game.autoUpgrades) ? user.game.autoUpgrades : [];
+    if (offlineEarnings > 0 || autoUpgrades.length > 0) {
+      showOfflineModal(
+        {
+          offlineEarnings,
+          offlineCashAdded: Number(user.game.offlineCashAdded || 0)
+        },
+        autoUpgrades
+      );
+    }
   }
   startOnboardingIfNeeded();
   return true;
