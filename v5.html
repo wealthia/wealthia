@@ -34,7 +34,7 @@
     }
     [hidden] { display: none !important; }
   </style>
-  <link rel="stylesheet" href="./v5.css?v=2053" />
+  <link rel="stylesheet" href="./v5.css?v=2054" />
 </head>
 <body>
   <div class="ambient" aria-hidden="true">
@@ -70,7 +70,7 @@
       <article class="stat stat--energy">
         <div class="stat__icon">&#x26A1;</div>
         <span>Energy</span>
-        <strong><span id="energy">100</span><small>/100</small></strong>
+        <strong><span id="energy">1000</span><small>/<span id="energyMax">1000</span></small></strong>
       </article>
       <article class="stat stat--city">
         <div class="stat__icon">&#x1F3D9;&#xFE0F;</div>
@@ -233,13 +233,23 @@
     <button class="sync-bar__button" id="syncRetryButton" type="button">Retry</button>
   </div>
 
+  <div class="offline-modal" id="offlineModal" hidden>
+    <div class="offline-modal__backdrop"></div>
+    <article class="offline-modal__card">
+      <span class="offline-modal__badge">Welcome back</span>
+      <h2>Offline earnings</h2>
+      <p id="offlineModalText">While you were away, your buildings earned +0 coins!</p>
+      <button class="offline-modal__claim" id="offlineModalClaim" type="button">Claim</button>
+    </article>
+  </div>
+
   <div class="onboarding" id="onboarding" hidden>
     <div class="onboarding__backdrop"></div>
     <div class="onboarding__card">
       <div class="onboarding__step" data-step="1">
         <span class="onboarding__badge">Step 1 / 3</span>
         <h2>Tap to Earn</h2>
-        <p>Press the golden button to earn Wealth Coins. Each tap uses 1 energy.</p>
+        <p>Press the golden button to earn Wealth Coins. Each tap uses energy equal to your Shop level.</p>
       </div>
       <div class="onboarding__step" data-step="2" hidden>
         <span class="onboarding__badge">Step 2 / 3</span>
@@ -260,5 +270,5 @@
   </div>
 
   <script src="./config.js?v=14"></script>
-  <script src="./v5.js?v=10060"></script></body>
+  <script src="./v5.js?v=10061"></script></body>
 </html>

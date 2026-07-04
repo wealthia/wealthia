@@ -2290,6 +2290,76 @@ button.completed strong {
   cursor: pointer;
 }
 
+/* Offline earnings modal */
+.offline-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.offline-modal[hidden] {
+  display: none !important;
+}
+
+.offline-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 8, 18, 0.78);
+  backdrop-filter: blur(6px);
+}
+
+.offline-modal__card {
+  position: relative;
+  z-index: 1;
+  width: min(92vw, 360px);
+  padding: 22px 20px 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(245, 196, 81, 0.35);
+  background: linear-gradient(160deg, rgba(24, 32, 58, 0.98), rgba(10, 14, 28, 0.98));
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  text-align: center;
+}
+
+.offline-modal__badge {
+  display: inline-block;
+  margin-bottom: 10px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(245, 196, 81, 0.14);
+  color: var(--gold-light);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.offline-modal__card h2 {
+  margin: 0 0 10px;
+  font-size: 22px;
+}
+
+.offline-modal__card p {
+  margin: 0 0 18px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.offline-modal__claim {
+  width: 100%;
+  border: 0;
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #f6c85f, #d89a24);
+  color: #1a1408;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 /* Toast */
 .toast {
   position: fixed;
