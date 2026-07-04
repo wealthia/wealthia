@@ -1999,6 +1999,28 @@ app.post("/api/reset", requirePlayer, async (req, res) => {
     const userId = req.playerId;
     const mode = String(req.body.mode || "full");
 
+    if (mode === "daily") {
+      const row = await loadGame(userId);
+      const today = todayKey();
+      const cityValue = buildCityValue(row);
+      const { data, error } = await supabase
+        .from("game_states")
+        .update({
+          contest_date: today,
+          contest_baseline_city: cityValue,
+          daily_contest_score: 0,
+          updated_at: new Date().toISOString()
+        })
+        .eq("user_id", userId)
+        .select("*")
+        .single();
+
+      if (error) throw error;
+
+      res.json({ ok: true, user: toClientUser(data) });
+      return;
+    }
+
     if (mode === "earn") {
       if (process.env.ALLOW_EARN_RESET === "false") {
         res.status(403).json({ error: "EARN_RESET_DISABLED" });

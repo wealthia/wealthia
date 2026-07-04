@@ -1267,7 +1267,20 @@ h1 {
   background: var(--surface);
   color: var(--muted);
   backdrop-filter: blur(12px);
-  transition: transform 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition: transform 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.round-button--reset {
+  color: #f0a060;
+  border-color: rgba(240, 140, 80, 0.42);
+  background: linear-gradient(145deg, rgba(240, 120, 60, 0.14), var(--surface));
+  box-shadow: 0 0 14px rgba(240, 120, 60, 0.12);
+}
+
+.round-button--reset:active {
+  color: #ff8a5c;
+  border-color: rgba(255, 120, 80, 0.58);
+  box-shadow: 0 0 18px rgba(255, 120, 80, 0.2);
 }
 
 .round-button:active {
@@ -2704,6 +2717,83 @@ button.completed strong {
   color: #1a1408;
   font-size: 14px;
   font-weight: 800;
+}
+
+.reset-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.reset-modal[hidden] {
+  display: none;
+}
+
+.reset-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 8, 18, 0.76);
+  backdrop-filter: blur(6px);
+}
+
+.reset-modal__card {
+  position: relative;
+  width: min(100%, 360px);
+  padding: 20px 18px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 140, 90, 0.35);
+  background: linear-gradient(160deg, rgba(34, 24, 28, 0.98), rgba(14, 16, 28, 0.98));
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.45),
+    0 0 28px rgba(255, 120, 80, 0.12);
+}
+
+.reset-modal__card h2 {
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: #ffe8d0;
+}
+
+.reset-modal__desc {
+  margin: 0 0 16px;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.reset-modal__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.reset-modal__btn {
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 10px;
+  font-size: 14px;
+  font-weight: 800;
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+
+.reset-modal__btn:active {
+  transform: scale(0.98);
+}
+
+.reset-modal__btn--cancel {
+  background: linear-gradient(145deg, rgba(120, 128, 150, 0.35), rgba(70, 76, 92, 0.55));
+  color: #e8edf8;
+  border: 1px solid rgba(160, 170, 190, 0.28);
+}
+
+.reset-modal__btn--confirm {
+  background: linear-gradient(135deg, #ff6b5f, #d92f2f);
+  color: #fff8f6;
+  box-shadow: 0 8px 22px rgba(217, 47, 47, 0.35);
 }
 
 /* Toast */
