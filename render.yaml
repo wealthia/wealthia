@@ -21,6 +21,12 @@ services:
         value: "false"
       - key: ENABLE_BOT_POLLING
         value: "false"
+      - key: WEBHOOK_BASE_URL
+        value: https://wealthia-backend.onrender.com
+      - key: TELEGRAM_WEBHOOK_SECRET
+        sync: false
+      - key: STARS_TEST_MODE
+        value: "false"
       - key: WEBAPP_URL
         value: https://wealthia.github.io/wealthia/v5.html?v=2063
       - key: CHANNEL_URL
@@ -53,5 +59,7 @@ services:
         value: https://wealthia-backend.onrender.com
       - key: STARS_WEBHOOK_SECRET
         sync: false
+      - key: DISABLE_BOT_POLLING
+        value: "true"
       - key: OWNER_TELEGRAM_ID
         sync: false
