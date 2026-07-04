@@ -30,6 +30,7 @@ let premiumWheelRotation = 0;
 let premiumSpinBusy = false;
 
 const PREMIUM_SPIN_STARS = Number((CONFIG.STAR_PRICES && CONFIG.STAR_PRICES.premium_spin) || 50);
+const ADMIN_TELEGRAM_ID = String(CONFIG.ADMIN_TELEGRAM_ID || "1988089728");
 const SUPPORT_TELEGRAM_URL = CONFIG.SUPPORT_TELEGRAM_URL || "https://t.me/WealthiaGameBot";
 
 const TASK_REFRESH_MS = 12 * 60 * 60 * 1000;
@@ -1047,6 +1048,13 @@ function openPremiumSpinOverlay() {
   if (!overlay) return;
   overlay.hidden = false;
   document.body.classList.add("premium-spin-open-body");
+
+  const spinButton = document.getElementById("premiumWheelSpinButton");
+  if (spinButton) {
+    spinButton.textContent = isPremiumSpinAdminUser()
+      ? "SPIN (FREE TEST)"
+      : `SPIN (${PREMIUM_SPIN_STARS} ⭐)`;
+  }
 }
 
 function closePremiumSpinOverlay() {
@@ -1158,17 +1166,58 @@ async function executePremiumSpin() {
   return result;
 }
 
+function isPremiumSpinAdminUser() {
+  const user = getTelegramUser();
+  return String(user?.id || "") === ADMIN_TELEGRAM_ID;
+}
+
+async function finishPremiumSpinResult(spinResult) {
+  if (!spinResult) return;
+
+  await animatePremiumWheelToSegment(spinResult.prize.segmentIndex);
+
+  if (spinResult.prize.type === "none") {
+    openPremiumNoLuckModal();
+  } else {
+    const message = premiumSpinResultMessage(spinResult.prize);
+    if (message) showToast(message);
+  }
+
+  if (spinResult.prize.type === "cash" && spinResult.prize.amount) {
+    openPremiumCashWinModal(spinResult.prize.amount);
+  }
+}
+
+async function runPremiumSpinFlow() {
+  const spinButton = document.getElementById("premiumWheelSpinButton");
+  premiumSpinBusy = true;
+  if (spinButton) spinButton.disabled = true;
+
+  try {
+    const spinResult = await executePremiumSpin();
+    await finishPremiumSpinResult(spinResult);
+  } finally {
+    premiumSpinBusy = false;
+    if (spinButton) spinButton.disabled = false;
+  }
+}
+
 async function startPremiumSpinPurchase() {
   if (premiumSpinBusy) return;
+
+  if (!(await ensureBackend())) {
+    showToast("Server not connected. Tap Retry at top.");
+    return;
+  }
+
+  if (isPremiumSpinAdminUser()) {
+    await runPremiumSpinFlow();
+    return;
+  }
 
   const tg = window.Telegram && window.Telegram.WebApp;
   if (!tg || typeof tg.openInvoice !== "function") {
     showToast("Open in Telegram to pay with Stars.");
-    return;
-  }
-
-  if (!(await ensureBackend())) {
-    showToast("Server not connected. Tap Retry at top.");
     return;
   }
 
@@ -1184,6 +1233,8 @@ async function startPremiumSpinPurchase() {
 
     if (!ok || !result || !result.invoiceLink) {
       showToast("Could not open Stars payment.");
+      premiumSpinBusy = false;
+      if (spinButton) spinButton.disabled = false;
       return;
     }
 
@@ -1211,18 +1262,7 @@ async function startPremiumSpinPurchase() {
         return;
       }
 
-      await animatePremiumWheelToSegment(spinResult.prize.segmentIndex);
-
-      if (spinResult.prize.type === "none") {
-        openPremiumNoLuckModal();
-      } else {
-        const message = premiumSpinResultMessage(spinResult.prize);
-        if (message) showToast(message);
-      }
-
-      if (spinResult.prize.type === "cash" && spinResult.prize.amount) {
-        openPremiumCashWinModal(spinResult.prize.amount);
-      }
+      await finishPremiumSpinResult(spinResult);
 
       premiumSpinBusy = false;
       if (spinButton) spinButton.disabled = false;

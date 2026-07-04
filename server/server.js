@@ -42,6 +42,7 @@ const SOCIAL_JOIN_TELEGRAM_URL =
 const BOOST_DURATION_MS = 30 * 60 * 1000;
 const REFERRAL_BONUS = 500;
 const NEW_PLAYER_BONUS = 100;
+const ADMIN_TELEGRAM_ID = "1988089728";
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
 const AD_REWARD_COOLDOWN_MS = 5 * 60 * 1000;
 const BONUS_AD_REWARD_COOLDOWN_MS = 15 * 60 * 1000;
@@ -500,6 +501,21 @@ function requirePlayer(req, res, next) {
 
   req.playerId = userId;
   next();
+}
+
+async function getPlayerTelegramId(userId) {
+  const { data, error } = await supabase
+    .from("users")
+    .select("telegram_id")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return String(data?.telegram_id || "");
+}
+
+function isPremiumSpinAdmin(telegramId) {
+  return String(telegramId || "") === ADMIN_TELEGRAM_ID;
 }
 
 function ipRateLimit(req, res, next) {
@@ -2007,12 +2023,17 @@ app.post("/api/casino-spin", requirePlayer, async (req, res) => {
 app.post("/api/premium-spin/status", requirePlayer, async (req, res) => {
   try {
     const userId = req.playerId;
-    const payment = await premiumSpin.findPendingPremiumPayment(supabase, userId);
+    const telegramId = await getPlayerTelegramId(userId);
+    const adminBypass = isPremiumSpinAdmin(telegramId);
+    const payment = adminBypass
+      ? null
+      : await premiumSpin.findPendingPremiumPayment(supabase, userId);
     const globalSpins = await premiumSpin.getGlobalPremiumSpins(supabase);
 
     res.json({
       ok: true,
-      ready: Boolean(payment),
+      ready: adminBypass || Boolean(payment),
+      adminBypass,
       globalSpins,
       segments: premiumSpin.PRIZE_SEGMENTS
     });
@@ -2024,42 +2045,51 @@ app.post("/api/premium-spin/status", requirePlayer, async (req, res) => {
 app.post("/api/premium-spin", requirePlayer, async (req, res) => {
   try {
     const userId = req.playerId;
-    const payment = await premiumSpin.findPendingPremiumPayment(supabase, userId);
-
-    if (!payment) {
-      res.status(402).json({ error: "NO_PAYMENT" });
-      return;
-    }
-
-    const now = new Date().toISOString();
-    const { data: consumed, error: consumeError } = await supabase
-      .from("star_payments")
-      .update({ consumed_at: now })
-      .eq("id", payment.id)
-      .is("consumed_at", null)
-      .select("id")
-      .maybeSingle();
-
-    if (consumeError) throw consumeError;
-    if (!consumed) {
-      res.status(409).json({ error: "PAYMENT_ALREADY_USED" });
-      return;
-    }
-
-    const globalSpins = await premiumSpin.incrementGlobalPremiumSpins(supabase);
-    const prize = premiumSpin.rollPremiumPrize(globalSpins);
-    const row = await loadGame(userId);
-
-    const { data: buyer } = await supabase
+    const { data: buyer, error: buyerError } = await supabase
       .from("users")
       .select("first_name, username, telegram_id")
       .eq("id", userId)
       .maybeSingle();
 
+    if (buyerError) throw buyerError;
+
+    const adminBypass = isPremiumSpinAdmin(buyer?.telegram_id);
+    let payment = null;
+
+    if (!adminBypass) {
+      payment = await premiumSpin.findPendingPremiumPayment(supabase, userId);
+
+      if (!payment) {
+        res.status(402).json({ error: "NO_PAYMENT" });
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const { data: consumed, error: consumeError } = await supabase
+        .from("star_payments")
+        .update({ consumed_at: now })
+        .eq("id", payment.id)
+        .is("consumed_at", null)
+        .select("id")
+        .maybeSingle();
+
+      if (consumeError) throw consumeError;
+      if (!consumed) {
+        res.status(409).json({ error: "PAYMENT_ALREADY_USED" });
+        return;
+      }
+    }
+
+    const globalSpins = adminBypass
+      ? await premiumSpin.getGlobalPremiumSpins(supabase)
+      : await premiumSpin.incrementGlobalPremiumSpins(supabase);
+    const prize = premiumSpin.rollPremiumPrize(globalSpins, { adminTest: adminBypass });
+    const row = await loadGame(userId);
+
     const username = String(buyer?.username || "").trim();
     const displayName = buyer?.first_name || `Player ${String(userId).slice(-4)}`;
 
-    if (prize.type === "cash") {
+    if (prize.type === "cash" && !adminBypass) {
       await premiumSpin.createPendingPayout(supabase, {
         userId,
         username,
@@ -2088,9 +2118,11 @@ app.post("/api/premium-spin", requirePlayer, async (req, res) => {
     res.json({
       ok: true,
       prize: premiumSpin.formatPrizeResult(prize, {
-        cashPrize: prize.type === "cash"
+        cashPrize: prize.type === "cash",
+        adminBypass
       }),
       globalSpins,
+      adminBypass,
       user: toClientUser(saved)
     });
   } catch (error) {

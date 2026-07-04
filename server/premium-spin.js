@@ -18,12 +18,13 @@ function number(value) {
   return Number(value || 0);
 }
 
-function getProbabilities(globalSpins) {
+function getProbabilities(globalSpins, options = {}) {
+  const adminTest = Boolean(options.adminTest);
   const noLuck = 0.25;
   const boost = 0.12;
-  const cash5 = globalSpins > 50 ? 0.06 : 0;
-  const cash15 = globalSpins > 80 ? 0.0125 : 0;
-  const jackpot = globalSpins >= 100000 ? 0.0000000001 : 0;
+  const cash5 = adminTest || globalSpins > 50 ? 0.06 : 0;
+  const cash15 = adminTest || globalSpins > 80 ? 0.0125 : 0;
+  const jackpot = adminTest || globalSpins >= 100000 ? 0.0000000001 : 0;
   const coins = 1 - noLuck - boost - cash5 - cash15 - jackpot;
 
   return [
@@ -36,8 +37,8 @@ function getProbabilities(globalSpins) {
   ];
 }
 
-function rollPremiumPrize(globalSpins) {
-  const weights = getProbabilities(globalSpins);
+function rollPremiumPrize(globalSpins, options = {}) {
+  const weights = getProbabilities(globalSpins, options);
   const roll = Math.random();
   let cursor = 0;
 
