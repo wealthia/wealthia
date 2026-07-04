@@ -1090,6 +1090,21 @@ function dailyPrizeEligible(referralCount) {
 }
 
 const DAILY_PRIZE_AMOUNT = Math.max(1, Number(process.env.DAILY_PRIZE_AMOUNT || 10));
+const DAILY_LEADERBOARD_LIMIT = Math.max(
+  3,
+  Number(process.env.DAILY_LEADERBOARD_LIMIT || 10)
+);
+
+function formatDailyWinnerLabel(winner) {
+  if (!winner) return "";
+
+  const handle = winner.username
+    ? (String(winner.username).startsWith("@") ? winner.username : `@${winner.username}`)
+    : (winner.displayName || winner.label || "Player");
+  const tickets = number(winner.tickets);
+
+  return `${handle} (🎟️ ${tickets} Ticket${tickets === 1 ? "" : "s"})`;
+}
 
 async function getLatestDailyWinner() {
   const { data, error } = await supabase
@@ -1099,20 +1114,32 @@ async function getLatestDailyWinner() {
     .limit(1)
     .maybeSingle();
 
-  if (error || !data) return null;
+  if (error || !data) {
+    const fallback = systemBots.randomYesterdayBotWinner(yesterdayKey());
+    return {
+      ...fallback,
+      label: formatDailyWinnerLabel(fallback)
+    };
+  }
 
   const username = String(data.username || "").trim();
-  return {
+  const displayName = data.display_name || `Player ${String(data.user_id).slice(-4)}`;
+  const tickets = number(data.tickets);
+  const winner = {
     contestDate: data.contest_date,
     userId: data.user_id,
-    username: username ? `@${username}` : "",
-    displayName: data.display_name || `Player ${String(data.user_id).slice(-4)}`,
-    label: username ? `@${username}` : (data.display_name || `Player ${String(data.user_id).slice(-4)}`),
+    username: username || displayName,
+    displayName,
     score: number(data.daily_score),
-    tickets: number(data.tickets),
+    tickets,
     prize: number(data.prize_amount),
     currency: data.prize_currency || "USD",
     drawnAt: data.drawn_at
+  };
+
+  return {
+    ...winner,
+    label: formatDailyWinnerLabel(winner)
   };
 }
 
@@ -2168,6 +2195,7 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
       systemBotRows
     );
     dailyTopData = dailyMerged.slice(0, 3);
+    const dailyListData = dailyMerged.slice(0, DAILY_LEADERBOARD_LIMIT);
 
     if (yourDailyGame && userId) {
       yourDailyRank = computeDailyRank(
@@ -2223,9 +2251,10 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
       : null;
 
     const dailyTop3 = dailyTopData.map((row, index) => rowFromGame(row, index + 1, "dailyScore"));
+    const dailyRows = dailyListData.map((row, index) => rowFromGame(row, index + 1, "dailyScore"));
 
-    const youInDailyTop3 = dailyTop3.some((row) => row.isYou);
-    const dailyYou = yourDailyGame && !youInDailyTop3 && number(yourDailyRank) > 3
+    const youInDailyList = dailyRows.some((row) => row.isYou);
+    const dailyYou = yourDailyGame && !youInDailyList
       ? rowFromGame(yourDailyGame, yourDailyRank, "dailyScore")
       : null;
 
@@ -2242,6 +2271,7 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
         yourReferrals,
         eligible: yourDailyEligible,
         top3: dailyTop3,
+        rows: dailyRows,
         you: dailyYou,
         yourRank: yourDailyRank || 0,
         yourScore: yourDailyScore,

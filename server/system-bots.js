@@ -169,7 +169,10 @@ async function loadSystemBotGameRows(supabase, today = todayKey()) {
     .from("system_bot_states")
     .select("bot_id, display_name, referral_count, daily_contest_score, contest_date")
     .eq("contest_date", today)
-    .gt("daily_contest_score", 0);
+    .in(
+      "bot_id",
+      SYSTEM_BOTS.map((bot) => bot.botId)
+    );
 
   if (error) throw error;
 
@@ -180,6 +183,26 @@ async function loadSystemBotGameRows(supabase, today = todayKey()) {
     city_value: 0,
     _systemBot: true
   }));
+}
+
+function randomYesterdayBotWinner(contestDate) {
+  const seed = String(contestDate || "").replace(/-/g, "");
+  const seedNumber = Number(seed) || Date.now();
+  const bot = SYSTEM_BOTS[seedNumber % SYSTEM_BOTS.length];
+  const tickets = 18 + (seedNumber % 13);
+
+  return {
+    contestDate,
+    userId: bot.botId,
+    username: bot.name,
+    displayName: bot.name,
+    label: `@${bot.name}`,
+    score: tickets * economy.TICKETS_PER_SCORE,
+    tickets,
+    prize: Number(process.env.DAILY_PRIZE_AMOUNT || 10),
+    currency: "USD",
+    isFallback: true
+  };
 }
 
 module.exports = {
@@ -193,5 +216,6 @@ module.exports = {
   ensureSystemBots,
   resetSystemBots,
   tickSystemBots,
-  loadSystemBotGameRows
+  loadSystemBotGameRows,
+  randomYesterdayBotWinner
 };

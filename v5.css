@@ -1040,6 +1040,23 @@ p {
   color: var(--gold-light);
   font-size: 13px;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rank__ticket-icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.rank__tickets--you {
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.rank__tickets--you .rank__ticket-icon {
+  font-size: 19px;
 }
 
 .daily-prize__tickets {
