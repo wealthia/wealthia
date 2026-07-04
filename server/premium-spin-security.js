@@ -46,8 +46,13 @@ async function logFraudEvent(supabase, {
 function sanitizePremiumSpinPrize(prize) {
   if (!prize) return null;
 
+  const winnerSliceId = Number(prize.segmentIndex ?? 0);
+
   return {
-    segmentIndex: Number(prize.segmentIndex || 0),
+    winnerSliceId,
+    segmentIndex: winnerSliceId,
+    id: String(prize.id || ""),
+    label: String(prize.label || ""),
     type: String(prize.type || "none"),
     amount: Number(prize.amount || 0)
   };
