@@ -1227,7 +1227,7 @@ function renderFriendsPanel() {
     <article class="friends-tips">
       <p><strong>1.</strong> Send your link to friends in Telegram</p>
       <p><strong>2.</strong> They open the game — you get +500 coins each</p>
-      <p><strong>3.</strong> 3 friends unlocks the daily $10 leaderboard</p>
+      <p><strong>3.</strong> 3 friends unlocks the $10 Daily Race</p>
     </article>
   `;
 
