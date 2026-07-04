@@ -785,23 +785,45 @@ p {
 .friends-stat-row {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
+  gap: 8px;
 }
 
 .friends-stat-row .friends-stat {
-  padding: 10px 6px;
+  padding: 12px 8px;
+  min-height: 68px;
 }
 
 .friends-stat-row .friends-stat strong {
-  font-size: 15px;
+  font-size: 16px;
 }
 
 .friends-stat {
   padding: 12px;
-  border-radius: var(--radius-sm);
+  border-radius: 18px;
   border: 1px solid var(--line);
   background: var(--surface-2);
   text-align: center;
+}
+
+.friends-stat--info {
+  cursor: default;
+  user-select: none;
+  pointer-events: none;
+  border-color: rgba(255, 255, 255, 0.08);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.05), rgba(12, 16, 28, 0.92));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.friends-stat--info span {
+  opacity: 0.9;
+}
+
+.friends-stat__on {
+  color: #7dffb0 !important;
+}
+
+.friends-stat__off {
+  color: var(--muted) !important;
 }
 
 .friends-stat span {
@@ -823,8 +845,8 @@ p {
 .friends-progress-card {
   display: grid;
   gap: 8px;
-  padding: 12px;
-  border-radius: var(--radius-sm);
+  padding: 14px;
+  border-radius: 18px;
   border: 1px solid var(--line);
   background: var(--surface-2);
 }
@@ -858,6 +880,39 @@ p {
   font-size: 12px;
   color: var(--muted);
   line-height: 1.4;
+}
+
+.friends-progress-card__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.friends-progress-card__qualified {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(72, 199, 116, 0.5);
+  background: linear-gradient(145deg, rgba(72, 199, 116, 0.2), rgba(18, 24, 42, 0.95));
+  color: #8dffc0;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.45;
+  text-align: center;
+  box-shadow: 0 0 22px rgba(72, 199, 116, 0.18);
+  animation: friends-qualified-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes friends-qualified-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 18px rgba(72, 199, 116, 0.14);
+  }
+
+  50% {
+    box-shadow: 0 0 28px rgba(72, 199, 116, 0.28);
+  }
 }
 
 .friends-tips {
