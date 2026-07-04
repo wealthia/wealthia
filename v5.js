@@ -28,14 +28,13 @@ let taskCountdownTimer = null;
 let lastGrandPrizeMilestone = 0;
 let premiumWheelRotation = 0;
 let premiumSpinBusy = false;
-let premiumWheelLoadingTimer = null;
 
 const PREMIUM_SPIN_STARS = Number((CONFIG.STAR_PRICES && CONFIG.STAR_PRICES.premium_spin) || 1);
 const PREMIUM_WHEEL_SLICE_DEG = 60;
 const PREMIUM_WHEEL_POINTER_DEG = 270;
 const PREMIUM_WHEEL_DECEL_MS = 4500;
 const PREMIUM_WHEEL_WIN_MODAL_DELAY_MS = 500;
-const PREMIUM_WHEEL_LOADING_DEG_PER_MS = 0.72;
+const PREMIUM_WHEEL_EXTRA_ROTATION_DEG = 1800;
 const SUPPORT_TELEGRAM_URL = CONFIG.SUPPORT_TELEGRAM_URL || "https://t.me/WealthiaGameBot";
 
 const TASK_REFRESH_MS = 12 * 60 * 60 * 1000;
@@ -1098,19 +1097,17 @@ function animatePremiumWheelToSegment(sliceId) {
       return;
     }
 
-    stopPremiumWheelLoadingSpin();
-
+    const currentRotation = premiumWheelRotation;
     const targetAngle = premiumWheelTargetAngle(sliceId);
-    const currentAngle = ((premiumWheelRotation % 360) + 360) % 360;
+    const currentAngle = ((currentRotation % 360) + 360) % 360;
     let delta = targetAngle - currentAngle;
     if (delta <= 0) delta += 360;
 
-    const fullSpins = 5;
-    const finalRotation = premiumWheelRotation + fullSpins * 360 + delta;
+    const finalRotation = currentRotation + PREMIUM_WHEEL_EXTRA_ROTATION_DEG + delta;
 
     disc.classList.remove("premium-wheel__disc--loading");
     disc.style.transition = "none";
-    disc.style.transform = `rotate(${premiumWheelRotation}deg)`;
+    disc.style.transform = `rotate(${currentRotation}deg)`;
     void disc.offsetHeight;
 
     disc.classList.add("is-spinning");
@@ -1131,45 +1128,14 @@ function animatePremiumWheelToSegment(sliceId) {
   });
 }
 
-function startPremiumWheelLoadingSpin() {
-  const disc = document.getElementById("premiumWheelDisc");
-  if (!disc || premiumWheelLoadingTimer) return;
-
-  stopPremiumWheelLoadingSpin();
-  disc.classList.add("premium-wheel__disc--loading");
-  disc.style.transition = "none";
-
-  let lastTick = performance.now();
-  premiumWheelLoadingTimer = window.setInterval(() => {
-    const now = performance.now();
-    const elapsed = now - lastTick;
-    lastTick = now;
-    premiumWheelRotation += elapsed * PREMIUM_WHEEL_LOADING_DEG_PER_MS;
-    disc.style.transform = `rotate(${premiumWheelRotation}deg)`;
-  }, 16);
-}
-
-function stopPremiumWheelLoadingSpin() {
-  if (premiumWheelLoadingTimer) {
-    window.clearInterval(premiumWheelLoadingTimer);
-    premiumWheelLoadingTimer = null;
-  }
-
-  const disc = document.getElementById("premiumWheelDisc");
-  if (disc) {
-    disc.classList.remove("premium-wheel__disc--loading");
-  }
-}
-
 function openPremiumSpinOverlay() {
   const overlay = document.getElementById("premiumSpinOverlay");
   if (!overlay) return;
   overlay.hidden = false;
   document.body.classList.add("premium-spin-open-body");
 
-  stopPremiumWheelLoadingSpin();
-  premiumWheelRotation = 0;
   const disc = document.getElementById("premiumWheelDisc");
+  premiumWheelRotation = 0;
   if (disc) {
     disc.style.transition = "none";
     disc.style.transform = "rotate(0deg)";
@@ -1184,7 +1150,6 @@ function openPremiumSpinOverlay() {
 function closePremiumSpinOverlay() {
   const overlay = document.getElementById("premiumSpinOverlay");
   if (!overlay) return;
-  stopPremiumWheelLoadingSpin();
   overlay.hidden = true;
   document.body.classList.remove("premium-spin-open-body");
 }
@@ -1201,8 +1166,8 @@ function premiumWinModalCopy(prize) {
   if (prize.type === "cash") {
     const amount = Number(prize.amount || 0);
     return {
-      title: "💰 Cash Prize!",
-      body: `You won $${amount}! Our support team will process the amount within 3-5 days.`,
+      title: "Cash Prize",
+      body: `💰 You won $${amount}! Our support team will process the amount within 3-5 days.`,
       showClaim: true
     };
   }
@@ -1210,16 +1175,16 @@ function premiumWinModalCopy(prize) {
   if (prize.type === "coins") {
     const amount = Number(prize.amount || 500);
     return {
-      title: "🎉 Congratulations!",
-      body: `You won ${format(amount)} Coins!`,
+      title: "Congratulations!",
+      body: `🎉 Congratulations! You won ${format(amount)} Coins!`,
       showClaim: false
     };
   }
 
   if (prize.type === "boost") {
     return {
-      title: "🎉 Congratulations!",
-      body: "You won 2x Income Boost for 30 minutes!",
+      title: "Congratulations!",
+      body: "🎉 Congratulations! You won 2x Income Boost for 30 minutes!",
       showClaim: false
     };
   }
@@ -1331,7 +1296,14 @@ function premiumSpinResultMessage(prize) {
 
 async function executePremiumSpin() {
   const { ok, result, status } = await apiPostSecure("/api/premium-spin");
-  if (!ok || !result || !result.prize) {
+  if (
+    !ok ||
+    !result ||
+    result.success !== true ||
+    result.winnerSliceId === undefined ||
+    result.winnerSliceId === null ||
+    !result.prize
+  ) {
     if (result && result.error === "NO_PAYMENT") {
       showToast("Payment not confirmed by Telegram yet. Try again.");
     } else if (result && result.error === "PAYMENT_NOT_SETTLED") {
@@ -1363,6 +1335,7 @@ async function finishPremiumSpinResult(spinResult) {
   const prize = spinResult.prize;
   if (prize.type === "coins" || prize.type === "boost") {
     await applyBackendUser(spinResult.user);
+    await fetchUserData();
   }
 
   if (prize.type === "none") {
@@ -1388,21 +1361,21 @@ async function isPremiumSpinPaymentReady() {
 async function runPremiumSpinFlow() {
   const spinButton = document.getElementById("premiumWheelSpinButton");
   premiumSpinBusy = true;
-  if (spinButton) spinButton.disabled = true;
-
-  startPremiumWheelLoadingSpin();
+  if (spinButton) {
+    spinButton.disabled = true;
+    spinButton.textContent = "Processing...";
+  }
 
   try {
     const spinResult = await executePremiumSpin();
-    if (!spinResult) {
-      stopPremiumWheelLoadingSpin();
-      return;
-    }
+    if (!spinResult) return;
     await finishPremiumSpinResult(spinResult);
   } finally {
-    stopPremiumWheelLoadingSpin();
     premiumSpinBusy = false;
-    if (spinButton) spinButton.disabled = false;
+    if (spinButton) {
+      spinButton.disabled = false;
+      spinButton.textContent = `SPIN (${PREMIUM_SPIN_STARS} ⭐)`;
+    }
   }
 }
 
@@ -1414,14 +1387,14 @@ async function startPremiumSpinPurchase() {
     return;
   }
 
-  if (await isPremiumSpinPaymentReady()) {
-    await runPremiumSpinFlow();
-    return;
-  }
-
   const tg = window.Telegram && window.Telegram.WebApp;
   if (!tg || typeof tg.openInvoice !== "function") {
     showToast("Open in Telegram to pay with Stars.");
+    return;
+  }
+
+  if (await isPremiumSpinPaymentReady()) {
+    await runPremiumSpinFlow();
     return;
   }
 
