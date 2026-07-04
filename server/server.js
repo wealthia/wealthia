@@ -206,21 +206,6 @@ function applyStarProduct(row, productId) {
   return null;
 }
 
-async function refundPremiumSpinPayment(telegramId, chargeId) {
-  if (!TELEGRAM_BOT_TOKEN || !telegramId || !chargeId) return false;
-
-  try {
-    await telegramApi("refundStarPayment", {
-      user_id: Number(telegramId),
-      telegram_payment_charge_id: chargeId
-    });
-    return true;
-  } catch (error) {
-    console.warn("PREMIUM_SPIN_REFUND_FAILED:", error.message);
-    return false;
-  }
-}
-
 function starPayload(userId, productId) {
   return `w|${userId}|${productId}`;
 }
@@ -2073,11 +2058,6 @@ app.post("/api/premium-spin", requirePlayer, async (req, res) => {
 
     const username = String(buyer?.username || "").trim();
     const displayName = buyer?.first_name || `Player ${String(userId).slice(-4)}`;
-    let refundIssued = false;
-
-    if (prize.type === "refund") {
-      refundIssued = await refundPremiumSpinPayment(buyer?.telegram_id, payment.charge_id);
-    }
 
     if (prize.type === "cash") {
       await premiumSpin.createPendingPayout(supabase, {
@@ -2108,7 +2088,6 @@ app.post("/api/premium-spin", requirePlayer, async (req, res) => {
     res.json({
       ok: true,
       prize: premiumSpin.formatPrizeResult(prize, {
-        refundIssued,
         cashPrize: prize.type === "cash"
       }),
       globalSpins,

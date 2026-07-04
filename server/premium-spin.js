@@ -7,7 +7,7 @@ const PRIZE_SEGMENTS = [
   { id: "jackpot_1000", label: "💰 1000$ JACKPOT", segmentIndex: 0, type: "cash", amount: 1000 },
   { id: "cash_15", label: "💵 15$", segmentIndex: 1, type: "cash", amount: 15 },
   { id: "cash_5", label: "💵 5$", segmentIndex: 2, type: "cash", amount: 5 },
-  { id: "spin_again", label: "🔄 SPIN AGAIN", segmentIndex: 3, type: "refund" },
+  { id: "no_luck", label: "❌ NO LUCK", segmentIndex: 3, type: "none" },
   { id: "boost_2x", label: "⚡ 2x BOOST", segmentIndex: 4, type: "boost" },
   { id: "coins_500", label: "🪙 500 COINS", segmentIndex: 5, type: "coins", amount: 500 }
 ];
@@ -19,18 +19,18 @@ function number(value) {
 }
 
 function getProbabilities(globalSpins) {
-  const spinAgain = 0.25;
+  const noLuck = 0.25;
   const boost = 0.12;
   const cash5 = globalSpins > 50 ? 0.06 : 0;
   const cash15 = globalSpins > 80 ? 0.0125 : 0;
   const jackpot = globalSpins >= 100000 ? 0.0000000001 : 0;
-  const coins = 1 - spinAgain - boost - cash5 - cash15 - jackpot;
+  const coins = 1 - noLuck - boost - cash5 - cash15 - jackpot;
 
   return [
     { id: "jackpot_1000", weight: jackpot },
     { id: "cash_15", weight: cash15 },
     { id: "cash_5", weight: cash5 },
-    { id: "spin_again", weight: spinAgain },
+    { id: "no_luck", weight: noLuck },
     { id: "boost_2x", weight: boost },
     { id: "coins_500", weight: coins }
   ];
