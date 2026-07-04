@@ -347,16 +347,20 @@ function buildCityValue(row) {
   return number(row.coins) + number(row.spent);
 }
 
-function computeDailyRank(rows, userId, userScore) {
+function computeDailyRank(rows, userId, userTickets) {
   if (!userId) return 0;
 
-  const sorted = [...rows].sort(
-    (a, b) => number(b.daily_contest_score) - number(a.daily_contest_score)
-  );
+  const ticketCount = (row) => economy.computeTickets(row.daily_contest_score);
+
+  const sorted = [...rows].sort((a, b) => {
+    const byTickets = ticketCount(b) - ticketCount(a);
+    if (byTickets !== 0) return byTickets;
+    return number(b.daily_contest_score) - number(a.daily_contest_score);
+  });
   const index = sorted.findIndex((row) => row.user_id === userId);
   if (index >= 0) return index + 1;
 
-  return 1 + sorted.filter((row) => number(row.daily_contest_score) > number(userScore)).length;
+  return 1 + sorted.filter((row) => ticketCount(row) > number(userTickets)).length;
 }
 
 function mergeDailyLeaderboardRows(today, dailyEligibleRows, realDailyScores, yourDailyGame, userId) {
@@ -372,20 +376,25 @@ function mergeDailyLeaderboardRows(today, dailyEligibleRows, realDailyScores, yo
     realScores: realDailyScores
   }));
 
-  merged.sort((a, b) => number(b.daily_contest_score) - number(a.daily_contest_score));
+  const ticketCount = (row) => economy.computeTickets(row.daily_contest_score);
+  const sortByTickets = (a, b) => {
+    const byTickets = ticketCount(b) - ticketCount(a);
+    if (byTickets !== 0) return byTickets;
+    return number(b.daily_contest_score) - number(a.daily_contest_score);
+  };
+
+  merged.sort(sortByTickets);
 
   const byUser = new Map();
   for (const row of merged) {
     const id = row.user_id;
     const existing = byUser.get(id);
-    if (!existing || number(row.daily_contest_score) > number(existing.daily_contest_score)) {
+    if (!existing || sortByTickets(row, existing) < 0) {
       byUser.set(id, row);
     }
   }
 
-  return Array.from(byUser.values()).sort(
-    (a, b) => number(b.daily_contest_score) - number(a.daily_contest_score)
-  );
+  return Array.from(byUser.values()).sort(sortByTickets);
 }
 
 function syncDailyContest(row) {
@@ -2088,7 +2097,8 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
     const candidateIds = (dailyCandidates || []).map((row) => row.user_id);
     const referralCounts = await getReferralCounts(candidateIds);
     const dailyEligibleRows = (dailyCandidates || []).filter((row) =>
-      dailyPrizeEligible(referralCounts.get(row.user_id) || 0)
+      dailyPrizeEligible(referralCounts.get(row.user_id) || 0) &&
+      economy.computeTickets(row.daily_contest_score) >= 1
     );
     const realDailyScores = dailyEligibleRows.map((row) => number(row.daily_contest_score));
 
@@ -2142,7 +2152,7 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
       yourDailyRank = computeDailyRank(
         dailyMerged,
         userId,
-        number(yourDailyGame.daily_contest_score)
+        economy.computeTickets(yourDailyGame.daily_contest_score)
       );
     }
 
@@ -2162,8 +2172,10 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
     function rowFromGame(gameRow, rank, valueKey = "cityValue") {
       const seed = contestSeedProfile(gameRow.user_id);
       const profile = userMap.get(gameRow.user_id) || {};
+      const dailyScore = number(gameRow.daily_contest_score);
+      const tickets = economy.computeTickets(dailyScore);
       const value = valueKey === "dailyScore"
-        ? number(gameRow.daily_contest_score)
+        ? tickets
         : number(gameRow.city_value);
       const refCount = seed
         ? seed.referralCount
@@ -2174,7 +2186,8 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
         userId: gameRow.user_id,
         name: seed?.name || profile.first_name || profile.username || `Player ${String(gameRow.user_id).slice(-4)}`,
         cityValue: number(gameRow.city_value),
-        dailyScore: number(gameRow.daily_contest_score),
+        dailyScore,
+        tickets,
         referralCount: refCount,
         prizeEligible: seed ? false : dailyPrizeEligible(refCount),
         score: value,

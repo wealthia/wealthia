@@ -480,17 +480,24 @@ function renderTicketProgressHtml() {
   `;
 }
 
-function renderDailyWinnerBannerHtml() {
+function renderDailyWinnerBannerHtml(options = {}) {
   if (!dailyLastWinner || !dailyLastWinner.label) return "";
 
+  const listTop = Boolean(options.listTop);
   return `
-    <article class="daily-winner-banner">
+    <article class="daily-winner-banner ${listTop ? "daily-winner-banner--list-top" : ""}">
       <span class="daily-winner-banner__icon">&#127942;</span>
       <div class="daily-winner-banner__text">
         <strong>&#127942; Yesterday's $10 Winner: ${dailyLastWinner.label}</strong>
       </div>
     </article>
   `;
+}
+
+function rowTicketCount(row) {
+  if (typeof row.tickets === "number") return Math.max(0, row.tickets);
+  const score = Number(row.dailyScore || row.score || 0);
+  return Math.floor(score / TICKETS_PER_SCORE);
 }
 
 function openRankRulesModal() {
@@ -1338,8 +1345,17 @@ function getContestSeedPreview() {
   ];
 
   return scores
-    .sort((a, b) => b.dailyScore - a.dailyScore)
-    .map((row, index) => ({ ...row, rank: index + 1, isYou: false }));
+    .sort((a, b) => {
+      const byTickets = Math.floor(b.dailyScore / TICKETS_PER_SCORE) - Math.floor(a.dailyScore / TICKETS_PER_SCORE);
+      if (byTickets !== 0) return byTickets;
+      return b.dailyScore - a.dailyScore;
+    })
+    .map((row, index) => ({
+      ...row,
+      tickets: Math.floor(row.dailyScore / TICKETS_PER_SCORE),
+      rank: index + 1,
+      isYou: false
+    }));
 }
 
 const CONTEST_SEED_REFRESH_MS = 20 * 60 * 1000;
@@ -1537,10 +1553,13 @@ function ordinalRank(rank) {
 function renderRankRow(row, mode = "global", options = {}) {
   const daily = mode === "daily";
   const rank = Number(row.rank || 0);
+  const tickets = rowTicketCount(row);
   const value = daily
-    ? Number(row.dailyScore || row.score || 0)
+    ? tickets
     : Number(row.cityValue || 0);
-  const display = daily ? `+${format(value)}` : format(value);
+  const display = daily
+    ? `&#127915; ${format(tickets)} Ticket${tickets === 1 ? "" : "s"}`
+    : format(value);
   const label = row.isYou
     ? (options.isYourPlaceRow ? `Your place · ${ordinalRank(rank)}` : "You")
     : row.name;
@@ -1549,7 +1568,7 @@ function renderRankRow(row, mode = "global", options = {}) {
     <li class="${row.isYou ? "rank__you" : ""}">
       <span class="rank__medal">${rankMark(rank)}</span>
       <span>${label}</span>
-      <strong>${display}</strong>
+      <strong class="${daily ? "rank__tickets" : ""}">${display}</strong>
     </li>
   `;
 }
@@ -1573,6 +1592,7 @@ function buildDailyLeaderboardView() {
       ...row,
       userId: row.userId || CONTEST_SEED_IDS[row.name] || row.userId,
       dailyScore: Number(row.dailyScore || row.score || 0),
+      tickets: rowTicketCount(row),
       name: row.isYou ? "You" : (row.name || "Player")
     });
   };
@@ -1589,11 +1609,21 @@ function buildDailyLeaderboardView() {
   const youRow = merged.find((row) => row.isYou);
   if (youRow) {
     youRow.dailyScore = Math.max(youRow.dailyScore, yourScore);
+    youRow.tickets = rowTicketCount(youRow);
   } else {
-    merged.push({ name: "You", dailyScore: yourScore, isYou: true });
+    merged.push({
+      name: "You",
+      dailyScore: yourScore,
+      tickets: Math.floor(yourScore / TICKETS_PER_SCORE),
+      isYou: true
+    });
   }
 
-  merged.sort((a, b) => Number(b.dailyScore || 0) - Number(a.dailyScore || 0));
+  merged.sort((a, b) => {
+    const byTickets = rowTicketCount(b) - rowTicketCount(a);
+    if (byTickets !== 0) return byTickets;
+    return Number(b.dailyScore || 0) - Number(a.dailyScore || 0);
+  });
 
   const ranked = merged.map((row, index) => ({
     ...row,
@@ -1663,15 +1693,15 @@ function renderRankPanel() {
 
   panel.innerHTML = `
     ${offlineBanner}
-    ${dailyMode ? renderDailyWinnerBannerHtml() : ""}
     ${renderCampaignRankCard()}
     <div class="panel-head panel-head--rank ${dailyMode ? "panel-head--rank-lottery" : ""}">
       <div>
-        <h2>${dailyMode ? "Daily Leaderboard" : "Global Leaderboard"}</h2>
-        <p>${dailyMode ? "Top players by today's gain · 1 ticket per 1,000 points" : "Top empire builders by city value"}</p>
+        <h2>${dailyMode ? "Top Ticket Holders" : "Global Leaderboard"}</h2>
+        <p>${dailyMode ? "Players with the most lottery tickets today" : "Top empire builders by city value"}</p>
       </div>
       ${dailyMode ? `<button class="rank-rules-btn" type="button" id="rankRulesBtn">Rules</button>` : ""}
     </div>
+    ${dailyMode ? renderDailyWinnerBannerHtml({ listTop: true }) : ""}
     <ol class="rank rank--compact">
       ${top3.map((row) => renderRankRow(
         row,
