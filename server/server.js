@@ -859,6 +859,7 @@ function toClientUser(row, extra = {}) {
       autoBuyEnabled: number(row.bank_level) >= economy.AUTO_BUY_MIN_BANK_LEVEL,
       dailyScore: number(contest.daily_contest_score),
       tickets: economy.computeTickets(contest.daily_contest_score),
+      ticketProgress: economy.scoreProgressToNextTicket(contest.daily_contest_score),
       dailyDate: row.daily_date || "",
       dailyStreak: number(row.daily_streak),
       dailyTasksDate: row.daily_tasks_date || "",
@@ -926,7 +927,9 @@ function toClientUser(row, extra = {}) {
         date: contest.contest_date,
         resetsAt: utcDayEndIso(),
         minReferrals: DAILY_PRIZE_MIN_REFERRALS,
-        eligible: dailyPrizeEligible(referralCount)
+        eligible: dailyPrizeEligible(referralCount),
+        tickets: economy.computeTickets(contest.daily_contest_score),
+        ticketProgress: economy.scoreProgressToNextTicket(contest.daily_contest_score)
       },
       referrals: {
         count: referralCount,
@@ -1063,6 +1066,135 @@ async function getReferralCounts(userIds) {
 
 function dailyPrizeEligible(referralCount) {
   return number(referralCount) >= DAILY_PRIZE_MIN_REFERRALS;
+}
+
+const DAILY_PRIZE_AMOUNT = Math.max(1, Number(process.env.DAILY_PRIZE_AMOUNT || 10));
+
+async function getLatestDailyWinner() {
+  const { data, error } = await supabase
+    .from("daily_winners")
+    .select("*")
+    .order("contest_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  const username = String(data.username || "").trim();
+  return {
+    contestDate: data.contest_date,
+    userId: data.user_id,
+    username: username ? `@${username}` : "",
+    displayName: data.display_name || `Player ${String(data.user_id).slice(-4)}`,
+    label: username ? `@${username}` : (data.display_name || `Player ${String(data.user_id).slice(-4)}`),
+    score: number(data.daily_score),
+    tickets: number(data.tickets),
+    prize: number(data.prize_amount),
+    currency: data.prize_currency || "USD",
+    drawnAt: data.drawn_at
+  };
+}
+
+async function resetDailyContestForAll() {
+  const today = todayKey();
+  const { error } = await supabase.rpc("reset_daily_contest", { p_today: today });
+  if (error) throw error;
+}
+
+async function runDailyLottery(contestDate = yesterdayKey()) {
+  const { data: existing, error: existingError } = await supabase
+    .from("daily_winners")
+    .select("id")
+    .eq("contest_date", contestDate)
+    .maybeSingle();
+
+  if (existingError) throw existingError;
+
+  if (existing) {
+    return { ok: true, skipped: true, reason: "ALREADY_DRAWN", contestDate };
+  }
+
+  const minScore = economy.TICKETS_PER_SCORE;
+  const { data: candidates, error } = await supabase
+    .from("game_states")
+    .select("user_id, daily_contest_score, contest_date")
+    .eq("contest_date", contestDate)
+    .gte("daily_contest_score", minScore);
+
+  if (error) throw error;
+
+  const candidateIds = (candidates || [])
+    .map((row) => row.user_id)
+    .filter((userId) => userId && !String(userId).startsWith("contest_seed"));
+
+  const referralCounts = await getReferralCounts(candidateIds);
+  const eligible = (candidates || []).filter((row) => {
+    if (!row.user_id || String(row.user_id).startsWith("contest_seed")) return false;
+    return dailyPrizeEligible(referralCounts.get(row.user_id) || 0);
+  });
+
+  if (!eligible.length) {
+    await resetDailyContestForAll();
+    return { ok: true, skipped: true, reason: "NO_ELIGIBLE_PLAYERS", contestDate };
+  }
+
+  const bag = [];
+  for (const row of eligible) {
+    const tickets = economy.computeTickets(row.daily_contest_score);
+    for (let i = 0; i < tickets; i += 1) {
+      bag.push(row.user_id);
+    }
+  }
+
+  if (!bag.length) {
+    await resetDailyContestForAll();
+    return { ok: true, skipped: true, reason: "NO_TICKETS", contestDate };
+  }
+
+  const winnerId = bag[Math.floor(Math.random() * bag.length)];
+  const winnerRow = eligible.find((row) => row.user_id === winnerId);
+  const winnerScore = number(winnerRow?.daily_contest_score);
+  const winnerTickets = economy.computeTickets(winnerScore);
+
+  const { data: winnerUser } = await supabase
+    .from("users")
+    .select("username, first_name")
+    .eq("id", winnerId)
+    .maybeSingle();
+
+  const displayName = winnerUser?.first_name || `Player ${String(winnerId).slice(-4)}`;
+  const username = String(winnerUser?.username || "").trim();
+
+  const { error: insertError } = await supabase.from("daily_winners").insert({
+    contest_date: contestDate,
+    user_id: winnerId,
+    username,
+    display_name: displayName,
+    daily_score: winnerScore,
+    tickets: winnerTickets,
+    prize_amount: DAILY_PRIZE_AMOUNT,
+    prize_currency: "USD"
+  });
+
+  if (insertError) throw insertError;
+
+  await resetDailyContestForAll();
+
+  await logMetric("daily_lottery_winner", winnerTickets, `winner=${winnerId}`, {
+    userId: winnerId,
+    contestDate,
+    entries: bag.length
+  });
+
+  return {
+    ok: true,
+    contestDate,
+    winnerId,
+    winnerLabel: username ? `@${username}` : displayName,
+    tickets: winnerTickets,
+    entries: bag.length,
+    eligiblePlayers: eligible.length
+  };
 }
 
 async function getOrCreatePlayer(telegramUser, referrerId = "") {
@@ -2063,6 +2195,9 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
       ? rowFromGame(yourDailyGame, yourDailyRank, "dailyScore")
       : null;
 
+    const lastWinner = await getLatestDailyWinner();
+    const yourDailyScore = yourDailyGame ? number(yourDailyGame.daily_contest_score) : 0;
+
     res.json({
       top3,
       you,
@@ -2075,7 +2210,10 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
         top3: dailyTop3,
         you: dailyYou,
         yourRank: yourDailyRank || 0,
-        yourScore: yourDailyGame ? number(yourDailyGame.daily_contest_score) : 0
+        yourScore: yourDailyScore,
+        yourTickets: economy.computeTickets(yourDailyScore),
+        ticketProgress: economy.scoreProgressToNextTicket(yourDailyScore),
+        lastWinner
       }
     });
   } catch (error) {
@@ -2703,6 +2841,31 @@ async function sendPushMessage(telegramId, text) {
     return false;
   }
 }
+
+app.post("/api/cron/daily-lottery", async (req, res) => {
+  if (!requireCron(req, res)) return;
+
+  try {
+    const hourUtc = new Date().getUTCHours();
+    const force = Boolean(req.body.force);
+    const contestDate = String(req.body.contestDate || yesterdayKey());
+
+    if (!force && hourUtc !== 0) {
+      res.json({
+        ok: true,
+        skipped: true,
+        reason: "NOT_LOTTERY_HOUR",
+        hourUtc
+      });
+      return;
+    }
+
+    const result = await runDailyLottery(contestDate);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 app.post("/api/cron/daily-push", async (req, res) => {
   if (!requireCron(req, res)) return;

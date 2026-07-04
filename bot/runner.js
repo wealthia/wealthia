@@ -385,10 +385,49 @@ function startBotPolling() {
   setupBotProfile().finally(() => {
     poll();
     scheduleDailyPush();
+    scheduleDailyLottery();
   });
 }
 
 let lastDailyPushDate = "";
+let lastLotteryDate = "";
+
+async function runDailyLotteryCron() {
+  if (!CRON_SECRET) return;
+
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/cron/daily-lottery`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-cron-secret": CRON_SECRET
+      },
+      body: JSON.stringify({})
+    });
+
+    const result = await response.json();
+    if (result && result.winnerLabel) {
+      console.log(`Daily lottery winner for ${result.contestDate}: ${result.winnerLabel}`);
+    } else if (result && result.skipped) {
+      console.log("Daily lottery skipped:", result.reason || "unknown");
+    }
+  } catch (error) {
+    console.warn("Daily lottery cron failed:", error.message);
+  }
+}
+
+function scheduleDailyLottery() {
+  setInterval(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const hour = new Date().getUTCHours();
+    const minute = new Date().getUTCMinutes();
+
+    if (hour === 0 && minute === 0 && lastLotteryDate !== today) {
+      lastLotteryDate = today;
+      runDailyLotteryCron();
+    }
+  }, 60 * 1000);
+}
 
 async function runDailyPushCron() {
   if (!CRON_SECRET) return;

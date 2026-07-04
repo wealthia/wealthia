@@ -14,6 +14,7 @@ let dailyContestScore = 0;
 let dailyReferralCount = 0;
 let dailyReferralsRequired = 3;
 let dailyPrizeEligible = false;
+let dailyLastWinner = null;
 let tournamentData = null;
 let tournamentLeaderboard = [];
 let adsgramController = null;
@@ -26,6 +27,7 @@ let taskCountdownTimer = null;
 let lastGrandPrizeMilestone = 0;
 
 const TASK_REFRESH_MS = 12 * 60 * 60 * 1000;
+const TICKETS_PER_SCORE = 1000;
 
 const CONTEST_SEED_IDS = {
   Marcus: "contest_seed_1",
@@ -90,7 +92,13 @@ const defaultState = {
     date: "",
     resetsAt: "",
     minReferrals: 3,
-    eligible: false
+    eligible: false,
+    tickets: 0,
+    ticketProgress: {
+      current: 0,
+      target: TICKETS_PER_SCORE,
+      percent: 0
+    }
   },
   referrals: {
     count: 0,
@@ -428,6 +436,86 @@ function todayGainScore() {
   return serverScore;
 }
 
+function ticketCount() {
+  return Number(
+    state.tickets ??
+    state.dailyContest?.tickets ??
+    Math.floor(todayGainScore() / TICKETS_PER_SCORE)
+  );
+}
+
+function ticketProgress() {
+  const progress = state.ticketProgress || state.dailyContest?.ticketProgress;
+  if (progress && typeof progress.current === "number") {
+    return {
+      current: Number(progress.current),
+      target: Number(progress.target || TICKETS_PER_SCORE),
+      percent: Number(progress.percent || 0)
+    };
+  }
+
+  const score = todayGainScore();
+  const current = score % TICKETS_PER_SCORE;
+  return {
+    current,
+    target: TICKETS_PER_SCORE,
+    percent: Math.min(100, Math.round((current / TICKETS_PER_SCORE) * 100))
+  };
+}
+
+function renderTicketProgressHtml() {
+  const progress = ticketProgress();
+  const tickets = ticketCount();
+
+  return `
+    <div class="daily-prize__tickets">
+      <div class="daily-prize__tickets-head">
+        <strong class="daily-prize__tickets-label">Biletləriniz: &#127915; ${tickets}</strong>
+        <span class="daily-prize__tickets-next">${format(progress.current)} / ${format(progress.target)} xal</span>
+      </div>
+      <div class="daily-prize__ticket-progress" role="progressbar" aria-valuenow="${progress.percent}" aria-valuemin="0" aria-valuemax="100">
+        <span style="width:${progress.percent}%"></span>
+      </div>
+    </div>
+  `;
+}
+
+function renderDailyWinnerBannerHtml() {
+  if (!dailyLastWinner || !dailyLastWinner.label) return "";
+
+  return `
+    <article class="daily-winner-banner">
+      <span class="daily-winner-banner__icon">&#127942;</span>
+      <div class="daily-winner-banner__text">
+        <span class="daily-winner-banner__title">Dünənin $10 Qalibi</span>
+        <strong>${dailyLastWinner.label}</strong>
+      </div>
+    </article>
+  `;
+}
+
+function openRankRulesModal() {
+  const modal = document.getElementById("rankRulesModal");
+  if (!modal) return;
+  modal.hidden = false;
+}
+
+function closeRankRulesModal() {
+  const modal = document.getElementById("rankRulesModal");
+  if (!modal) return;
+  modal.hidden = true;
+}
+
+function bindRankRulesModal() {
+  const modal = document.getElementById("rankRulesModal");
+  if (!modal || modal.dataset.bound === "1") return;
+
+  modal.dataset.bound = "1";
+  modal.querySelectorAll("[data-close-rank-rules]").forEach((node) => {
+    node.addEventListener("click", closeRankRulesModal);
+  });
+}
+
 function updateFriendsInvitePanel(link = getInviteLink()) {
   const box = document.getElementById("friendsInviteLinkBox");
   const text = document.getElementById("friendsInviteLinkText");
@@ -476,6 +564,7 @@ function renderDailyPrizeCardHtml() {
         <span class="daily-prize__gain-label">Your today's score</span>
         <strong class="daily-prize__gain-value">+${format(score)}</strong>
       </div>
+      ${renderTicketProgressHtml()}
       ${eligible
     ? `<p class="daily-prize-card__boost-tip">Only players with 3+ invited friends can win. Use ⭐ boosts to climb.</p>`
     : `<p class="daily-prize-card__boost-tip">Invite 3 friends from the Friends tab to join today's Daily $10 Race.</p>`}
@@ -1575,10 +1664,14 @@ function renderRankPanel() {
 
   panel.innerHTML = `
     ${offlineBanner}
+    ${dailyMode ? renderDailyWinnerBannerHtml() : ""}
     ${renderCampaignRankCard()}
-    <div class="panel-head panel-head--rank">
-      <h2>${dailyMode ? "Daily Leaderboard" : "Global Leaderboard"}</h2>
-      <p>${dailyMode ? "Top players by today's gain" : "Top empire builders by city value"}</p>
+    <div class="panel-head panel-head--rank ${dailyMode ? "panel-head--rank-lottery" : ""}">
+      <div>
+        <h2>${dailyMode ? "Daily Leaderboard" : "Global Leaderboard"}</h2>
+        <p>${dailyMode ? "Top players by today's gain · 1,000 xal = 1 bilet" : "Top empire builders by city value"}</p>
+      </div>
+      ${dailyMode ? `<button class="rank-rules-btn" type="button" id="rankRulesBtn">Rules</button>` : ""}
     </div>
     <ol class="rank rank--compact">
       ${top3.map((row) => renderRankRow(
@@ -1596,6 +1689,13 @@ function renderRankPanel() {
       openPartnerLink(channelButton.dataset.channel || "");
     });
   }
+
+  const rulesButton = document.getElementById("rankRulesBtn");
+  if (rulesButton) {
+    rulesButton.addEventListener("click", openRankRulesModal);
+  }
+
+  bindRankRulesModal();
 }
 
 function updateCityVisuals() {
@@ -1971,12 +2071,24 @@ function syncFromBackend(user) {
       date: game.dailyContest.date || "",
       resetsAt: game.dailyContest.resetsAt || "",
       minReferrals: Number(game.dailyContest.minReferrals || 3),
-      eligible: Boolean(game.dailyContest.eligible)
+      eligible: Boolean(game.dailyContest.eligible),
+      tickets: Number(game.dailyContest.tickets || game.tickets || 0),
+      ticketProgress: game.dailyContest.ticketProgress || game.ticketProgress || null
     };
     dailyContestScore = Number(game.dailyContest.score || game.dailyScore || 0);
     dailyContestResetsAt = game.dailyContest.resetsAt || "";
     dailyReferralsRequired = Number(game.dailyContest.minReferrals || 3);
     dailyPrizeEligible = Boolean(game.dailyContest.eligible);
+    state.tickets = Number(game.tickets || game.dailyContest.tickets || 0);
+    state.ticketProgress = state.dailyContest.ticketProgress;
+  }
+
+  if (typeof game.tickets === "number") {
+    state.tickets = Number(game.tickets);
+  }
+
+  if (game.ticketProgress) {
+    state.ticketProgress = game.ticketProgress;
   }
 
   if (game.referrals) {
@@ -2330,9 +2442,18 @@ async function loadLeaderboard() {
   dailyReferralsRequired = Number(result.daily?.minReferrals || 3);
   dailyReferralCount = Number(result.daily?.yourReferrals || state.referrals?.count || 0);
   dailyPrizeEligible = Boolean(result.daily?.eligible);
+  dailyLastWinner = result.daily?.lastWinner || null;
   if (typeof result.daily?.yourScore === "number") {
     dailyContestScore = result.daily.yourScore;
     if (state.dailyContest) state.dailyContest.score = result.daily.yourScore;
+  }
+  if (typeof result.daily?.yourTickets === "number") {
+    state.tickets = result.daily.yourTickets;
+    if (state.dailyContest) state.dailyContest.tickets = result.daily.yourTickets;
+  }
+  if (result.daily?.ticketProgress) {
+    state.ticketProgress = result.daily.ticketProgress;
+    if (state.dailyContest) state.dailyContest.ticketProgress = result.daily.ticketProgress;
   }
 
   renderRankPanel();

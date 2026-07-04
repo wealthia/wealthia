@@ -53,6 +53,17 @@ function computeTickets(dailyScore) {
   return Math.floor(number(dailyScore) / TICKETS_PER_SCORE);
 }
 
+function scoreProgressToNextTicket(dailyScore) {
+  const score = number(dailyScore);
+  const current = score % TICKETS_PER_SCORE;
+
+  return {
+    current,
+    target: TICKETS_PER_SCORE,
+    percent: Math.min(100, Math.round((current / TICKETS_PER_SCORE) * 100))
+  };
+}
+
 function upgradeCost(building, level) {
   const base = UPGRADE_BASES[building] || 50;
   return Math.floor(base * Math.pow(UPGRADE_GROWTH, Math.max(0, number(level) - 1)));
@@ -173,6 +184,7 @@ module.exports = {
   factoryEnergyRegenPerSecond,
   maxEnergy,
   nextUpgradeCost,
+  scoreProgressToNextTicket,
   tapValue,
   totalHourlyProfit,
   upgradeCost
