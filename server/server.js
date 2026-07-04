@@ -2680,6 +2680,7 @@ app.post(
 
     res.json({
       ok: true,
+      success: true,
       winnerSliceId: prize.segmentIndex,
       prize: premiumSpinSecurity.sanitizePremiumSpinPrize(prize),
       user: toClientUser(saved)
