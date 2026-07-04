@@ -33,7 +33,6 @@ let premiumWheelLoadingTimer = null;
 const PREMIUM_SPIN_STARS = Number((CONFIG.STAR_PRICES && CONFIG.STAR_PRICES.premium_spin) || 1);
 const PREMIUM_WHEEL_DECEL_MS = 4500;
 const PREMIUM_WHEEL_LOADING_DEG_PER_MS = 0.72;
-const ADMIN_TELEGRAM_ID = String(CONFIG.ADMIN_TELEGRAM_ID || "1988089728");
 const SUPPORT_TELEGRAM_URL = CONFIG.SUPPORT_TELEGRAM_URL || "https://t.me/WealthiaGameBot";
 
 const TASK_REFRESH_MS = 12 * 60 * 60 * 1000;
@@ -1166,9 +1165,7 @@ function openPremiumSpinOverlay() {
 
   const spinButton = document.getElementById("premiumWheelSpinButton");
   if (spinButton) {
-    spinButton.textContent = isPremiumSpinAdminUser()
-      ? "SPIN (FREE TEST)"
-      : `SPIN (${PREMIUM_SPIN_STARS} ⭐)`;
+    spinButton.textContent = `SPIN (${PREMIUM_SPIN_STARS} ⭐)`;
   }
 }
 
@@ -1279,9 +1276,7 @@ async function executePremiumSpin() {
   const { ok, result, status } = await apiPostSecure("/api/premium-spin");
   if (!ok || !result || !result.prize) {
     if (result && result.error === "NO_PAYMENT") {
-      showToast(isPremiumSpinAdminUser()
-        ? "Admin spin failed. Deploy backend and open via Telegram."
-        : "Payment not confirmed by Telegram yet. Try again.");
+      showToast("Payment not confirmed by Telegram yet. Try again.");
     } else if (result && result.error === "PAYMENT_NOT_SETTLED") {
       showToast("Payment not confirmed by Telegram yet. Try again.");
     } else if (status === 401) {
@@ -1300,13 +1295,6 @@ async function executePremiumSpin() {
 
   await applyBackendUser(result.user);
   return result;
-}
-
-function isPremiumSpinAdminUser() {
-  const user = getTelegramUser();
-  const telegramId = String(user?.id || "");
-  const playerId = String(backendUserId || "");
-  return telegramId === ADMIN_TELEGRAM_ID || playerId === ADMIN_TELEGRAM_ID;
 }
 
 async function finishPremiumSpinResult(spinResult) {
@@ -1363,11 +1351,6 @@ async function startPremiumSpinPurchase() {
 
   if (!(await ensureBackend())) {
     showToast("Server not connected. Tap Retry at top.");
-    return;
-  }
-
-  if (isPremiumSpinAdminUser()) {
-    await runPremiumSpinFlow();
     return;
   }
 
