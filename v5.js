@@ -30,7 +30,9 @@ let premiumWheelRotation = 0;
 let premiumSpinBusy = false;
 let premiumWheelLoadingTimer = null;
 
-const PREMIUM_SPIN_STARS = Number((CONFIG.STAR_PRICES && CONFIG.STAR_PRICES.premium_spin) || 50);
+const PREMIUM_SPIN_STARS = Number((CONFIG.STAR_PRICES && CONFIG.STAR_PRICES.premium_spin) || 1);
+const PREMIUM_WHEEL_DECEL_MS = 4500;
+const PREMIUM_WHEEL_LOADING_DEG_PER_MS = 0.72;
 const ADMIN_TELEGRAM_ID = String(CONFIG.ADMIN_TELEGRAM_ID || "1988089728");
 const SUPPORT_TELEGRAM_URL = CONFIG.SUPPORT_TELEGRAM_URL || "https://t.me/WealthiaGameBot";
 
@@ -1101,7 +1103,7 @@ function animatePremiumWheelToSegment(segmentIndex) {
     void disc.offsetHeight;
 
     disc.classList.add("is-spinning");
-    disc.style.transition = "";
+    disc.style.transition = `transform ${PREMIUM_WHEEL_DECEL_MS}ms ease-out`;
 
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -1111,9 +1113,10 @@ function animatePremiumWheelToSegment(segmentIndex) {
 
     window.setTimeout(() => {
       disc.classList.remove("is-spinning");
+      disc.style.transition = "";
       premiumWheelRotation = finalRotation;
       resolve();
-    }, 3000);
+    }, PREMIUM_WHEEL_DECEL_MS);
   });
 }
 
@@ -1130,7 +1133,7 @@ function startPremiumWheelLoadingSpin() {
     const now = performance.now();
     const elapsed = now - lastTick;
     lastTick = now;
-    premiumWheelRotation += elapsed * 0.45;
+    premiumWheelRotation += elapsed * PREMIUM_WHEEL_LOADING_DEG_PER_MS;
     disc.style.transform = `rotate(${premiumWheelRotation}deg)`;
   }, 16);
 }
@@ -1278,7 +1281,9 @@ async function executePremiumSpin() {
     if (result && result.error === "NO_PAYMENT") {
       showToast(isPremiumSpinAdminUser()
         ? "Admin spin failed. Deploy backend and open via Telegram."
-        : "Payment not ready yet. Try again.");
+        : "Payment not confirmed by Telegram yet. Try again.");
+    } else if (result && result.error === "PAYMENT_NOT_SETTLED") {
+      showToast("Payment not confirmed by Telegram yet. Try again.");
     } else if (status === 401) {
       showToast("Session expired. Reopen the game from the bot.");
     } else if (status === 403) {
@@ -1321,6 +1326,17 @@ async function finishPremiumSpinResult(spinResult) {
   }
 }
 
+async function isPremiumSpinPaymentReady() {
+  const { ok, result } = await apiPostSecure("/api/premium-spin/status");
+  return Boolean(
+    ok &&
+    result &&
+    result.ready &&
+    result.telegramConfirmed &&
+    result.chargeId
+  );
+}
+
 async function runPremiumSpinFlow() {
   const spinButton = document.getElementById("premiumWheelSpinButton");
   premiumSpinBusy = true;
@@ -1351,6 +1367,11 @@ async function startPremiumSpinPurchase() {
   }
 
   if (isPremiumSpinAdminUser()) {
+    await runPremiumSpinFlow();
+    return;
+  }
+
+  if (await isPremiumSpinPaymentReady()) {
     await runPremiumSpinFlow();
     return;
   }
@@ -1387,30 +1408,15 @@ async function startPremiumSpinPurchase() {
         return;
       }
 
-      startPremiumWheelLoadingSpin();
-
       const ready = await waitForPremiumSpinPayment();
       if (!ready) {
-        stopPremiumWheelLoadingSpin();
         showToast("Payment not confirmed by Telegram yet. Please wait and try again.");
         premiumSpinBusy = false;
         if (spinButton) spinButton.disabled = false;
         return;
       }
 
-      const spinResult = await executePremiumSpin();
-      if (!spinResult) {
-        stopPremiumWheelLoadingSpin();
-        premiumSpinBusy = false;
-        if (spinButton) spinButton.disabled = false;
-        return;
-      }
-
-      await finishPremiumSpinResult(spinResult);
-
-      stopPremiumWheelLoadingSpin();
-      premiumSpinBusy = false;
-      if (spinButton) spinButton.disabled = false;
+      await runPremiumSpinFlow();
     });
   } catch {
     showToast("Premium spin failed.");
