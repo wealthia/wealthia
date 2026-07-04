@@ -35,7 +35,6 @@ app.use(ipRateLimit);
 const MAX_ENERGY = economy.DEFAULT_MAX_ENERGY;
 const TASK_REFRESH_MS = 12 * 60 * 60 * 1000;
 const TASKS_PER_CYCLE = 4;
-const SOCIAL_FOLLOW_X_URL = process.env.SOCIAL_FOLLOW_X_URL || "https://x.com/WealthiaGame";
 const SOCIAL_JOIN_TELEGRAM_URL =
   process.env.SOCIAL_JOIN_TELEGRAM_URL || "https://t.me/weathia_official";
 const BOOST_DURATION_MS = 30 * 60 * 1000;
@@ -723,19 +722,14 @@ function buildDailyTasks(row) {
     picked.push(pool[(start + i) % pool.length]);
   }
 
-  const socialTasks = [
-    {
-      id: "social-follow-x",
-      title: "Follow X Account",
-      type: "social",
-      action: "follow_x",
-      url: SOCIAL_FOLLOW_X_URL,
-      target: 1,
-      reward: 120 + level * 10
-    },
+  return [...buildSocialTasks(level), ...picked];
+}
+
+function buildSocialTasks(level) {
+  return [
     {
       id: "social-join-telegram",
-      title: "Join Telegram Group",
+      title: "Join Telegram Channel",
       type: "social",
       action: "join_telegram",
       url: SOCIAL_JOIN_TELEGRAM_URL,
@@ -743,8 +737,27 @@ function buildDailyTasks(row) {
       reward: 120 + level * 10
     }
   ];
+}
 
-  return [...socialTasks, ...picked];
+function ensureSocialTasks(row) {
+  const level = Math.max(
+    1,
+    number(row.shop_level) + number(row.bank_level) + number(row.factory_level)
+  );
+  const socialTasks = buildSocialTasks(level);
+  const rawTasks = safeJson(row.daily_tasks_json, []);
+  const currentTasks = Array.isArray(rawTasks)
+    ? rawTasks.filter((task) => task && task.id !== "social-follow-x")
+    : [];
+  const existingIds = new Set(currentTasks.map((task) => task.id));
+  const missing = socialTasks.filter((task) => !existingIds.has(task.id));
+
+  if (missing.length === 0 && currentTasks.length === rawTasks.length) {
+    return row;
+  }
+
+  row.daily_tasks_json = [...missing, ...currentTasks];
+  return row;
 }
 
 function taskProgress(row, task) {
@@ -772,7 +785,7 @@ function refreshDailyTasks(row) {
     currentTasks.length === 0;
 
   if (!mustCreateTasks) {
-    return row;
+    return ensureSocialTasks(row);
   }
 
   row.daily_tasks_date = cycleKey;

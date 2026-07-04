@@ -880,11 +880,7 @@ function renderDailyTaskCard(task) {
       : ready
         ? "Ready to claim"
         : "Progress";
-  const icon = isSocial
-    ? task.action === "follow_x"
-      ? "&#120143;"
-      : "&#128172;"
-    : "&#127873;";
+  const icon = isSocial ? "&#128172;" : "&#127873;";
 
   return `
     <button
