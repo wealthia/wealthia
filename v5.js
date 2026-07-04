@@ -470,8 +470,8 @@ function renderTicketProgressHtml() {
   return `
     <div class="daily-prize__tickets">
       <div class="daily-prize__tickets-head">
-        <strong class="daily-prize__tickets-label">Biletləriniz: &#127915; ${tickets}</strong>
-        <span class="daily-prize__tickets-next">${format(progress.current)} / ${format(progress.target)} xal</span>
+        <strong class="daily-prize__tickets-label">Your Tickets: &#127915; ${tickets}</strong>
+        <span class="daily-prize__tickets-next">Next ticket at: ${format(progress.current)} / ${format(progress.target)} points</span>
       </div>
       <div class="daily-prize__ticket-progress" role="progressbar" aria-valuenow="${progress.percent}" aria-valuemin="0" aria-valuemax="100">
         <span style="width:${progress.percent}%"></span>
@@ -487,8 +487,7 @@ function renderDailyWinnerBannerHtml() {
     <article class="daily-winner-banner">
       <span class="daily-winner-banner__icon">&#127942;</span>
       <div class="daily-winner-banner__text">
-        <span class="daily-winner-banner__title">Dünənin $10 Qalibi</span>
-        <strong>${dailyLastWinner.label}</strong>
+        <strong>&#127942; Yesterday's $10 Winner: ${dailyLastWinner.label}</strong>
       </div>
     </article>
   `;
@@ -531,14 +530,14 @@ async function shareInviteLink() {
     const copied = await copyTextToClipboard(link);
     updateFriendsInvitePanel(link);
     if (copied) {
-      showToast("Link kopyalandı! 📋");
+      showToast("Invite link copied to clipboard! 📋");
     } else {
       updateFriendsInvitePanel(link);
-      showToast("Linki aşağıdan kopyalayın.");
+      showToast("Copy the invite link below.");
     }
   } catch {
     updateFriendsInvitePanel(link);
-    showToast("Linki aşağıdan kopyalayın.");
+    showToast("Copy the invite link below.");
   }
 }
 
@@ -1422,7 +1421,7 @@ function renderFriendsPanel() {
         <span style="width:${progressPct}%"></span>
       </div>
       ${eligible
-    ? `<p class="friends-progress-card__qualified">&#127881; Təbriklər! Yarışa vəsiqə qazandın. Bilet yığmağa davam et!</p>`
+    ? `<p class="friends-progress-card__qualified">&#127881; Congratulations! You have qualified for the Daily Race. Keep earning tickets to boost your chances!</p>`
     : `<p class="friends-progress-card__hint">Invite ${Math.max(0, required - referrals)} more friend(s) to unlock the $10 contest.</p>`}
     </article>
 
@@ -1669,7 +1668,7 @@ function renderRankPanel() {
     <div class="panel-head panel-head--rank ${dailyMode ? "panel-head--rank-lottery" : ""}">
       <div>
         <h2>${dailyMode ? "Daily Leaderboard" : "Global Leaderboard"}</h2>
-        <p>${dailyMode ? "Top players by today's gain · 1,000 xal = 1 bilet" : "Top empire builders by city value"}</p>
+        <p>${dailyMode ? "Top players by today's gain · 1 ticket per 1,000 points" : "Top empire builders by city value"}</p>
       </div>
       ${dailyMode ? `<button class="rank-rules-btn" type="button" id="rankRulesBtn">Rules</button>` : ""}
     </div>
@@ -1912,12 +1911,22 @@ function showOfflineModal(payload, autoUpgrades = []) {
   const list = document.getElementById("offlineModalUpgrades");
   if (!modal || !text) return;
 
+  text.innerHTML = "";
+
   if (cashAdded > 0) {
-    text.textContent = `While you were away, your buildings earned +${format(cashAdded)} coins!`;
+    text.innerHTML = `While you were away, your city and managers earned you:<br><strong>+${format(cashAdded)} Wealth Coins</strong>`;
   } else if (gross > 0) {
-    text.textContent = "While you were away, your empire kept growing.";
+    text.textContent = "While you were away, your city and managers kept earning for you.";
   } else {
-    text.textContent = "Auto-Buy upgraded your city while you were away.";
+    text.textContent = "While you were away, your Bank worked on your city.";
+  }
+
+  if (upgrades.length) {
+    const upgradeNote = document.createElement("p");
+    upgradeNote.className = "offline-modal__auto-note";
+    upgradeNote.textContent =
+      "Your Bank also auto-upgraded your lowest buildings to increase your passive income!";
+    text.appendChild(upgradeNote);
   }
 
   if (list) {
@@ -3046,6 +3055,7 @@ function bootApp() {
   setupOfflineModal();
   setupTapControls();
   startContestSeedRefresh();
+  bindRankRulesModal();
 
   if (els.syncRetryButton) {
     els.syncRetryButton.addEventListener("click", () => {

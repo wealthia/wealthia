@@ -2581,6 +2581,14 @@ button.completed strong {
   cursor: pointer;
 }
 
+.offline-modal__auto-note {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+  font-style: italic;
+}
+
 .rules-modal {
   position: fixed;
   inset: 0;
