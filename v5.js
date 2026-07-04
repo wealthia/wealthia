@@ -459,7 +459,7 @@ function renderDailyPrizeCardHtml() {
       </div>
       ${eligible
     ? `<p class="daily-prize-card__boost-tip">Only players with 3+ invited friends can win. Use ⭐ boosts to climb.</p>`
-    : `<p class="daily-prize-card__boost-tip">Invite 3 friends from the Friends tab to join today's $10 race.</p>`}
+    : `<p class="daily-prize-card__boost-tip">Invite 3 friends from the Friends tab to join today's Daily $10 Race.</p>`}
       ${prize.channelUrl ? `<button class="grand-prize-card__channel" type="button" data-channel="${prize.channelUrl}">Winner will be announced on the Telegram channel</button>` : ""}
     </article>
   `;
@@ -1213,7 +1213,7 @@ function renderFriendsPanel() {
 
     <article class="friends-progress-card">
       <div class="friends-progress-card__head">
-        <span>⚡ $10 Daily Race</span>
+        <span>⚡ Daily $10 Race</span>
         <strong>${timeLeft}</strong>
       </div>
       <div class="friends-progress" role="progressbar" aria-valuenow="${progressPct}" aria-valuemin="0" aria-valuemax="100">
@@ -1227,7 +1227,7 @@ function renderFriendsPanel() {
     <article class="friends-tips">
       <p><strong>1.</strong> Send your link to friends in Telegram</p>
       <p><strong>2.</strong> They open the game — you get +500 coins each</p>
-      <p><strong>3.</strong> 3 friends unlocks the $10 Daily Race</p>
+      <p><strong>3.</strong> 3 friends unlocks the Daily $10 Race</p>
     </article>
   `;
 
