@@ -150,12 +150,47 @@ function authFailureReason(req) {
   return diagnosis.ok ? null : diagnosis.reason;
 }
 
+function requireVerifiedTelegramPlayer(req, res, next) {
+  const userId = verifyToken(bearerTokenFromRequest(req));
+  if (!userId) {
+    res.status(401).json({ error: "SESSION_EXPIRED" });
+    return;
+  }
+
+  const initData = String(req.body.initData || "");
+  const botToken = process.env.TELEGRAM_BOT_TOKEN || "";
+  const diagnosis = diagnoseTelegramAuth(initData, botToken);
+
+  if (!diagnosis.ok) {
+    res.status(403).json({
+      error: "TELEGRAM_AUTH_FAILED",
+      reason: diagnosis.reason || "INIT_DATA_INVALID"
+    });
+    return;
+  }
+
+  if (String(diagnosis.user.id) !== String(userId)) {
+    res.status(403).json({ error: "TELEGRAM_USER_MISMATCH" });
+    return;
+  }
+
+  if (Boolean(diagnosis.user.is_bot)) {
+    res.status(403).json({ error: "BOTS_NOT_ALLOWED" });
+    return;
+  }
+
+  req.playerId = userId;
+  req.telegramUser = diagnosis.user;
+  next();
+}
+
 module.exports = {
   SESSION_TTL_MS,
   authFailureReason,
   bearerTokenFromRequest,
   createSessionToken,
   diagnoseTelegramAuth,
+  requireVerifiedTelegramPlayer,
   resolveTelegramUser,
   verifyToken
 };

@@ -260,11 +260,21 @@ async function handleSuccessfulPayment(message) {
     return;
   }
 
+  const chargeId = String(payment.telegram_payment_charge_id || "").trim();
+  if (!chargeId || chargeId.length < 8) {
+    console.warn("STARS_PAYMENT_INVALID_CHARGE_ID:", telegramId, parsed.productId);
+    await api("sendMessage", {
+      chat_id: chatId,
+      text: "Payment received, but charge verification failed. Contact support."
+    });
+    return;
+  }
+
   try {
     await fulfillStarPayment(
       parsed.userId,
       parsed.productId,
-      payment.telegram_payment_charge_id,
+      chargeId,
       expectedStars,
       payment.invoice_payload
     );

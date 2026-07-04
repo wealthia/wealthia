@@ -5,6 +5,7 @@ const {
   authFailureReason,
   bearerTokenFromRequest,
   createSessionToken,
+  requireVerifiedTelegramPlayer,
   resolveTelegramUser,
   verifyToken
 } = require("./auth");
@@ -15,6 +16,7 @@ const {
 } = require("./contest-seeds");
 const systemBots = require("./system-bots");
 const premiumSpin = require("./premium-spin");
+const premiumSpinSecurity = require("./premium-spin-security");
 const economy = require("./economy");
 
 const app = express();
@@ -1929,6 +1931,16 @@ app.post("/api/stars/fulfill", async (req, res) => {
       .maybeSingle();
 
     if (existing) {
+      if (productId === "premium_spin") {
+        await premiumSpinSecurity.logFraudEvent(supabase, {
+          userId,
+          eventType: "REPLAY_CHARGE_ID",
+          detail: `charge_id=${chargeId}`
+        });
+        res.status(409).json({ error: "FRAUD_REPLAY", duplicate: true });
+        return;
+      }
+
       const row = await loadGame(userId);
       res.json({ ok: true, duplicate: true, user: toClientUser(row) });
       return;
@@ -2021,7 +2033,11 @@ app.post("/api/casino-spin", requirePlayer, async (req, res) => {
   }
 });
 
-app.post("/api/premium-spin/status", requirePlayer, async (req, res) => {
+app.post(
+  "/api/premium-spin/status",
+  requireVerifiedTelegramPlayer,
+  premiumSpinSecurity.premiumSpinRateLimit,
+  async (req, res) => {
   try {
     const userId = req.playerId;
     const telegramId = await getPlayerTelegramId(userId);
@@ -2029,23 +2045,45 @@ app.post("/api/premium-spin/status", requirePlayer, async (req, res) => {
     const payment = adminBypass
       ? null
       : await premiumSpin.findPendingPremiumPayment(supabase, userId);
-    const globalSpins = await premiumSpin.getGlobalPremiumSpins(supabase);
 
     res.json({
       ok: true,
       ready: adminBypass || Boolean(payment),
-      adminBypass,
-      globalSpins,
-      segments: premiumSpin.PRIZE_SEGMENTS
+      adminBypass
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.post("/api/premium-spin", requirePlayer, async (req, res) => {
+app.post(
+  "/api/premium-spin",
+  requireVerifiedTelegramPlayer,
+  premiumSpinSecurity.premiumSpinRateLimit,
+  async (req, res) => {
   try {
     const userId = req.playerId;
+
+    if (
+      req.body.prize ||
+      req.body.segmentIndex !== undefined ||
+      req.body.prizeId ||
+      req.body.chargeId
+    ) {
+      await premiumSpinSecurity.logFraudEvent(supabase, {
+        userId,
+        eventType: "REQUEST_TAMPER",
+        detail: JSON.stringify({
+          prize: req.body.prize,
+          segmentIndex: req.body.segmentIndex,
+          prizeId: req.body.prizeId,
+          chargeId: req.body.chargeId
+        }).slice(0, 500)
+      });
+      res.status(403).json({ error: "FORBIDDEN" });
+      return;
+    }
+
     const { data: buyer, error: buyerError } = await supabase
       .from("users")
       .select("first_name, username, telegram_id")
@@ -2065,18 +2103,35 @@ app.post("/api/premium-spin", requirePlayer, async (req, res) => {
         return;
       }
 
+      if (number(payment.stars_amount) !== premiumSpin.PREMIUM_SPIN_STARS) {
+        await premiumSpinSecurity.logFraudEvent(supabase, {
+          userId,
+          eventType: "INVALID_PAYMENT_AMOUNT",
+          detail: `payment_id=${payment.id}`
+        });
+        res.status(403).json({ error: "INVALID_PAYMENT" });
+        return;
+      }
+
       const now = new Date().toISOString();
       const { data: consumed, error: consumeError } = await supabase
         .from("star_payments")
         .update({ consumed_at: now })
         .eq("id", payment.id)
+        .eq("user_id", userId)
+        .eq("product_id", "premium_spin")
         .is("consumed_at", null)
         .select("id")
         .maybeSingle();
 
       if (consumeError) throw consumeError;
       if (!consumed) {
-        res.status(409).json({ error: "PAYMENT_ALREADY_USED" });
+        await premiumSpinSecurity.logFraudEvent(supabase, {
+          userId,
+          eventType: "PAYMENT_REPLAY_RACE",
+          detail: `payment_id=${payment.id}`
+        });
+        res.status(409).json({ error: "FRAUD_REPLAY" });
         return;
       }
     }
@@ -2118,12 +2173,7 @@ app.post("/api/premium-spin", requirePlayer, async (req, res) => {
 
     res.json({
       ok: true,
-      prize: premiumSpin.formatPrizeResult(prize, {
-        cashPrize: prize.type === "cash",
-        adminBypass
-      }),
-      globalSpins,
-      adminBypass,
+      prize: premiumSpinSecurity.sanitizePremiumSpinPrize(prize),
       user: toClientUser(saved)
     });
   } catch (error) {

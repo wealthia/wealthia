@@ -1191,7 +1191,7 @@ function bindPremiumSpinUi() {
 
 async function waitForPremiumSpinPayment(attempts = 25) {
   for (let i = 0; i < attempts; i += 1) {
-    const { ok, result } = await apiPost("/api/premium-spin/status");
+    const { ok, result } = await apiPostSecure("/api/premium-spin/status");
     if (ok && result && result.ready) return true;
     await sleep(800);
   }
@@ -1201,14 +1201,14 @@ async function waitForPremiumSpinPayment(attempts = 25) {
 function premiumSpinResultMessage(prize) {
   if (!prize) return "Premium spin complete!";
   if (prize.type === "none") return "";
-  if (prize.type === "cash") return `You won ${prize.label}!`;
+  if (prize.type === "cash") return `You won $${Number(prize.amount || 0)}!`;
   if (prize.type === "boost") return "2x Income Boost active for 30 minutes!";
-  if (prize.type === "coins") return "You won 500 Coins!";
-  return `You won ${prize.label}!`;
+  if (prize.type === "coins") return `You won ${Number(prize.amount || 500)} Coins!`;
+  return "Premium spin complete!";
 }
 
 async function executePremiumSpin() {
-  const { ok, result, status } = await apiPost("/api/premium-spin");
+  const { ok, result, status } = await apiPostSecure("/api/premium-spin");
   if (!ok || !result || !result.prize) {
     if (result && result.error === "NO_PAYMENT") {
       showToast(isPremiumSpinAdminUser()
@@ -1216,6 +1216,12 @@ async function executePremiumSpin() {
         : "Payment not ready yet. Try again.");
     } else if (status === 401) {
       showToast("Session expired. Reopen the game from the bot.");
+    } else if (status === 403) {
+      showToast("Telegram verification failed. Reopen from @WealthiaGameBot.");
+    } else if (status === 429) {
+      showToast("Too fast. Wait a second before spinning again.");
+    } else if (status === 409 && result?.error === "FRAUD_REPLAY") {
+      showToast("This payment was already used.");
     } else {
       showToast(result?.error ? `Spin failed: ${result.error}` : "Premium spin failed.");
     }
@@ -2708,6 +2714,22 @@ async function apiPost(path, body = {}) {
   } catch {
     return { ok: false, status: 0, result: null };
   }
+}
+
+async function apiPostSecure(path, body = {}) {
+  const initData = getTelegramInitData();
+  if (!initData) {
+    return {
+      ok: false,
+      status: 403,
+      result: { error: "TELEGRAM_AUTH_FAILED", reason: "INIT_DATA_MISSING" }
+    };
+  }
+
+  return apiPost(path, {
+    ...body,
+    initData
+  });
 }
 
 async function applyBackendUser(user, message) {
