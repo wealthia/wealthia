@@ -374,15 +374,18 @@ function mergeDailyLeaderboardRows(today, dailyEligibleRows, realDailyScores, yo
 
   merged.sort((a, b) => number(b.daily_contest_score) - number(a.daily_contest_score));
 
-  const unique = [];
-  const seen = new Set();
+  const byUser = new Map();
   for (const row of merged) {
-    if (seen.has(row.user_id)) continue;
-    seen.add(row.user_id);
-    unique.push(row);
+    const id = row.user_id;
+    const existing = byUser.get(id);
+    if (!existing || number(row.daily_contest_score) > number(existing.daily_contest_score)) {
+      byUser.set(id, row);
+    }
   }
 
-  return unique;
+  return Array.from(byUser.values()).sort(
+    (a, b) => number(b.daily_contest_score) - number(a.daily_contest_score)
+  );
 }
 
 function syncDailyContest(row) {

@@ -451,7 +451,11 @@ function renderDailyPrizeCardHtml() {
       <div class="grand-prize-card__head">
         <span class="grand-prize__badge">⚡ ${prize.title}</span>
         <h3>${symbol}${format(prize.prize)} · 3 friends required</h3>
-        <p>${timeLeft} left · Friends: ${referrals}/${required}${eligible ? ` · You: +${format(score)} today` : " · Not qualified yet"}</p>
+        <p>${timeLeft} left · Friends: ${referrals}/${required}${eligible ? " · Qualified" : " · Not qualified yet"}</p>
+      </div>
+      <div class="daily-prize__gain-box">
+        <span class="daily-prize__gain-label">Your today's score</span>
+        <strong class="daily-prize__gain-value">+${format(score)}</strong>
       </div>
       ${eligible
     ? `<p class="daily-prize-card__boost-tip">Only players with 3+ invited friends can win. Use ⭐ boosts to climb.</p>`
@@ -1137,6 +1141,35 @@ function getContestSeedPreview() {
     .map((row, index) => ({ ...row, rank: index + 1, isYou: false }));
 }
 
+const CONTEST_SEED_REFRESH_MS = 20 * 60 * 1000;
+let contestSeedRefreshTimer = null;
+
+function enrichContestSeedScores(candidates) {
+  const previewById = new Map(
+    getContestSeedPreview().map((row) => [row.userId, row.dailyScore])
+  );
+
+  return candidates.map((row) => {
+    const seedId = row.userId || CONTEST_SEED_IDS[row.name];
+    if (!seedId || !previewById.has(seedId)) return row;
+
+    return {
+      ...row,
+      userId: seedId,
+      dailyScore: Math.max(Number(row.dailyScore || 0), Number(previewById.get(seedId) || 0))
+    };
+  });
+}
+
+function startContestSeedRefresh() {
+  if (contestSeedRefreshTimer || !getDailyPrizeConfig()) return;
+
+  contestSeedRefreshTimer = window.setInterval(() => {
+    renderRankPanel();
+    renderCampaignBanner();
+  }, CONTEST_SEED_REFRESH_MS);
+}
+
 function renderFriendsPanel() {
   const panel = els.friendsPanel;
   if (!panel) return;
@@ -1350,16 +1383,18 @@ function buildDailyLeaderboardView() {
     for (const seed of getContestSeedPreview()) addCandidate(seed);
   }
 
-  const youRow = candidates.find((row) => row.isYou);
+  let merged = enrichContestSeedScores(candidates);
+
+  const youRow = merged.find((row) => row.isYou);
   if (youRow) {
     youRow.dailyScore = Math.max(youRow.dailyScore, yourScore);
   } else {
-    addCandidate({ name: "You", dailyScore: yourScore, isYou: true });
+    merged.push({ name: "You", dailyScore: yourScore, isYou: true });
   }
 
-  candidates.sort((a, b) => Number(b.dailyScore || 0) - Number(a.dailyScore || 0));
+  merged.sort((a, b) => Number(b.dailyScore || 0) - Number(a.dailyScore || 0));
 
-  const ranked = candidates.map((row, index) => ({
+  const ranked = merged.map((row, index) => ({
     ...row,
     rank: index + 1
   }));
@@ -2645,6 +2680,7 @@ function bootApp() {
   initAdsGram();
   setupOnboarding();
   setupTapControls();
+  startContestSeedRefresh();
 
   if (els.syncRetryButton) {
     els.syncRetryButton.addEventListener("click", () => {
