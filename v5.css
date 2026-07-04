@@ -1014,6 +1014,34 @@ p {
   color: #fff4d0;
 }
 
+.daily-winner-banner--list-top {
+  margin-bottom: 8px;
+  border-width: 2px;
+  border-color: rgba(255, 214, 102, 0.75);
+  background: linear-gradient(145deg, rgba(255, 214, 102, 0.28), rgba(24, 18, 8, 0.96));
+  box-shadow:
+    0 0 28px rgba(245, 196, 81, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  animation: daily-winner-glow 2.5s ease-in-out infinite;
+}
+
+@keyframes daily-winner-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(245, 196, 81, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  50% {
+    box-shadow: 0 0 34px rgba(245, 196, 81, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  }
+}
+
+.rank__tickets {
+  color: var(--gold-light);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 .daily-prize__tickets {
   margin-top: 10px;
   display: grid;
