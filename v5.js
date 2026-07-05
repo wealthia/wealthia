@@ -138,6 +138,7 @@ const els = {
   factoryCost: document.getElementById("factoryCost"),
   casinoCardDesc: document.getElementById("casinoCardDesc"),
   casinoCost: document.getElementById("casinoCost"),
+  casinoSpinMount: document.getElementById("casinoSpinMount"),
   premiumSpinMount: document.getElementById("premiumSpinMount"),
   premiumSpinCard: null,
   premiumSpinOpenButton: null,
@@ -990,7 +991,7 @@ function ensureCasinoSpinCard() {
 
   if (els.casinoSpinCard) return;
 
-  const mount = els.casinoSpinMount || document.getElementById("casinoCard");
+  const mount = els.casinoSpinMount;
   if (!mount) return;
 
   const card = document.createElement("article");
@@ -1007,7 +1008,7 @@ function ensureCasinoSpinCard() {
     </button>
   `;
 
-  mount.insertAdjacentElement("beforebegin", card);
+  mount.appendChild(card);
 
   els.casinoSpinCard = card;
   els.casinoSpinHint = card.querySelector("#casinoSpinHint");

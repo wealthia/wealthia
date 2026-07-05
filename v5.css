@@ -624,31 +624,72 @@ p {
 }
 
 .app.view-city #cityPanel.panel.active {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-  gap: 8px;
-  align-content: start;
+  overflow: hidden;
+  gap: 4px;
+}
+
+.app.view-city #cityPanel .panel-head {
+  flex-shrink: 0;
+  margin-bottom: 0;
 }
 
 .app.view-city #cityPanel .panel-head h2 {
-  font-size: 20px;
+  font-size: 15px;
+  line-height: 1.15;
 }
 
-.app.view-city #cityPanel .card {
-  min-height: 64px;
-  padding: 12px;
+.app.view-city #cityPanel .panel-head p {
+  margin-top: 2px;
+  font-size: 10px;
+  line-height: 1.2;
 }
 
-.app.view-city #cityPanel .card h2 {
+.app.view-city #cityPanel .card,
+.app.view-city #cityPanel .card--casino-spin,
+.app.view-city #cityPanel .card--premium-spin {
+  flex: 1 1 0;
+  min-height: 46px;
+  max-height: none;
+  padding: 6px 8px;
+  gap: 6px;
+}
+
+.app.view-city #cityPanel .card__icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
   font-size: 15px;
 }
 
-.app.view-city #cityPanel .buy-button {
-  min-height: 38px;
-  font-size: 11px;
+.app.view-city #cityPanel .card__body {
+  min-width: 0;
+}
+
+.app.view-city #cityPanel .card h2 {
+  font-size: 12px;
+  line-height: 1.15;
+}
+
+.app.view-city #cityPanel .card p {
+  font-size: 9px;
+  line-height: 1.2;
+}
+
+.app.view-city #cityPanel .buy-button,
+.app.view-city #cityPanel .casino-spin-button,
+.app.view-city #cityPanel .premium-spin-open {
+  min-height: 28px;
+  padding: 0 8px;
+  font-size: 9px;
+}
+
+.app.view-city #casinoSpinMount,
+.app.view-city #premiumSpinMount {
+  display: contents;
 }
 
 /* Tasks tab — fill screen, large cards */
@@ -1488,6 +1529,7 @@ h1 {
 .stats {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
   gap: 10px;
   margin-bottom: 16px;
 }
@@ -1595,12 +1637,14 @@ h1 {
   color: var(--muted);
 }
 
-.stat--coins strong {
+.stat--coins strong,
+.stat--coins .stat__value {
   color: var(--gold-light);
   text-shadow: 0 0 20px rgba(245, 196, 81, 0.35);
 }
 
-.stat--energy strong {
+.stat--energy strong,
+.stat--energy .stat__value {
   color: var(--cyan);
 }
 
@@ -1608,11 +1652,13 @@ h1 {
   color: var(--muted);
 }
 
-.stat--city strong {
+.stat--city strong,
+.stat--city .stat__value {
   color: #a8c4ff;
 }
 
-.stat--empire strong {
+.stat--empire strong,
+.stat--empire .stat__value {
   color: var(--gold-light);
   text-shadow: 0 0 20px rgba(245, 196, 81, 0.35);
 }
