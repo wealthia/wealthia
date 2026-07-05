@@ -367,6 +367,8 @@ p {
   margin-top: 4px;
   margin-bottom: 0;
   padding: 6px 8px;
+  justify-content: center;
+  text-align: center;
 }
 
 .app.view-main .energy-section .daily-prize__gain-label {
@@ -382,6 +384,46 @@ p {
   margin-top: 4px;
   margin-bottom: 4px;
   line-height: 1.3;
+  text-align: center;
+}
+
+.app.view-main .energy-section .daily-prize__tickets {
+  margin-top: 6px;
+  gap: 6px;
+}
+
+.app.view-main .energy-section .daily-prize__tickets-head {
+  align-items: center;
+  gap: 8px;
+}
+
+.app.view-main .energy-section .daily-prize__tickets-left {
+  gap: 4px;
+  min-height: 1rem;
+}
+
+.app.view-main .energy-section .daily-prize__tickets-label,
+.app.view-main .energy-section .daily-prize__ticket-count {
+  font-size: 11px;
+}
+
+.app.view-main .energy-section .daily-prize__ticket-icon {
+  font-size: 12px;
+}
+
+.app.view-main .energy-section .daily-prize__tickets-next {
+  font-size: 8px;
+  line-height: 1.2;
+}
+
+.app.view-main .energy-section .grand-prize-card__head {
+  text-align: center;
+}
+
+.app.view-main .energy-section .daily-prize-card .grand-prize-card__channel {
+  text-align: center;
+  font-size: 9px;
+  padding: 6px 8px;
 }
 
 .app.view-main .gold-rush {
@@ -412,11 +454,6 @@ p {
 .app.view-main .energy-section .gold-rush {
   margin: 0;
   flex-shrink: 0;
-}
-
-.app.view-main .energy-section .grand-prize-card__channel {
-  font-size: 9px;
-  padding: 6px 8px;
 }
 
 .app.view-main .energy-wrap {
@@ -1134,23 +1171,58 @@ p {
 
 .daily-prize__tickets-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+.daily-prize__tickets-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-height: 1.25rem;
 }
 
 .daily-prize__tickets-label {
   font-family: var(--font-display);
   font-size: 16px;
   font-weight: 800;
+  line-height: 1;
+  color: #fff4d0;
+}
+
+.daily-prize__ticket-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.daily-prize__ticket-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25em;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
   color: #fff4d0;
 }
 
 .daily-prize__tickets-next {
+  display: inline-flex;
+  align-items: center;
   font-size: 11px;
   font-weight: 700;
+  line-height: 1.2;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .daily-prize__ticket-progress {
@@ -2653,6 +2725,28 @@ button.completed strong {
   border-radius: 18px;
   border: 1px solid rgba(167, 139, 250, 0.35);
   background: linear-gradient(160deg, rgba(124, 58, 237, 0.16), rgba(15, 23, 42, 0.5));
+}
+
+.daily-prize-card .grand-prize-card__head {
+  text-align: center;
+}
+
+.daily-prize-card .daily-prize__gain-box {
+  justify-content: center;
+  text-align: center;
+}
+
+.daily-prize-card .daily-prize__gain-label,
+.daily-prize-card .daily-prize__gain-value {
+  text-align: center;
+}
+
+.daily-prize-card .daily-prize-card__boost-tip {
+  text-align: center;
+}
+
+.daily-prize-card .grand-prize-card__channel {
+  text-align: center;
 }
 
 .grand-prize-card__head h3 {
