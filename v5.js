@@ -29,10 +29,12 @@ let lastGrandPrizeMilestone = 0;
 let premiumWheelRotation = 0;
 let premiumSpinBusy = false;
 let premiumSpinAwaitingRetry = false;
+let premiumSpinPaid = false;
+let premiumSpinWaiting = false;
 
 const PREMIUM_SPIN_STARS = Number((CONFIG.STAR_PRICES && CONFIG.STAR_PRICES.premium_spin) || 1);
 const PREMIUM_WHEEL_SLICE_DEG = 60;
-const PREMIUM_WHEEL_POINTER_DEG = 270;
+const PREMIUM_WHEEL_POINTER_DEG = 0;
 const PREMIUM_WHEEL_DECEL_MS = 4500;
 const PREMIUM_WHEEL_WIN_MODAL_DELAY_MS = 500;
 const PREMIUM_WHEEL_EXTRA_ROTATION_DEG = 1800;
@@ -1043,6 +1045,24 @@ function premiumWheelTargetAngle(sliceId) {
   return (PREMIUM_WHEEL_POINTER_DEG - segmentCenter + 360) % 360;
 }
 
+function resetPremiumSpinState() {
+  premiumSpinBusy = false;
+  premiumSpinAwaitingRetry = false;
+  premiumSpinPaid = false;
+  premiumSpinWaiting = false;
+  premiumWheelRotation = 0;
+
+  const disc = document.getElementById("premiumWheelDisc");
+  if (disc) {
+    disc.classList.remove("is-spinning", "premium-wheel__disc--loading");
+    disc.style.transition = "none";
+    disc.style.transform = "rotate(0deg)";
+  }
+
+  const spinButton = document.getElementById("premiumWheelSpinButton");
+  resetPremiumSpinButton(spinButton);
+}
+
 function premiumWheelWinnerSliceId(spinResult) {
   if (!spinResult) return 0;
   if (spinResult.winnerSliceId !== undefined && spinResult.winnerSliceId !== null) {
@@ -1121,18 +1141,7 @@ function openPremiumSpinOverlay() {
   if (!overlay) return;
   overlay.hidden = false;
   document.body.classList.add("premium-spin-open-body");
-
-  const disc = document.getElementById("premiumWheelDisc");
-  premiumWheelRotation = 0;
-  premiumSpinAwaitingRetry = false;
-  if (disc) {
-    disc.style.transition = "none";
-    disc.style.transform = "rotate(0deg)";
-  }
-
-  const spinButton = document.getElementById("premiumWheelSpinButton");
-  resetPremiumSpinButton(spinButton);
-  void refreshPremiumSpinPaymentState();
+  resetPremiumSpinState();
 }
 
 async function refreshPremiumSpinPaymentState() {
@@ -1142,12 +1151,14 @@ async function refreshPremiumSpinPaymentState() {
   const ready = await isPremiumSpinPaymentReady();
   if (!ready) {
     premiumSpinAwaitingRetry = false;
+    premiumSpinPaid = false;
     resetPremiumSpinButton(spinButton);
     return;
   }
 
   premiumSpinAwaitingRetry = true;
-  spinButton.textContent = `SPIN (PAID)`;
+  premiumSpinPaid = true;
+  spinButton.textContent = "SPIN (PAID)";
 }
 
 function closePremiumSpinOverlay() {
@@ -1155,6 +1166,7 @@ function closePremiumSpinOverlay() {
   if (!overlay) return;
   overlay.hidden = true;
   document.body.classList.remove("premium-spin-open-body");
+  resetPremiumSpinState();
 }
 
 function premiumWinModalCopy(prize) {
@@ -1168,10 +1180,13 @@ function premiumWinModalCopy(prize) {
 
   if (prize.type === "cash") {
     const amount = Number(prize.amount || 0);
+    const isCashPayout = amount === 5 || amount === 15;
     return {
       title: "Cash Prize",
-      body: `💰 You won $${amount}! Our support team will process the amount within 3-5 days.`,
-      showClaim: true
+      body: isCashPayout
+        ? `💰 You won $${amount}! Our support team will process the amount within 3-5 days.`
+        : `💰 You won $${amount}!`,
+      showClaim: isCashPayout
     };
   }
 
@@ -1298,9 +1313,9 @@ function premiumSpinResultMessage(prize) {
 }
 
 function isValidPremiumSpinResult(result) {
-  if (!result || !result.prize) return false;
+  if (!result || result.success !== true || !result.prize) return false;
   const sliceId = premiumWheelWinnerSliceId(result);
-  return Number.isFinite(sliceId) && sliceId >= 0;
+  return Number.isFinite(sliceId) && sliceId >= 0 && sliceId <= 5;
 }
 
 function setPremiumSpinButton(spinButton, disabled, label) {
@@ -1389,24 +1404,33 @@ async function runPremiumSpinAfterPayment() {
   if (premiumSpinBusy) return;
 
   premiumSpinBusy = true;
-  setPremiumSpinButton(spinButton, true, "Please wait...");
+  premiumSpinWaiting = true;
+  setPremiumSpinButton(spinButton, true, "Loading result...");
 
   try {
     await waitForTelegramInitData(4000);
     const spinResult = await requestPremiumSpinResult();
     if (!spinResult) {
       premiumSpinAwaitingRetry = await isPremiumSpinPaymentReady();
+      premiumSpinPaid = premiumSpinAwaitingRetry;
       return;
     }
 
     premiumSpinAwaitingRetry = false;
+    premiumSpinPaid = false;
+    premiumSpinWaiting = false;
     setPremiumSpinButton(spinButton, true, "Spinning...");
     await finishPremiumSpinResult(spinResult);
   } finally {
     premiumSpinBusy = false;
+    premiumSpinWaiting = false;
     if (premiumSpinAwaitingRetry) {
       const spinButtonAfter = document.getElementById("premiumWheelSpinButton");
-      if (spinButtonAfter) spinButtonAfter.textContent = "SPIN (PAID)";
+      if (spinButtonAfter) {
+        premiumSpinPaid = true;
+        spinButtonAfter.textContent = "SPIN (PAID)";
+        spinButtonAfter.disabled = false;
+      }
     } else {
       resetPremiumSpinButton(spinButton);
     }
@@ -1441,19 +1465,23 @@ async function openPremiumSpinInvoice(spinButton, tg) {
     const ready = await waitForPremiumSpinPayment(60);
     if (!ready) {
       premiumSpinAwaitingRetry = true;
+      premiumSpinPaid = true;
       showToast("Payment received. Tap SPIN again in a few seconds.");
-      if (spinButton) spinButton.textContent = "SPIN (PAID)";
-      spinButton.disabled = false;
+      if (spinButton) {
+        spinButton.textContent = "SPIN (PAID)";
+        spinButton.disabled = false;
+      }
       return;
     }
 
     premiumSpinAwaitingRetry = true;
+    premiumSpinPaid = true;
     await runPremiumSpinAfterPayment();
   });
 }
 
 async function startPremiumSpinPurchase() {
-  if (premiumSpinBusy) return;
+  if (premiumSpinBusy || premiumSpinWaiting) return;
 
   if (!(await ensureBackend())) {
     showToast("Server not connected. Tap Retry at top.");
@@ -1468,12 +1496,13 @@ async function startPremiumSpinPurchase() {
 
   const spinButton = document.getElementById("premiumWheelSpinButton");
 
-  if (premiumSpinAwaitingRetry && await isPremiumSpinPaymentReady()) {
+  if (premiumSpinAwaitingRetry && premiumSpinPaid && await isPremiumSpinPaymentReady()) {
     await runPremiumSpinAfterPayment();
     return;
   }
 
   premiumSpinAwaitingRetry = false;
+  premiumSpinPaid = false;
 
   try {
     await openPremiumSpinInvoice(spinButton, tg);
