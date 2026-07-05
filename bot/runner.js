@@ -147,7 +147,7 @@ async function fulfillStarPayment(userId, productId, chargeId, stars, invoicePay
   });
 
   const result = await response.json();
-  if (!response.ok) {
+  if (!response.ok && !(response.status === 200 && result.duplicate)) {
     throw new Error(result.error || "Fulfillment failed");
   }
 

@@ -1,4 +1,5 @@
 const STARS_PRODUCTION_MODE = process.env.STARS_TEST_MODE !== "true";
+const paymentSecurity = require("./payment-security");
 
 function buildStarsInvoiceBody({ title, description, payload, stars }) {
   const safeTitle = String(title || "Wealthia").trim().slice(0, 32);
@@ -48,7 +49,7 @@ function isValidStarCheckout(query, starProducts, parseStarPayload) {
 }
 
 async function answerPreCheckoutQuery(telegramApiSafe, query, options = {}) {
-  const { starProducts, parseStarPayload } = options;
+  const { starProducts, parseStarPayload, logFraud } = options;
   const queryId = String(query?.id || "");
 
   if (!queryId) {
@@ -61,14 +62,22 @@ async function answerPreCheckoutQuery(telegramApiSafe, query, options = {}) {
       const invoicePayload = normalizeInvoicePayload(query?.invoice_payload);
       const parsed = parseStarPayload(invoicePayload);
       const product = parsed ? starProducts[parsed.productId] : null;
-      console.warn("PRE_CHECKOUT_REJECTED:", {
+      const fraudDetail = {
         productId: parsed?.productId || "",
         payloadUserId: parsed?.userId || "",
         telegramId: String(query?.from?.id || ""),
         currency: query?.currency || "",
         totalAmount: Number(query?.total_amount || 0),
         expectedStars: product ? Number(product.stars) : 0
-      });
+      };
+      console.warn("PRE_CHECKOUT_REJECTED:", fraudDetail);
+      if (typeof logFraud === "function") {
+        await logFraud({
+          userId: String(query?.from?.id || parsed?.userId || ""),
+          eventType: "FRAUD_ATTEMPT",
+          detail: `pre_checkout_rejected ${JSON.stringify(fraudDetail)}`
+        });
+      }
     }
     const response = await telegramApiSafe("answerPreCheckoutQuery", approved
       ? {
@@ -133,46 +142,61 @@ async function handleSuccessfulPayment(message, options = {}) {
     starProducts,
     parseStarPayload,
     fulfillPayment,
-    sendBotMessage
+    sendBotMessage,
+    logFraud
   } = options;
 
-  const payment = message?.successful_payment;
-  if (!payment) return { ok: false, error: "NO_PAYMENT" };
-
-  const invoicePayload = normalizeInvoicePayload(payment.invoice_payload);
-  const parsed = parseStarPayload(invoicePayload);
-  const telegramId = String(message?.from?.id || "");
-  const chatId = message?.chat?.id;
-  const product = parsed ? starProducts[parsed.productId] : null;
-  const expectedStars = product ? Number(product.stars) : 0;
-
-  if (!STARS_PRODUCTION_MODE) {
-    return { ok: false, error: "STARS_TEST_MODE_DISABLED" };
-  }
-
-  if (!parsed || !product || parsed.userId !== telegramId) {
-    if (chatId && sendBotMessage) {
-      await sendBotMessage(chatId, "Payment received, but the product could not be activated. Contact support.");
-    }
-    return { ok: false, error: "INVALID_PAYLOAD" };
-  }
-
-  if (payment.currency !== "XTR" || Number(payment.total_amount) !== expectedStars) {
-    if (chatId && sendBotMessage) {
-      await sendBotMessage(chatId, "Payment amount mismatch. Contact support for a refund.");
-    }
-    return { ok: false, error: "INVALID_AMOUNT" };
-  }
-
-  const chargeId = String(payment.telegram_payment_charge_id || "").trim();
-  if (!chargeId || chargeId.length < 8) {
-    if (chatId && sendBotMessage) {
-      await sendBotMessage(chatId, "Payment received, but charge verification failed. Contact support.");
-    }
-    return { ok: false, error: "INVALID_CHARGE_ID" };
-  }
-
   try {
+    const payment = message?.successful_payment;
+    if (!payment) return { ok: false, error: "NO_PAYMENT" };
+
+    const invoicePayload = normalizeInvoicePayload(payment.invoice_payload);
+    const parsed = parseStarPayload(invoicePayload);
+    const telegramId = String(message?.from?.id || "");
+    const chatId = message?.chat?.id;
+    const product = parsed ? starProducts[parsed.productId] : null;
+    const expectedStars = product ? Number(product.stars) : 0;
+
+    if (!STARS_PRODUCTION_MODE) {
+      return { ok: false, error: "STARS_TEST_MODE_DISABLED" };
+    }
+
+    if (!parsed || !product || parsed.userId !== telegramId) {
+      if (typeof logFraud === "function") {
+        await logFraud({
+          userId: telegramId || parsed?.userId || "",
+          eventType: "FRAUD_ATTEMPT",
+          detail: `invalid_success_payload product=${parsed?.productId || ""} telegram=${telegramId}`
+        });
+      }
+      if (chatId && sendBotMessage) {
+        await sendBotMessage(chatId, "Payment received, but the product could not be activated. Contact support.");
+      }
+      return { ok: false, error: "INVALID_PAYLOAD" };
+    }
+
+    if (payment.currency !== "XTR" || Number(payment.total_amount) !== expectedStars) {
+      if (typeof logFraud === "function") {
+        await logFraud({
+          userId: parsed.userId,
+          eventType: "FRAUD_ATTEMPT",
+          detail: `amount_mismatch product=${parsed.productId} paid=${Number(payment.total_amount || 0)} expected=${expectedStars}`
+        });
+      }
+      if (chatId && sendBotMessage) {
+        await sendBotMessage(chatId, "Payment amount mismatch. Contact support for a refund.");
+      }
+      return { ok: false, error: "INVALID_AMOUNT" };
+    }
+
+    const chargeId = paymentSecurity.extractPaymentChargeId(payment);
+    if (!chargeId || chargeId.length < 8) {
+      if (chatId && sendBotMessage) {
+        await sendBotMessage(chatId, "Payment received, but charge verification failed. Contact support.");
+      }
+      return { ok: false, error: "INVALID_CHARGE_ID" };
+    }
+
     const result = await fulfillPayment({
       userId: parsed.userId,
       productId: parsed.productId,
@@ -181,6 +205,17 @@ async function handleSuccessfulPayment(message, options = {}) {
       invoicePayload: payment.invoice_payload,
       telegramSettled: true
     });
+
+    if (result?.duplicate) {
+      return {
+        ok: true,
+        duplicate: true,
+        replay: true,
+        chargeId,
+        productId: parsed.productId,
+        userId: parsed.userId
+      };
+    }
 
     const verified = await verifyStarCharge(telegramApiSafe, chargeId, expectedStars);
     if (!verified) {
@@ -200,15 +235,21 @@ async function handleSuccessfulPayment(message, options = {}) {
       productId: parsed.productId,
       userId: parsed.userId,
       telegramVerified: verified,
-      duplicate: Boolean(result?.duplicate)
+      duplicate: false
     };
   } catch (error) {
     console.error("STAR_FULFILLMENT_ERROR:", error.message);
+    const chatId = message?.chat?.id;
+    const { sendBotMessage } = options;
     if (chatId && sendBotMessage) {
-      await sendBotMessage(
-        chatId,
-        "Payment received. Activation is processing — reopen the game in a few seconds."
-      );
+      try {
+        await sendBotMessage(
+          chatId,
+          "Payment received. Activation is processing — reopen the game in a few seconds."
+        );
+      } catch (notifyError) {
+        console.error("STAR_FULFILLMENT_NOTIFY_ERROR:", notifyError.message);
+      }
     }
     return { ok: false, error: error.message || "FULFILLMENT_FAILED" };
   }
@@ -238,7 +279,8 @@ async function registerTelegramWebhook(telegramApiSafe, options = {}) {
   const response = await telegramApiSafe("setWebhook", {
     url,
     allowed_updates: ["message", "pre_checkout_query"],
-    drop_pending_updates: false
+    drop_pending_updates: false,
+    secret_token: secret
   });
 
   if (!response.ok) {

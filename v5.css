@@ -4022,9 +4022,46 @@ button.completed strong {
 }
 
 .coin-store-pack:disabled,
-.coin-store-pack--busy {
+.coin-store-pack--busy,
+.coin-store-pack.payment-btn--busy {
   opacity: 0.55;
   cursor: wait;
+}
+
+.coin-store-pack.payment-btn--busy {
+  position: relative;
+}
+
+.coin-store-pack.payment-btn--busy > * {
+  visibility: hidden;
+}
+
+.coin-store-pack.payment-btn--busy::after,
+.ticket-store__pack.payment-btn--busy::after,
+.earn-boost.payment-btn--busy::after {
+  content: "Loading...";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gold-light);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.ticket-store__pack.payment-btn--busy,
+.earn-boost.payment-btn--busy {
+  position: relative;
+}
+
+.ticket-store__pack.payment-btn--busy > * {
+  visibility: hidden;
+}
+
+.earn-boost.payment-btn--busy > * {
+  visibility: hidden;
 }
 
 .coin-store-pack__coins {

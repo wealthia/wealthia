@@ -18,11 +18,14 @@ const {
 const systemBots = require("./system-bots");
 const premiumSpin = require("./premium-spin");
 const premiumSpinSecurity = require("./premium-spin-security");
+const paymentSecurity = require("./payment-security");
 const telegramStars = require("./telegram-stars");
 const economy = require("./economy");
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+app.set("trust proxy", 1);
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
@@ -571,107 +574,127 @@ async function fulfillStarPaymentRecord({
   invoicePayload,
   telegramSettled = false
 }) {
-  const starsAmount = number(stars);
-  const payload = parseStarPayload(telegramStars.normalizeInvoicePayload(invoicePayload));
+  try {
+    const starsAmount = number(stars);
+    const payload = parseStarPayload(telegramStars.normalizeInvoicePayload(invoicePayload));
 
-  if (!userId || !productId || !chargeId || !STAR_PRODUCTS[productId]) {
-    const error = new Error("BAD_REQUEST");
-    error.code = "BAD_REQUEST";
-    throw error;
-  }
-
-  if (!payload || payload.userId !== userId || payload.productId !== productId) {
-    const error = new Error("INVALID_PAYLOAD");
-    error.code = "INVALID_PAYLOAD";
-    throw error;
-  }
-
-  const expectedStars = number(STAR_PRODUCTS[productId].stars);
-  if (!expectedStars || starsAmount !== expectedStars) {
-    const error = new Error("INVALID_STARS_AMOUNT");
-    error.code = "INVALID_STARS_AMOUNT";
-    throw error;
-  }
-
-  if (!chargeId || chargeId.length < 8) {
-    const error = new Error("INVALID_CHARGE_ID");
-    error.code = "INVALID_CHARGE_ID";
-    throw error;
-  }
-
-  if (!telegramSettled) {
-    const error = new Error("TELEGRAM_SETTLEMENT_REQUIRED");
-    error.code = "TELEGRAM_SETTLEMENT_REQUIRED";
-    throw error;
-  }
-
-  const { data: existing } = await supabase
-    .from("star_payments")
-    .select("id")
-    .eq("charge_id", chargeId)
-    .maybeSingle();
-
-  if (existing) {
-    if (productId === "premium_spin") {
-      await premiumSpinSecurity.logFraudEvent(supabase, {
-        userId,
-        eventType: "REPLAY_CHARGE_ID",
-        detail: `charge_id=${chargeId}`
-      });
-      const error = new Error("FRAUD_REPLAY");
-      error.code = "FRAUD_REPLAY";
+    if (!userId || !productId || !chargeId || !STAR_PRODUCTS[productId]) {
+      const error = new Error("BAD_REQUEST");
+      error.code = "BAD_REQUEST";
       throw error;
     }
-    return { duplicate: true, user: await loadGame(userId) };
-  }
 
-  const row = await loadGame(userId);
-  const productUpdate = applyStarProduct(row, productId);
+    if (!payload || payload.userId !== userId || payload.productId !== productId) {
+      await paymentSecurity.logPaymentFraud(supabase, {
+        userId,
+        eventType: "FRAUD_ATTEMPT",
+        detail: `invalid_payload product=${productId} charge_id=${chargeId}`
+      });
+      const error = new Error("INVALID_PAYLOAD");
+      error.code = "INVALID_PAYLOAD";
+      throw error;
+    }
 
-  if (!productUpdate) {
-    const error = new Error("BAD_PRODUCT");
-    error.code = "BAD_PRODUCT";
+    const expectedStars = number(STAR_PRODUCTS[productId].stars);
+    if (!expectedStars || starsAmount !== expectedStars) {
+      await paymentSecurity.logPaymentFraud(supabase, {
+        userId,
+        eventType: "FRAUD_ATTEMPT",
+        detail: `stars_mismatch product=${productId} paid=${starsAmount} expected=${expectedStars} charge_id=${chargeId}`
+      });
+      const error = new Error("INVALID_STARS_AMOUNT");
+      error.code = "INVALID_STARS_AMOUNT";
+      throw error;
+    }
+
+    if (!chargeId || chargeId.length < 8) {
+      const error = new Error("INVALID_CHARGE_ID");
+      error.code = "INVALID_CHARGE_ID";
+      throw error;
+    }
+
+    if (!telegramSettled) {
+      const error = new Error("TELEGRAM_SETTLEMENT_REQUIRED");
+      error.code = "TELEGRAM_SETTLEMENT_REQUIRED";
+      throw error;
+    }
+
+    const { data: existing } = await supabase
+      .from("star_payments")
+      .select("id")
+      .eq("charge_id", chargeId)
+      .maybeSingle();
+
+    if (existing) {
+      await paymentSecurity.logPaymentFraud(supabase, {
+        userId,
+        eventType: "REPLAY_CHARGE_ID",
+        detail: `charge_id=${chargeId} product=${productId}`
+      });
+      return { duplicate: true, replay: true, user: await loadGame(userId) };
+    }
+
+    const row = await loadGame(userId);
+    const productUpdate = applyStarProduct(row, productId);
+
+    if (!productUpdate) {
+      const error = new Error("BAD_PRODUCT");
+      error.code = "BAD_PRODUCT";
+      throw error;
+    }
+
+    const { error: paymentError } = await supabase.from("star_payments").insert({
+      user_id: userId,
+      product_id: productId,
+      stars_amount: expectedStars,
+      charge_id: chargeId,
+      telegram_settled: true,
+      settled_at: new Date().toISOString()
+    });
+
+    if (paymentError) {
+      if (paymentSecurity.isUniqueViolation(paymentError)) {
+        await paymentSecurity.logPaymentFraud(supabase, {
+          userId,
+          eventType: "REPLAY_CHARGE_ID",
+          detail: `race_charge_id=${chargeId} product=${productId}`
+        });
+        return { duplicate: true, replay: true, user: await loadGame(userId) };
+      }
+      throw paymentError;
+    }
+
+    const { data, error } = await supabase
+      .from("game_states")
+      .update(productUpdate)
+      .eq("user_id", userId)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    const { data: buyer } = await supabase
+      .from("users")
+      .select("first_name, username")
+      .eq("id", userId)
+      .maybeSingle();
+
+    await notifyOwnerStarsSale({
+      playerName: buyer?.first_name || buyer?.username || `Player ${userId.slice(-4)}`,
+      productTitle: STAR_PRODUCTS[productId].title,
+      stars: expectedStars
+    });
+
+    return {
+      duplicate: false,
+      user: data,
+      productId,
+      premiumSpinReady: productId === "premium_spin"
+    };
+  } catch (error) {
+    console.error("FULFILL_STAR_PAYMENT_ERROR:", error.message);
     throw error;
   }
-
-  const { error: paymentError } = await supabase.from("star_payments").insert({
-    user_id: userId,
-    product_id: productId,
-    stars_amount: expectedStars,
-    charge_id: chargeId,
-    telegram_settled: true,
-    settled_at: new Date().toISOString()
-  });
-
-  if (paymentError) throw paymentError;
-
-  const { data, error } = await supabase
-    .from("game_states")
-    .update(productUpdate)
-    .eq("user_id", userId)
-    .select("*")
-    .single();
-
-  if (error) throw error;
-
-  const { data: buyer } = await supabase
-    .from("users")
-    .select("first_name, username")
-    .eq("id", userId)
-    .maybeSingle();
-
-  await notifyOwnerStarsSale({
-    playerName: buyer?.first_name || buyer?.username || `Player ${userId.slice(-4)}`,
-    productTitle: STAR_PRODUCTS[productId].title,
-    stars: expectedStars
-  });
-
-  return {
-    duplicate: false,
-    user: data,
-    productId,
-    premiumSpinReady: productId === "premium_spin"
-  };
 }
 
 function nowMs() {
@@ -2506,7 +2529,7 @@ app.get("/api/stars/products", (_req, res) => {
   res.json({ ok: true, products });
 });
 
-app.post("/api/stars/invoice", requirePlayer, async (req, res) => {
+app.post("/api/stars/invoice", requirePlayer, paymentSecurity.starsInvoiceRateLimit, async (req, res) => {
   try {
     const tokenUserId = String(req.playerId || "");
     const productId = String(req.body.productId || "").trim();
@@ -2590,12 +2613,9 @@ app.post("/api/stars/invoice", requirePlayer, async (req, res) => {
   }
 });
 
-app.post("/api/telegram/webhook/:secret", async (req, res) => {
-  if (!TELEGRAM_WEBHOOK_SECRET || req.params.secret !== TELEGRAM_WEBHOOK_SECRET) {
-    res.status(401).json({ error: "UNAUTHORIZED" });
-    return;
-  }
-
+app.post("/api/telegram/webhook/:secret", paymentSecurity.createTelegramWebhookGuard({
+  webhookSecret: TELEGRAM_WEBHOOK_SECRET
+}), async (req, res) => {
   const update = req.body;
   if (!update || typeof update !== "object") {
     res.json({ ok: true });
@@ -2610,7 +2630,8 @@ app.post("/api/telegram/webhook/:secret", async (req, res) => {
         update.pre_checkout_query,
         {
           starProducts: STAR_PRODUCTS,
-          parseStarPayload
+          parseStarPayload,
+          logFraud: (detail) => paymentSecurity.logPaymentFraud(supabase, detail)
         }
       ).catch((error) => {
         console.error("PRE_CHECKOUT_HANDLER_ERROR:", error.message);
@@ -2621,9 +2642,12 @@ app.post("/api/telegram/webhook/:secret", async (req, res) => {
     if (update.message?.successful_payment) {
       const result = await telegramStars.handleSuccessfulPayment(
         update.message,
-        getTelegramStarsOptions()
+        {
+          ...getTelegramStarsOptions(),
+          logFraud: (detail) => paymentSecurity.logPaymentFraud(supabase, detail)
+        }
       );
-      res.json({ ok: true, settled: Boolean(result?.ok) });
+      res.json({ ok: true, settled: Boolean(result?.ok), duplicate: Boolean(result?.duplicate) });
       return;
     }
   } catch (error) {
@@ -2653,13 +2677,14 @@ app.post("/api/stars/fulfill", async (req, res) => {
     res.json({
       ok: true,
       duplicate: Boolean(result.duplicate),
+      replay: Boolean(result.replay),
       productId: result.productId,
       user: toClientUser(result.user),
       premiumSpinReady: Boolean(result.premiumSpinReady)
     });
   } catch (error) {
     if (error.code === "FRAUD_REPLAY") {
-      res.status(409).json({ error: "FRAUD_REPLAY", duplicate: true });
+      res.status(200).json({ ok: true, duplicate: true, replay: true });
       return;
     }
     if (error.code === "INVALID_PAYLOAD") {
