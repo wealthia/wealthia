@@ -138,13 +138,12 @@ const els = {
   factoryCost: document.getElementById("factoryCost"),
   casinoCardDesc: document.getElementById("casinoCardDesc"),
   casinoCost: document.getElementById("casinoCost"),
-  casinoSpinMount: document.getElementById("casinoSpinMount"),
-  premiumSpinMount: document.getElementById("premiumSpinMount"),
-  premiumSpinCard: null,
-  premiumSpinOpenButton: null,
-  casinoSpinCard: null,
-  casinoSpinButton: null,
-  casinoSpinHint: null,
+  casinoSpinCard: document.getElementById("casinoSpinCard"),
+  casinoSpinButton: document.getElementById("casinoSpinButton"),
+  casinoSpinHint: document.getElementById("casinoSpinHint"),
+  premiumSpinCard: document.getElementById("premiumSpinCard"),
+  premiumSpinOpenButton: document.getElementById("premiumSpinOpenButton"),
+  premiumSpinHint: document.getElementById("premiumSpinHint"),
   casinoUpgradeButton: document.getElementById("casinoUpgradeButton"),
   goldRushMount: document.getElementById("goldRushMount"),
   grandPrizeMount: document.getElementById("grandPrizeMount"),
@@ -974,46 +973,31 @@ function renderCasinoCard() {
 }
 
 function removeCasinoSpinCard() {
-  if (els.casinoSpinCard) {
-    els.casinoSpinCard.remove();
-    els.casinoSpinCard = null;
-    els.casinoSpinButton = null;
-    els.casinoSpinHint = null;
-  }
+  if (els.casinoSpinCard) els.casinoSpinCard.hidden = true;
 }
 
 function ensureCasinoSpinCard() {
   const level = Number(state.buildings.casino || 0);
+  if (!els.casinoSpinCard) return;
+
   if (level < 1) {
     removeCasinoSpinCard();
     return;
   }
 
-  if (els.casinoSpinCard) return;
+  els.casinoSpinCard.hidden = false;
+}
 
-  const mount = els.casinoSpinMount;
-  if (!mount) return;
+function bindCitySpinCards() {
+  if (els.casinoSpinButton && els.casinoSpinButton.dataset.bound !== "1") {
+    els.casinoSpinButton.dataset.bound = "1";
+    els.casinoSpinButton.addEventListener("click", spinCasino);
+  }
 
-  const card = document.createElement("article");
-  card.className = "card card--casino-spin";
-  card.id = "casinoSpinCard";
-  card.innerHTML = `
-    <div class="card__icon">&#x1F3B2;</div>
-    <div class="card__body">
-      <h2>Lucky Spin</h2>
-      <p id="casinoSpinHint">Spin once per day for bonus coins.</p>
-    </div>
-    <button class="buy-button casino-spin-button" type="button" id="casinoSpinButton">
-      Spin Now
-    </button>
-  `;
-
-  mount.appendChild(card);
-
-  els.casinoSpinCard = card;
-  els.casinoSpinHint = card.querySelector("#casinoSpinHint");
-  els.casinoSpinButton = card.querySelector("#casinoSpinButton");
-  els.casinoSpinButton.addEventListener("click", spinCasino);
+  if (els.premiumSpinOpenButton && els.premiumSpinOpenButton.dataset.bound !== "1") {
+    els.premiumSpinOpenButton.dataset.bound = "1";
+    els.premiumSpinOpenButton.addEventListener("click", openPremiumSpinOverlay);
+  }
 }
 
 function renderCasinoSpin() {
@@ -1042,33 +1026,16 @@ function renderCasinoSpin() {
 }
 
 function ensurePremiumSpinCard() {
-  const mount = els.premiumSpinMount || document.getElementById("premiumSpinMount");
-  if (!mount) return;
-
-  if (els.premiumSpinCard) return;
-
-  const card = document.createElement("article");
-  card.className = "card card--premium-spin";
-  card.id = "premiumSpinCard";
-  card.innerHTML = `
-    <div class="card__icon">&#x1F3B0;</div>
-    <div class="card__body">
-      <h2>Premium Lucky Spin</h2>
-      <p id="premiumSpinHint">Win cash prizes, boosts and coins · ${PREMIUM_SPIN_STARS} ⭐ per spin</p>
-    </div>
-    <button class="buy-button premium-spin-open" type="button" id="premiumSpinOpenButton">
-      Open Wheel
-    </button>
-  `;
-
-  mount.appendChild(card);
-  els.premiumSpinCard = card;
-  els.premiumSpinOpenButton = card.querySelector("#premiumSpinOpenButton");
-  els.premiumSpinOpenButton.addEventListener("click", openPremiumSpinOverlay);
+  if (!els.premiumSpinCard) return;
+  bindCitySpinCards();
 }
 
 function renderPremiumSpinCard() {
   ensurePremiumSpinCard();
+  if (els.premiumSpinHint) {
+    els.premiumSpinHint.textContent =
+      `Win cash prizes, boosts and coins · ${PREMIUM_SPIN_STARS} ⭐ per spin`;
+  }
 }
 
 function premiumWheelTargetAngle(sliceId) {
@@ -3802,6 +3769,7 @@ function bootApp() {
     });
   }
 
+  bindCitySpinCards();
   render();
   connectBackend();
 

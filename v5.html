@@ -34,7 +34,7 @@
     }
     [hidden] { display: none !important; }
   </style>
-  <link rel="stylesheet" href="./v5.css?v=2080" />
+  <link rel="stylesheet" href="./v5.css?v=2081" />
 </head>
 <body>
   <div class="ambient" aria-hidden="true">
@@ -151,57 +151,78 @@
     <section class="panel panel--main active" id="mainPanel" aria-hidden="true"></section>
 
     <section class="panel" id="cityPanel">
-      <div class="panel-head">
+      <div class="panel-head panel-head--city">
         <h2>Build Your City</h2>
         <p>Upgrade buildings to multiply your wealth</p>
       </div>
 
-      <article class="card card--shop">
-        <div class="card__icon">&#x1F3EA;</div>
-        <div class="card__body">
-          <h2>Shop</h2>
-          <p>Tap income &middot; Level <span id="shopLevel">1</span></p>
-        </div>
-        <button class="buy-button" type="button" data-upgrade="shop">
-          Upgrade <span id="shopCost">50</span>
-        </button>
-      </article>
+      <div class="city-buildings">
+        <article class="card card--shop">
+          <div class="card__icon">&#x1F3EA;</div>
+          <div class="card__body">
+            <h2>Shop</h2>
+            <p>Tap income &middot; Level <span id="shopLevel">1</span></p>
+          </div>
+          <button class="buy-button" type="button" data-upgrade="shop">
+            Upgrade <span id="shopCost">50</span>
+          </button>
+        </article>
 
-      <article class="card card--bank">
-        <div class="card__icon">&#x1F3E6;</div>
-        <div class="card__body">
-          <h2>Bank</h2>
-          <p>Offline income &middot; Level <span id="bankLevel">0</span></p>
-        </div>
-        <button class="buy-button" type="button" data-upgrade="bank">
-          Upgrade <span id="bankCost">120</span>
-        </button>
-      </article>
+        <article class="card card--bank">
+          <div class="card__icon">&#x1F3E6;</div>
+          <div class="card__body">
+            <h2>Bank</h2>
+            <p>Offline income &middot; Level <span id="bankLevel">0</span></p>
+          </div>
+          <button class="buy-button" type="button" data-upgrade="bank">
+            Upgrade <span id="bankCost">120</span>
+          </button>
+        </article>
 
-      <article class="card card--factory">
-        <div class="card__icon">&#x1F3ED;</div>
-        <div class="card__body">
-          <h2>Factory</h2>
-          <p>Energy recovery &middot; Level <span id="factoryLevel">0</span></p>
-        </div>
-        <button class="buy-button" type="button" data-upgrade="factory">
-          Upgrade <span id="factoryCost">200</span>
-        </button>
-      </article>
+        <article class="card card--factory">
+          <div class="card__icon">&#x1F3ED;</div>
+          <div class="card__body">
+            <h2>Factory</h2>
+            <p>Energy recovery &middot; Level <span id="factoryLevel">0</span></p>
+          </div>
+          <button class="buy-button" type="button" data-upgrade="factory">
+            Upgrade <span id="factoryCost">200</span>
+          </button>
+        </article>
 
-      <article class="card card--casino" id="casinoCard">
-        <div class="card__icon">&#x1F3B0;</div>
-        <div class="card__body">
-          <h2>Casino</h2>
-          <p id="casinoCardDesc">Build to unlock daily Lucky Spin &middot; +1 Empire Level</p>
-        </div>
-        <button class="buy-button" type="button" data-upgrade="casino" id="casinoUpgradeButton">
-          Build <span id="casinoCost">300</span>
-        </button>
-      </article>
+        <article class="card card--casino" id="casinoCard">
+          <div class="card__icon">&#x1F3B0;</div>
+          <div class="card__body">
+            <h2>Casino</h2>
+            <p id="casinoCardDesc">Build to unlock daily Lucky Spin &middot; +1 Empire Level</p>
+          </div>
+          <button class="buy-button" type="button" data-upgrade="casino" id="casinoUpgradeButton">
+            Build <span id="casinoCost">300</span>
+          </button>
+        </article>
 
-      <div id="casinoSpinMount"></div>
-      <div id="premiumSpinMount"></div>
+        <article class="card card--casino-spin" id="casinoSpinCard" hidden>
+          <div class="card__icon">&#x1F3B2;</div>
+          <div class="card__body">
+            <h2>Lucky Spin</h2>
+            <p id="casinoSpinHint">Spin once per day for bonus coins.</p>
+          </div>
+          <button class="buy-button casino-spin-button" type="button" id="casinoSpinButton">
+            Spin Now
+          </button>
+        </article>
+
+        <article class="card card--premium-spin" id="premiumSpinCard">
+          <div class="card__icon">&#x1F3B0;</div>
+          <div class="card__body">
+            <h2>Premium Lucky Spin</h2>
+            <p id="premiumSpinHint">Win cash prizes, boosts and coins</p>
+          </div>
+          <button class="buy-button premium-spin-open" type="button" id="premiumSpinOpenButton">
+            Open Wheel
+          </button>
+        </article>
+      </div>
     </section>
 
     <section class="panel" id="tasksPanel"></section>
