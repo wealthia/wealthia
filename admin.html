@@ -13,7 +13,7 @@
     #adminApp { display: none; }
     [hidden] { display: none !important; }
   </style>
-  <link rel="stylesheet" href="./admin.css?v=7" />
+  <link rel="stylesheet" href="./admin.css?v=8" />
 </head>
 <body>
   <div class="login" id="loginScreen">
@@ -42,6 +42,7 @@
         <button class="nav-item nav-item--danger" type="button" data-view="fraud">Fraud Alerts</button>
         <button class="nav-item" type="button" data-view="broadcast">Broadcast</button>
         <button class="nav-item" type="button" data-view="gameSettings">Game Settings</button>
+        <button class="nav-item" type="button" data-view="promoCodes">Promo Codes</button>
         <button class="nav-item" type="button" data-view="players">User Management</button>
         <button class="nav-item" type="button" data-view="tournaments">Tournaments</button>
         <button class="nav-item" type="button" data-view="revenue">Revenue</button>
@@ -183,7 +184,92 @@
         </article>
       </section>
 
+      <section class="view" id="promoCodesView">
+        <div class="split">
+          <article class="card form-card">
+            <h2>Create Promo Code</h2>
+            <form id="createPromoForm" class="form-grid">
+              <label class="full">
+                Code
+                <input name="code" type="text" maxlength="32" placeholder="START2026" required />
+              </label>
+              <label>
+                Max Uses
+                <input name="maxUses" type="number" min="1" value="100" required />
+              </label>
+              <label>
+                Coin Reward
+                <input name="coinReward" type="number" min="0" value="1000" />
+              </label>
+              <label>
+                Ticket Reward
+                <input name="ticketReward" type="number" min="0" value="0" />
+              </label>
+              <div class="full">
+                <button type="submit" class="btn-save-config">CREATE CODE</button>
+              </div>
+            </form>
+          </article>
+          <article class="card">
+            <h2>Active Promo Codes</h2>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Coins</th>
+                    <th>Tickets</th>
+                    <th>Uses</th>
+                    <th>Created</th>
+                  </tr>
+                </thead>
+                <tbody id="promoCodesTable"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+      </section>
+
       <section class="view" id="playersView">
+        <article class="card form-card profile-search-card">
+          <h2>User Profile Search</h2>
+          <form id="profileSearchForm" class="profile-search-form">
+            <input type="search" id="profileSearchInput" placeholder="Telegram ID or @username" required />
+            <button type="submit">Search</button>
+          </form>
+          <div class="user-profile-card" id="userProfileCard" hidden>
+            <div class="user-profile-card__head">
+              <div>
+                <strong id="profileDisplayName">Player</strong>
+                <p class="empty" id="profileUserMeta">@username · ID</p>
+              </div>
+              <span class="badge badge--draft" id="profileBanBadge">Active</span>
+            </div>
+            <div class="form-grid profile-edit-grid">
+              <label>
+                Coins
+                <input id="profileCoins" type="number" min="0" />
+              </label>
+              <label>
+                Tickets
+                <input id="profileTickets" type="number" min="0" />
+              </label>
+              <label>
+                Total Spins
+                <input id="profileTotalSpins" type="text" readonly />
+              </label>
+              <label>
+                Registration Date
+                <input id="profileRegistrationDate" type="text" readonly />
+              </label>
+            </div>
+            <div class="profile-actions">
+              <button type="button" class="btn-save-config" id="profileUpdateButton">UPDATE PROFILE</button>
+              <button type="button" class="btn-ban" id="profileBanButton">BAN USER</button>
+              <button type="button" class="btn-secondary" id="profileUnbanButton" hidden>UNBAN USER</button>
+            </div>
+          </div>
+        </article>
         <article class="card form-card reward-card">
           <h2>Manual Balance Injector</h2>
           <form id="giveRewardForm" class="form-grid reward-form">
@@ -358,6 +444,6 @@
   <div class="toast" id="toast"></div>
 
   <script src="./config.js?v=1"></script>
-  <script src="./admin.js?v=8"></script>
+  <script src="./admin.js?v=9"></script>
 </body>
 </html>
