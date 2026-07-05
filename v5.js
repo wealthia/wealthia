@@ -603,6 +603,8 @@ function bindResetConfirmModal() {
 const CONNECTION_ERROR_TOAST =
   "⚠️ Connection error. Please try again or restart the bot.";
 
+const PAYMENT_VERIFYING_TOAST = "Payment is being verified. Please wait...";
+
 let channelGateUrl = "";
 
 function showConnectionErrorToast() {
@@ -2363,8 +2365,7 @@ function bindRankPanelActions(panel) {
         buyTicketPack(productId, count, button).catch((error) => {
           console.error("BUY_TICKET_PACK_ERROR:", error);
           showToast("Could not start payment. Please try again.");
-          button.disabled = false;
-          button.classList.remove("ticket-store__pack--busy");
+          releasePaymentButton(button, { busyClass: "ticket-store__pack--busy payment-btn--busy" });
         });
       }
     });
@@ -3139,6 +3140,21 @@ async function ensureBackendForPayment() {
   return Boolean(backendReady && backendSessionToken);
 }
 
+function lockPaymentButton(button, options = {}) {
+  if (!button || button.dataset.paymentLocked === "1") return false;
+  button.dataset.paymentLocked = "1";
+  button.disabled = true;
+  button.classList.add(options.busyClass || "payment-btn--busy");
+  return true;
+}
+
+function releasePaymentButton(button, options = {}) {
+  if (!button) return;
+  delete button.dataset.paymentLocked;
+  button.disabled = false;
+  button.classList.remove(options.busyClass || "payment-btn--busy");
+}
+
 function openStarsPaymentSheet(tg, invoiceLink, onStatus) {
   const link = String(invoiceLink || "").trim();
   if (!link.startsWith("https://")) {
@@ -3807,8 +3823,7 @@ function renderCoinStorePacks() {
     buyCoinPack(productId, coinAmount, button).catch((error) => {
       console.error("BUY_COIN_PACK_ERROR:", error);
       showToast("Could not start payment. Please try again.");
-      button.disabled = false;
-      button.classList.remove("coin-store-pack--busy");
+      releasePaymentButton(button, { busyClass: "coin-store-pack--busy payment-btn--busy" });
     });
   });
 }
@@ -3856,25 +3871,23 @@ async function buyCoinPack(productId, coinAmount, button) {
     return;
   }
 
+  if (button && !lockPaymentButton(button, { busyClass: "coin-store-pack--busy payment-btn--busy" })) {
+    return;
+  }
+
   tg.ready();
 
   if (!(await ensureBackendForPayment())) {
     showToast("Server not connected. Wait 10 seconds and try again.");
+    releasePaymentButton(button, { busyClass: "coin-store-pack--busy payment-btn--busy" });
     return;
   }
 
   const beforeCoins = Number(state.coins || 0);
   const expectedAdd = Math.max(0, Number(coinAmount || 0));
 
-  if (button) {
-    button.disabled = true;
-    button.classList.add("coin-store-pack--busy");
-  }
-
   const releaseButton = () => {
-    if (!button) return;
-    button.disabled = false;
-    button.classList.remove("coin-store-pack--busy");
+    releasePaymentButton(button, { busyClass: "coin-store-pack--busy payment-btn--busy" });
   };
 
   try {
@@ -3889,12 +3902,12 @@ async function buyCoinPack(productId, coinAmount, button) {
     await warmBackendForPayment(2);
 
     const opened = openStarsPaymentSheet(tg, result.invoiceLink, async (paymentStatus) => {
-      releaseButton();
-
       if (paymentStatus === "paid") {
+        showToast(PAYMENT_VERIFYING_TOAST);
         const fulfilled = await waitForCoinFulfillment(beforeCoins, expectedAdd);
         await refreshBackendState();
         render();
+        releaseButton();
 
         if (fulfilled) {
           closeCoinStoreModal();
@@ -3907,6 +3920,8 @@ async function buyCoinPack(productId, coinAmount, button) {
         }
         return;
       }
+
+      releaseButton();
 
       if (paymentStatus === "failed") {
         showToast("Payment failed. Wait a few seconds and try again.");
@@ -3937,23 +3952,22 @@ async function buyTicketPack(productId, packTickets, button) {
     return;
   }
 
+  if (button && !lockPaymentButton(button, { busyClass: "ticket-store__pack--busy payment-btn--busy" })) {
+    return;
+  }
+
   tg.ready();
 
   if (!(await ensureBackendForPayment())) {
     showToast("Server not connected. Wait 10 seconds and try again.");
+    releasePaymentButton(button, { busyClass: "ticket-store__pack--busy payment-btn--busy" });
     return;
   }
 
   const beforeTickets = ticketCount();
-  if (button) {
-    button.disabled = true;
-    button.classList.add("ticket-store__pack--busy");
-  }
 
   const releaseButton = () => {
-    if (!button) return;
-    button.disabled = false;
-    button.classList.remove("ticket-store__pack--busy");
+    releasePaymentButton(button, { busyClass: "ticket-store__pack--busy payment-btn--busy" });
   };
 
   try {
@@ -3968,10 +3982,11 @@ async function buyTicketPack(productId, packTickets, button) {
     await warmBackendForPayment(2);
 
     const opened = openStarsPaymentSheet(tg, result.invoiceLink, async (paymentStatus) => {
-      releaseButton();
-
       if (paymentStatus === "paid") {
+        showToast(PAYMENT_VERIFYING_TOAST);
         const fulfilled = await waitForTicketFulfillment(beforeTickets, packTickets);
+        releaseButton();
+
         if (fulfilled) {
           showTicketConfetti();
           renderRankPanel();
@@ -3988,6 +4003,8 @@ async function buyTicketPack(productId, packTickets, button) {
         }
         return;
       }
+
+      releaseButton();
 
       if (paymentStatus === "failed") {
         showToast("Payment failed. Wait a few seconds and try again.");
@@ -4010,7 +4027,7 @@ async function buyTicketPack(productId, packTickets, button) {
   }
 }
 
-async function buyStarsProduct(productId) {
+async function buyStarsProduct(productId, button) {
   const tg = window.Telegram && window.Telegram.WebApp;
 
   if (!tg || typeof tg.openInvoice !== "function") {
@@ -4018,41 +4035,67 @@ async function buyStarsProduct(productId) {
     return;
   }
 
-  if (!(await ensureBackendForPayment())) {
-    showToast("Server not connected. Wait 10 seconds and try again.");
+  if (button && !lockPaymentButton(button, { busyClass: "earn-boost--busy payment-btn--busy" })) {
     return;
   }
 
-  const { ok, result, status } = await requestStarsInvoice(productId);
+  const releaseButton = () => {
+    releasePaymentButton(button, { busyClass: "earn-boost--busy payment-btn--busy" });
+  };
 
-  if (!ok || !result || !result.invoiceLink) {
-    showToast(starsInvoiceErrorMessage(result, status));
-    return;
-  }
+  try {
+    if (!(await ensureBackendForPayment())) {
+      showToast("Server not connected. Wait 10 seconds and try again.");
+      releaseButton();
+      return;
+    }
 
-  openStarsPaymentSheet(tg, result.invoiceLink, async (status) => {
-    if (status === "paid") {
-      const fulfilled = await waitForStarFulfillment(productId);
-      if (fulfilled) {
-        showToast(STAR_SUCCESS_LABELS[productId] || "Premium boost activated!");
-        if (tg.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === "function") {
-          tg.HapticFeedback.notificationOccurred("success");
+    const { ok, result, status } = await requestStarsInvoice(productId);
+
+    if (!ok || !result || !result.invoiceLink) {
+      showToast(starsInvoiceErrorMessage(result, status));
+      releaseButton();
+      return;
+    }
+
+    const opened = openStarsPaymentSheet(tg, result.invoiceLink, async (paymentStatus) => {
+      if (paymentStatus === "paid") {
+        showToast(PAYMENT_VERIFYING_TOAST);
+        const fulfilled = await waitForStarFulfillment(productId);
+        releaseButton();
+
+        if (fulfilled) {
+          showToast(STAR_SUCCESS_LABELS[productId] || "Premium boost activated!");
+          if (tg.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === "function") {
+            tg.HapticFeedback.notificationOccurred("success");
+          }
+        } else {
+          showToast("Payment received. Boost is activating — check again in a few seconds.");
         }
-      } else {
-        showToast("Payment received. Boost is activating — check again in a few seconds.");
+        return;
       }
-      return;
-    }
 
-    if (status === "failed") {
-      showToast("Payment failed. Wait a few seconds and try again.");
-      return;
-    }
+      releaseButton();
 
-    if (status === "cancelled") {
-      showToast("Payment cancelled.");
+      if (paymentStatus === "failed") {
+        showToast("Payment failed. Wait a few seconds and try again.");
+        return;
+      }
+
+      if (paymentStatus === "cancelled") {
+        showToast("Payment cancelled.");
+      }
+    });
+
+    if (!opened) {
+      showToast("Could not open Stars payment.");
+      releaseButton();
     }
-  });
+  } catch (error) {
+    console.error("BUY_STARS_PRODUCT_ERROR:", error);
+    showToast("Could not start payment. Please try again.");
+    releaseButton();
+  }
 }
 
 async function performResetGame() {
@@ -4275,7 +4318,11 @@ if (els.earnPanel) {
 
     const starButton = event.target.closest("[data-star]");
     if (starButton && !starButton.disabled) {
-      buyStarsProduct(starButton.dataset.star);
+      buyStarsProduct(starButton.dataset.star, starButton).catch((error) => {
+        console.error("BUY_STARS_PRODUCT_ERROR:", error);
+        showToast("Could not start payment. Please try again.");
+        releasePaymentButton(starButton, { busyClass: "earn-boost--busy payment-btn--busy" });
+      });
     }
   });
 }
