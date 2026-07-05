@@ -729,7 +729,12 @@ function mergeDailyLeaderboardRows(
 ) {
   const merged = [...dailyEligibleRows];
 
-  if (yourDailyGame && userId && !merged.some((row) => row.user_id === userId)) {
+  if (
+    yourDailyGame &&
+    userId &&
+    number(yourDailyGame.daily_contest_score) > 0 &&
+    !merged.some((row) => row.user_id === userId)
+  ) {
     merged.push(yourDailyGame);
   }
 
@@ -2912,7 +2917,10 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
       userId,
       systemBotRows
     );
-    dailyTopData = dailyMerged.slice(0, 3);
+    const dailyPodiumEligible = (row) =>
+      number(row.daily_contest_score) > 0 &&
+      economy.computeTickets(row.daily_contest_score) >= 1;
+    dailyTopData = dailyMerged.filter(dailyPodiumEligible).slice(0, 3);
     const dailyListData = dailyMerged.slice(0, DAILY_LEADERBOARD_LIMIT);
 
     if (yourDailyGame && userId) {
