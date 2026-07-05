@@ -127,6 +127,7 @@ async function verifyStarCharge(telegramApiSafe, chargeId, expectedStars) {
     const amount = Math.abs(Number(source.amount || entry?.amount || 0));
     const txId = String(
       source.telegram_payment_charge_id ||
+      source.provider_payment_charge_id ||
       source.transaction_id ||
       entry?.id ||
       ""

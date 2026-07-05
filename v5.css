@@ -1090,6 +1090,48 @@ p {
   font-size: 11px;
 }
 
+.earn-promo {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.earn-promo__form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.earn-promo__input {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.earn-promo__button {
+  min-height: 42px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--gold), #c98b1e);
+  color: #1a1204;
+  font-weight: 800;
+}
+
+.earn-promo__button:disabled {
+  opacity: 0.6;
+}
+
 .earn-boost__icon {
   font-size: 20px;
 }

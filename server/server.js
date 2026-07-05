@@ -20,6 +20,7 @@ const premiumSpin = require("./premium-spin");
 const premiumSpinSecurity = require("./premium-spin-security");
 const paymentSecurity = require("./payment-security");
 const gameSettings = require("./game-settings");
+const macroGuard = require("./macro-guard");
 const telegramStars = require("./telegram-stars");
 const economy = require("./economy");
 
@@ -485,6 +486,48 @@ function bonusAdRewardNextAt(row) {
 
 function bonusAdRewardOnCooldown(row) {
   return bonusAdRewardNextAt(row) > nowMs();
+}
+
+function applyTicketsValue(row, ticketCount) {
+  const today = todayKey();
+  const tickets = Math.max(0, Math.floor(number(ticketCount)));
+  let baseline = number(row.contest_baseline_city);
+  let contestDate = String(row.contest_date || "");
+
+  if (contestDate !== today) {
+    baseline = number(row.coins) + number(row.spent);
+    contestDate = today;
+  }
+
+  return {
+    daily_contest_score: tickets * economy.TICKETS_PER_SCORE,
+    contest_date: contestDate,
+    contest_baseline_city: baseline,
+    updated_at: new Date().toISOString()
+  };
+}
+
+function ticketsFromRow(row) {
+  const today = todayKey();
+  let score = number(row.daily_contest_score);
+  if (String(row.contest_date || "") !== today) score = 0;
+  return Math.floor(score / economy.TICKETS_PER_SCORE);
+}
+
+async function getUserTotalSpins(userId) {
+  const { count, error } = await supabase
+    .from("star_payments")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("product_id", "premium_spin")
+    .not("consumed_at", "is", null);
+
+  if (error) {
+    console.warn("TOTAL_SPINS_LOOKUP_FAILED:", error.message);
+    return 0;
+  }
+
+  return count || 0;
 }
 
 function applyTicketPackPurchase(row, ticketCount) {
@@ -1883,7 +1926,7 @@ async function ensureUserProfile(telegramUser) {
 
   const { data: existingUser, error: existingUserError } = await supabase
     .from("users")
-    .select("is_banned, ban_reason")
+    .select("is_banned, ban_reason, created_at")
     .eq("id", telegramId)
     .maybeSingle();
 
@@ -1896,13 +1939,19 @@ async function ensureUserProfile(telegramUser) {
     throw error;
   }
 
-  const { error: userError } = await supabase.from("users").upsert({
+  const userUpsert = {
     id: telegramId,
     telegram_id: telegramId,
     first_name: name,
     username,
     last_seen_at: new Date().toISOString()
-  });
+  };
+
+  if (!existingUser) {
+    userUpsert.created_at = new Date().toISOString();
+  }
+
+  const { error: userError } = await supabase.from("users").upsert(userUpsert);
 
   if (userError) throw userError;
 
@@ -2231,6 +2280,16 @@ app.post("/api/gold-rush/start", requirePlayer, async (req, res) => {
 app.post("/api/tap", requirePlayer, async (req, res) => {
   try {
     const userId = req.playerId;
+
+    const macro = await macroGuard.enforceMacroGuard(supabase, userId, "tap");
+    if (macro.blocked) {
+      res.status(403).json({
+        error: macro.banned ? "ACCOUNT_BANNED" : "MACRO_DETECTED",
+        message: "Suspicious activity detected."
+      });
+      return;
+    }
+
     const row = await loadGame(userId);
     const endless = hasEndlessEnergy(row);
     const rate = nextTapRateState(row);
@@ -2828,6 +2887,15 @@ app.post(
   try {
     const userId = req.playerId;
 
+    const macro = await macroGuard.enforceMacroGuard(supabase, userId, "spin");
+    if (macro.blocked) {
+      res.status(403).json({
+        error: macro.banned ? "ACCOUNT_BANNED" : "MACRO_DETECTED",
+        message: "Suspicious activity detected."
+      });
+      return;
+    }
+
     if (
       req.body.prize ||
       req.body.segmentIndex !== undefined ||
@@ -3396,6 +3464,7 @@ app.get("/api/admin/dashboard", async (req, res) => {
     let globalSpinCount = 0;
     let spinMilestones = null;
     try {
+      await gameSettings.loadSettings(supabase);
       globalSpinCount = await premiumSpin.getGlobalPremiumSpins(supabase);
       spinMilestones = premiumSpin.getSpinMilestoneInfo(globalSpinCount);
     } catch (spinError) {
@@ -4107,6 +4176,364 @@ app.post("/api/admin/give-reward", async (req, res) => {
     });
   } catch (error) {
     console.error("ADMIN_GIVE_REWARD_ERROR:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/admin/user-profile", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const query = String(req.query.query || req.query.q || "").trim();
+    if (!query) {
+      res.status(400).json({ error: "BAD_REQUEST" });
+      return;
+    }
+
+    const normalized = query.replace(/^@/, "").toLowerCase();
+    let userQuery = supabase
+      .from("users")
+      .select("id, first_name, username, last_seen_at, created_at, is_banned, banned_at, ban_reason")
+      .limit(1);
+
+    if (/^\d+$/.test(query)) {
+      userQuery = userQuery.eq("id", query);
+    } else {
+      userQuery = userQuery.ilike("username", normalized);
+    }
+
+    const { data: users, error } = await userQuery;
+    if (error) throw error;
+
+    const user = Array.isArray(users) ? users[0] : null;
+    if (!user) {
+      res.status(404).json({ error: "USER_NOT_FOUND" });
+      return;
+    }
+
+    const row = await loadGame(user.id);
+    const totalSpins = await getUserTotalSpins(user.id);
+
+    res.json({
+      ok: true,
+      profile: {
+        userId: user.id,
+        username: user.username || "",
+        displayName: user.first_name || "",
+        coins: number(row.coins),
+        tickets: ticketsFromRow(row),
+        totalSpins,
+        registrationDate: user.created_at || null,
+        lastSeenAt: user.last_seen_at || null,
+        isBanned: Boolean(user.is_banned),
+        bannedAt: user.banned_at || null,
+        banReason: user.ban_reason || ""
+      }
+    });
+  } catch (error) {
+    console.error("ADMIN_USER_PROFILE_GET_ERROR:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/admin/user-profile", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const userId = String(req.body.userId || "").trim();
+    if (!userId) {
+      res.status(400).json({ error: "BAD_REQUEST" });
+      return;
+    }
+
+    const { data: user, error: userError } = await supabase
+      .from("users")
+      .select("id, first_name, username, created_at, is_banned, banned_at, ban_reason, last_seen_at")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (userError) throw userError;
+    if (!user) {
+      res.status(404).json({ error: "USER_NOT_FOUND" });
+      return;
+    }
+
+    const row = await loadGame(userId);
+    const gamePatch = {
+      updated_at: new Date().toISOString()
+    };
+
+    if (req.body.coins !== undefined) {
+      const coins = Math.max(0, Math.floor(number(req.body.coins)));
+      gamePatch.coins = coins;
+      gamePatch.city_value = coins + number(row.spent);
+    }
+
+    if (req.body.tickets !== undefined) {
+      Object.assign(gamePatch, applyTicketsValue(row, req.body.tickets));
+    }
+
+    const { data: game, error: gameError } = await supabase
+      .from("game_states")
+      .update(gamePatch)
+      .eq("user_id", userId)
+      .select("*")
+      .single();
+
+    if (gameError) throw gameError;
+
+    let updatedUser = user;
+    if (req.body.isBanned !== undefined) {
+      const shouldBan = Boolean(req.body.isBanned);
+      const userPatch = {
+        is_banned: shouldBan,
+        ban_reason: shouldBan
+          ? String(req.body.banReason || "Banned by administrator").slice(0, 500)
+          : "",
+        banned_at: shouldBan ? new Date().toISOString() : null
+      };
+
+      const { data, error } = await supabase
+        .from("users")
+        .update(userPatch)
+        .eq("id", userId)
+        .select("id, first_name, username, created_at, is_banned, banned_at, ban_reason, last_seen_at")
+        .single();
+
+      if (error) throw error;
+      updatedUser = data;
+
+      if (shouldBan) {
+        await premiumSpinSecurity.logFraudEvent(supabase, {
+          userId,
+          eventType: "ADMIN_BAN",
+          detail: userPatch.ban_reason
+        });
+      }
+    }
+
+    const totalSpins = await getUserTotalSpins(userId);
+
+    res.json({
+      ok: true,
+      profile: {
+        userId: updatedUser.id,
+        username: updatedUser.username || "",
+        displayName: updatedUser.first_name || "",
+        coins: number(game.coins),
+        tickets: ticketsFromRow(game),
+        totalSpins,
+        registrationDate: updatedUser.created_at || null,
+        lastSeenAt: updatedUser.last_seen_at || null,
+        isBanned: Boolean(updatedUser.is_banned),
+        bannedAt: updatedUser.banned_at || null,
+        banReason: updatedUser.ban_reason || ""
+      }
+    });
+  } catch (error) {
+    console.error("ADMIN_USER_PROFILE_UPDATE_ERROR:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/admin/promo-codes", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const { data, error } = await supabase
+      .from("promo_codes")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (error) throw error;
+
+    res.json({
+      rows: (data || []).map((row) => ({
+        id: row.id,
+        code: row.code,
+        coinReward: number(row.coin_reward),
+        ticketReward: number(row.ticket_reward),
+        maxUses: number(row.max_uses),
+        usesCount: number(row.uses_count),
+        active: Boolean(row.active),
+        createdAt: row.created_at
+      }))
+    });
+  } catch (error) {
+    console.error("ADMIN_PROMO_LIST_ERROR:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/admin/promo-codes", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const code = String(req.body.code || "").trim().toUpperCase();
+    const maxUses = Math.max(1, Math.floor(number(req.body.maxUses)));
+    const coinReward = Math.max(0, Math.floor(number(req.body.coinReward)));
+    const ticketReward = Math.max(0, Math.floor(number(req.body.ticketReward)));
+
+    if (!code || code.length < 3 || code.length > 32) {
+      res.status(400).json({ error: "INVALID_CODE" });
+      return;
+    }
+
+    if (coinReward <= 0 && ticketReward <= 0) {
+      res.status(400).json({ error: "EMPTY_REWARDS" });
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("promo_codes")
+      .insert({
+        code,
+        max_uses: maxUses,
+        coin_reward: coinReward,
+        ticket_reward: ticketReward,
+        uses_count: 0,
+        active: true
+      })
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    res.json({
+      ok: true,
+      promo: {
+        id: data.id,
+        code: data.code,
+        coinReward: number(data.coin_reward),
+        ticketReward: number(data.ticket_reward),
+        maxUses: number(data.max_uses),
+        usesCount: number(data.uses_count),
+        active: Boolean(data.active),
+        createdAt: data.created_at
+      }
+    });
+  } catch (error) {
+    console.error("ADMIN_PROMO_CREATE_ERROR:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/promo/redeem", requirePlayer, async (req, res) => {
+  try {
+    const userId = req.playerId;
+    const code = String(req.body.code || "").trim().toUpperCase();
+
+    if (!code) {
+      res.status(400).json({ error: "BAD_REQUEST" });
+      return;
+    }
+
+    const { data: user, error: userError } = await supabase
+      .from("users")
+      .select("is_banned")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (userError) throw userError;
+    if (user?.is_banned) {
+      res.status(403).json({ error: "ACCOUNT_BANNED" });
+      return;
+    }
+
+    const { data: promo, error: promoError } = await supabase
+      .from("promo_codes")
+      .select("*")
+      .eq("code", code)
+      .eq("active", true)
+      .maybeSingle();
+
+    if (promoError) throw promoError;
+
+    if (!promo) {
+      res.status(404).json({ error: "INVALID_CODE" });
+      return;
+    }
+
+    if (number(promo.uses_count) >= number(promo.max_uses)) {
+      res.status(400).json({ error: "CODE_EXHAUSTED" });
+      return;
+    }
+
+    const { data: existingRedemption } = await supabase
+      .from("promo_redemptions")
+      .select("id")
+      .eq("promo_code_id", promo.id)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (existingRedemption) {
+      res.status(400).json({ error: "ALREADY_REDEEMED" });
+      return;
+    }
+
+    const row = await loadGame(userId);
+    let mergedRow = { ...row };
+    let gamePatch = { updated_at: new Date().toISOString() };
+
+    if (number(promo.coin_reward) > 0) {
+      const coinPatch = applyCoinPackPurchase(mergedRow, number(promo.coin_reward));
+      gamePatch = { ...gamePatch, ...coinPatch };
+      mergedRow = { ...mergedRow, ...coinPatch };
+    }
+
+    if (number(promo.ticket_reward) > 0) {
+      const ticketPatch = applyTicketPackPurchase(mergedRow, number(promo.ticket_reward));
+      gamePatch = { ...gamePatch, ...ticketPatch };
+    }
+
+    const { data: updatedPromo, error: promoUpdateError } = await supabase
+      .from("promo_codes")
+      .update({ uses_count: number(promo.uses_count) + 1 })
+      .eq("id", promo.id)
+      .lt("uses_count", promo.max_uses)
+      .select("*")
+      .maybeSingle();
+
+    if (promoUpdateError) throw promoUpdateError;
+    if (!updatedPromo) {
+      res.status(400).json({ error: "CODE_EXHAUSTED" });
+      return;
+    }
+
+    const { error: redemptionError } = await supabase
+      .from("promo_redemptions")
+      .insert({
+        promo_code_id: promo.id,
+        user_id: userId
+      });
+
+    if (redemptionError) {
+      await supabase
+        .from("promo_codes")
+        .update({ uses_count: number(promo.uses_count) })
+        .eq("id", promo.id);
+      throw redemptionError;
+    }
+
+    const { data: game, error: gameError } = await supabase
+      .from("game_states")
+      .update(gamePatch)
+      .eq("user_id", userId)
+      .select("*")
+      .single();
+
+    if (gameError) throw gameError;
+
+    res.json({
+      ok: true,
+      code: promo.code,
+      coinReward: number(promo.coin_reward),
+      ticketReward: number(promo.ticket_reward),
+      user: toClientUser(game)
+    });
+  } catch (error) {
+    console.error("PROMO_REDEEM_ERROR:", error.message);
     res.status(500).json({ error: error.message });
   }
 });

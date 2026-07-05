@@ -37,10 +37,26 @@ const els = {
   broadcastStatus: document.getElementById("broadcastStatus"),
   gameSettingsForm: document.getElementById("gameSettingsForm"),
   giveRewardForm: document.getElementById("giveRewardForm"),
+  profileSearchForm: document.getElementById("profileSearchForm"),
+  profileSearchInput: document.getElementById("profileSearchInput"),
+  userProfileCard: document.getElementById("userProfileCard"),
+  profileDisplayName: document.getElementById("profileDisplayName"),
+  profileUserMeta: document.getElementById("profileUserMeta"),
+  profileBanBadge: document.getElementById("profileBanBadge"),
+  profileCoins: document.getElementById("profileCoins"),
+  profileTickets: document.getElementById("profileTickets"),
+  profileTotalSpins: document.getElementById("profileTotalSpins"),
+  profileRegistrationDate: document.getElementById("profileRegistrationDate"),
+  profileUpdateButton: document.getElementById("profileUpdateButton"),
+  profileBanButton: document.getElementById("profileBanButton"),
+  profileUnbanButton: document.getElementById("profileUnbanButton"),
+  createPromoForm: document.getElementById("createPromoForm"),
+  promoCodesTable: document.getElementById("promoCodesTable"),
   toast: document.getElementById("toast")
 };
 
 let spinWinnerFilter = "all";
+let activeProfile = null;
 
 function formatNumber(value) {
   return Math.floor(Number(value || 0)).toLocaleString("en-US");
@@ -546,6 +562,7 @@ function switchView(view) {
     gameSettings: "Game Settings",
     spinWinners: "Lucky Spin Winners",
     fraud: "Fraud Alerts",
+    promoCodes: "Promo Codes",
     players: "User Management",
     tournaments: "Tournaments",
     revenue: "Revenue",
@@ -560,6 +577,7 @@ async function loadCurrentView(view = getActiveView()) {
   if (view === "dashboard") await loadDashboard();
   if (view === "broadcast") return;
   if (view === "gameSettings") await loadGameSettings();
+  if (view === "promoCodes") await loadPromoCodes();
   if (view === "spinWinners") await loadSpinWinners();
   if (view === "fraud") await loadFraudAlerts();
   if (view === "players") await loadPlayers();
@@ -671,6 +689,199 @@ async function loadDashboard() {
   dashboardData = result;
   renderDashboardStats(result);
   renderActiveTournament(result.tournaments.active);
+}
+
+function renderUserProfileCard(profile) {
+  if (!els.userProfileCard || !profile) return;
+
+  activeProfile = profile;
+  els.userProfileCard.hidden = false;
+
+  if (els.profileDisplayName) {
+    els.profileDisplayName.textContent = profile.displayName || profile.username || profile.userId;
+  }
+  if (els.profileUserMeta) {
+    const username = profile.username ? `@${profile.username}` : "no username";
+    els.profileUserMeta.textContent = `${username} · ${profile.userId}`;
+  }
+  if (els.profileCoins) els.profileCoins.value = profile.coins;
+  if (els.profileTickets) els.profileTickets.value = profile.tickets;
+  if (els.profileTotalSpins) els.profileTotalSpins.value = formatNumber(profile.totalSpins);
+  if (els.profileRegistrationDate) {
+    els.profileRegistrationDate.value = formatDate(profile.registrationDate);
+  }
+
+  const banned = Boolean(profile.isBanned);
+  if (els.profileBanBadge) {
+    els.profileBanBadge.textContent = banned ? "Banned" : "Active";
+    els.profileBanBadge.className = `badge ${banned ? "badge--ended" : "badge--active"}`;
+  }
+  if (els.profileBanButton) els.profileBanButton.hidden = banned;
+  if (els.profileUnbanButton) els.profileUnbanButton.hidden = !banned;
+}
+
+async function searchUserProfile(event) {
+  event.preventDefault();
+
+  const query = els.profileSearchInput ? els.profileSearchInput.value.trim() : "";
+  if (!query) {
+    showToast("Enter Telegram ID or username.");
+    return;
+  }
+
+  const params = new URLSearchParams({ query });
+  const { ok, result } = await api(`/api/admin/user-profile?${params.toString()}`);
+
+  if (!ok) {
+    showToast(result.error === "USER_NOT_FOUND" ? "User not found." : (result.error || "Search failed."));
+    if (els.userProfileCard) els.userProfileCard.hidden = true;
+    activeProfile = null;
+    return;
+  }
+
+  renderUserProfileCard(result.profile);
+}
+
+async function updateUserProfile() {
+  if (!activeProfile) {
+    showToast("Search for a user first.");
+    return;
+  }
+
+  const payload = {
+    userId: activeProfile.userId,
+    coins: Number(els.profileCoins ? els.profileCoins.value : activeProfile.coins),
+    tickets: Number(els.profileTickets ? els.profileTickets.value : activeProfile.tickets)
+  };
+
+  if (els.profileUpdateButton) {
+    els.profileUpdateButton.disabled = true;
+    els.profileUpdateButton.textContent = "Updating...";
+  }
+
+  try {
+    const { ok, result } = await api("/api/admin/user-profile", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+
+    if (!ok) {
+      showToast(result.error || "Update failed.");
+      return;
+    }
+
+    renderUserProfileCard(result.profile);
+    showToast("Profile updated.");
+    await loadPlayers();
+  } catch (error) {
+    console.error("UPDATE_PROFILE_ERROR:", error);
+    showToast("Update failed unexpectedly.");
+  } finally {
+    if (els.profileUpdateButton) {
+      els.profileUpdateButton.disabled = false;
+      els.profileUpdateButton.textContent = "UPDATE PROFILE";
+    }
+  }
+}
+
+async function setProfileBanState(shouldBan) {
+  if (!activeProfile) {
+    showToast("Search for a user first.");
+    return;
+  }
+
+  if (shouldBan && !window.confirm(`Ban user ${activeProfile.userId}?`)) {
+    return;
+  }
+
+  const { ok, result } = await api("/api/admin/user-profile", {
+    method: "POST",
+    body: JSON.stringify({
+      userId: activeProfile.userId,
+      isBanned: shouldBan,
+      banReason: shouldBan ? "Banned from User Management panel" : ""
+    })
+  });
+
+  if (!ok) {
+    showToast(result.error || "Ban update failed.");
+    return;
+  }
+
+  renderUserProfileCard(result.profile);
+  showToast(shouldBan ? "User banned." : "User unbanned.");
+}
+
+function renderPromoCodes(rows) {
+  if (!els.promoCodesTable) return;
+
+  if (!rows.length) {
+    els.promoCodesTable.innerHTML = '<tr><td colspan="5" class="empty">No promo codes yet.</td></tr>';
+    return;
+  }
+
+  els.promoCodesTable.innerHTML = rows.map((row) => `
+    <tr>
+      <td><strong>${row.code}</strong></td>
+      <td>${formatNumber(row.coinReward)}</td>
+      <td>${formatNumber(row.ticketReward)}</td>
+      <td>${formatNumber(row.usesCount)} / ${formatNumber(row.maxUses)}</td>
+      <td>${formatDate(row.createdAt)}</td>
+    </tr>
+  `).join("");
+}
+
+async function loadPromoCodes() {
+  const { ok, result } = await api("/api/admin/promo-codes");
+  if (!ok) {
+    showLogin("Session expired.");
+    return;
+  }
+
+  renderPromoCodes(result.rows || []);
+}
+
+async function createPromoCode(event) {
+  event.preventDefault();
+
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  const payload = {
+    code: String(data.get("code") || "").trim(),
+    maxUses: Number(data.get("maxUses") || 1),
+    coinReward: Number(data.get("coinReward") || 0),
+    ticketReward: Number(data.get("ticketReward") || 0)
+  };
+
+  const submitButton = form.querySelector('button[type="submit"]');
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.textContent = "Creating...";
+  }
+
+  try {
+    const { ok, result } = await api("/api/admin/promo-codes", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+
+    if (!ok) {
+      showToast(result.error || "Could not create promo code.");
+      return;
+    }
+
+    form.reset();
+    showToast(`Promo code ${result.promo.code} created.`);
+    await loadPromoCodes();
+  } catch (error) {
+    console.error("CREATE_PROMO_ERROR:", error);
+    showToast("Could not create promo code.");
+  } finally {
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = "CREATE CODE";
+    }
+  }
 }
 
 function renderPlayers(rows) {
@@ -966,6 +1177,26 @@ if (els.fraudAlertsTable) {
     if (!button || button.disabled) return;
     banFraudUser(button.dataset.banUser);
   });
+}
+
+if (els.profileSearchForm) {
+  els.profileSearchForm.addEventListener("submit", searchUserProfile);
+}
+
+if (els.profileUpdateButton) {
+  els.profileUpdateButton.addEventListener("click", () => updateUserProfile().catch(() => showToast("Update failed.")));
+}
+
+if (els.profileBanButton) {
+  els.profileBanButton.addEventListener("click", () => setProfileBanState(true).catch(() => showToast("Ban failed.")));
+}
+
+if (els.profileUnbanButton) {
+  els.profileUnbanButton.addEventListener("click", () => setProfileBanState(false).catch(() => showToast("Unban failed.")));
+}
+
+if (els.createPromoForm) {
+  els.createPromoForm.addEventListener("submit", createPromoCode);
 }
 
 if (els.broadcastForm) {

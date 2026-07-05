@@ -1918,9 +1918,79 @@ function renderEarnPanel() {
         ${starButton("income_boost_30", "&#x1F4C8;", "2x Income", starPrice("income_boost_30"), state.boosts.incomeUntil)}
       </div>
     </section>
+    <section class="earn-promo">
+      <div class="earn-boosts__head">
+        <span>Promo Code</span>
+        <small>Enter a valid code for bonus rewards</small>
+      </div>
+      <form class="earn-promo__form" id="promoRedeemForm">
+        <input class="earn-promo__input" id="promoCodeInput" type="text" maxlength="32" placeholder="START2026" autocomplete="off" />
+        <button class="earn-promo__button" type="submit" id="promoRedeemButton">Redeem</button>
+      </form>
+    </section>
   `;
 
   scheduleBoostRefresh();
+  bindPromoRedeemForm();
+}
+
+function bindPromoRedeemForm() {
+  const form = document.getElementById("promoRedeemForm");
+  if (!form || form.dataset.bound === "1") return;
+
+  form.dataset.bound = "1";
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const input = document.getElementById("promoCodeInput");
+    const button = document.getElementById("promoRedeemButton");
+    const code = input ? String(input.value || "").trim() : "";
+
+    if (!code) {
+      showToast("Enter a promo code.");
+      return;
+    }
+
+    if (!(await ensureBackend())) {
+      showToast("Server not connected. Try again.");
+      return;
+    }
+
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Checking...";
+    }
+
+    try {
+      const { ok, result } = await apiPostSecure("/api/promo/redeem", { code });
+
+      if (!ok || !result) {
+        const error = result?.error || "INVALID_CODE";
+        if (error === "ALREADY_REDEEMED") showToast("You already used this code.");
+        else if (error === "CODE_EXHAUSTED") showToast("This promo code is fully used.");
+        else if (error === "INVALID_CODE") showToast("Invalid promo code.");
+        else showToast("Could not redeem promo code.");
+        return;
+      }
+
+      if (result.user) {
+        await applyBackendUser(result.user, "Promo code redeemed!");
+      } else {
+        showToast("Promo code redeemed!");
+      }
+
+      if (input) input.value = "";
+      renderEarnPanel();
+    } catch (error) {
+      console.error("PROMO_REDEEM_ERROR:", error);
+      showToast("Could not redeem promo code.");
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = "Redeem";
+      }
+    }
+  });
 }
 
 function leaderboardCandidateKey(row) {
@@ -3111,6 +3181,9 @@ function starsInvoiceErrorMessage(result, status) {
   }
   if (result?.error === "BAD_PRODUCT") {
     return "This pack is not available yet. Refresh the game.";
+  }
+  if (result?.error === "INVOICE_RATE_LIMITED") {
+    return "Please wait a moment before starting another payment.";
   }
   if (result?.error === "INVOICE_CREATE_FAILED" || result?.error === "INVALID_INVOICE_LINK") {
     return result?.message || "Could not create Stars payment. Try again.";

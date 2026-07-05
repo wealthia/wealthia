@@ -452,6 +452,44 @@ input, select {
   margin-top: 4px;
 }
 
+.profile-search-card {
+  margin-bottom: 16px;
+}
+
+.profile-search-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.user-profile-card {
+  margin-top: 8px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(124, 92, 255, 0.28);
+  background: linear-gradient(160deg, rgba(26, 34, 58, 0.95), rgba(12, 16, 28, 0.98));
+}
+
+.user-profile-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.profile-edit-grid input[readonly] {
+  opacity: 0.75;
+}
+
+.profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
 .stat-card {
   background: var(--surface);
   border: 1px solid var(--line);
