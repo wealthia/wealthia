@@ -1,55 +1,144 @@
 const economy = require("./economy");
 
 const GLOBAL_COUNTER_KEY = "global_premium_spins";
-const PREMIUM_SPIN_STARS = 1;
+const CASH_50_LAST_SPIN_KEY = "premium_cash_50_last_spin";
+const CASH_1_LAST_SPIN_KEY = "premium_cash_1_last_spin";
+const PREMIUM_SPIN_STARS = 50;
+const CASH_50_BLOCK_SPINS = 500;
+const CASH_1_BLOCK_SPINS = 15;
 
 const PRIZE_SEGMENTS = [
-  { id: "jackpot_1000", label: "💰 1000$ JACKPOT", segmentIndex: 0, type: "cash", amount: 1000 },
-  { id: "cash_15", label: "💵 15$", segmentIndex: 1, type: "cash", amount: 15 },
-  { id: "cash_5", label: "💵 5$", segmentIndex: 2, type: "cash", amount: 5 },
+  { id: "cash_50", label: "💰 $50 CASH", segmentIndex: 0, type: "cash", amount: 50 },
+  { id: "cash_1", label: "💵 $1 CASH", segmentIndex: 1, type: "cash", amount: 1 },
+  { id: "tickets_10", label: "🎟️ 10 TICKETS", segmentIndex: 2, type: "tickets", amount: 10 },
   { id: "no_luck", label: "❌ NO LUCK", segmentIndex: 3, type: "none" },
   { id: "boost_2x", label: "⚡ 2x BOOST", segmentIndex: 4, type: "boost" },
-  { id: "coins_500", label: "🪙 500 COINS", segmentIndex: 5, type: "coins", amount: 500 }
+  { id: "tickets_10", label: "🎟️ 10 TICKETS", segmentIndex: 5, type: "tickets", amount: 10 }
 ];
 
-const PRIZE_BY_ID = new Map(PRIZE_SEGMENTS.map((prize) => [prize.id, prize]));
+const PRIZE_BY_ID = new Map(
+  PRIZE_SEGMENTS.filter((prize, index, list) =>
+    list.findIndex((item) => item.id === prize.id) === index
+  ).map((prize) => [prize.id, prize])
+);
+
+const FILLER_WEIGHTS = [
+  { id: "tickets_10", weight: 0.45 },
+  { id: "no_luck", weight: 0.30 },
+  { id: "boost_2x", weight: 0.25 }
+];
 
 function number(value) {
   return Number(value || 0);
 }
 
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function currentBlockStart(globalSpins, blockSize) {
+  return Math.floor((globalSpins - 1) / blockSize) * blockSize;
+}
+
+function canAwardCashInBlock(globalSpins, lastAwardSpin, blockSize) {
+  if (!lastAwardSpin) return true;
+  const blockStart = currentBlockStart(globalSpins, blockSize);
+  return lastAwardSpin <= blockStart;
+}
+
 function getProbabilities(globalSpins, options = {}) {
   const adminTest = Boolean(options.adminTest);
-  const noLuck = 0.25;
-  const boost = 0.12;
-  const cash5 = adminTest || globalSpins > 50 ? 0.06 : 0;
-  const cash15 = adminTest || globalSpins > 80 ? 0.0125 : 0;
-  const jackpot = adminTest || globalSpins >= 100000 ? 0.0000000001 : 0;
-  const coins = 1 - noLuck - boost - cash5 - cash15 - jackpot;
+  const cash50Open = canAwardCashInBlock(globalSpins, 0, CASH_50_BLOCK_SPINS);
+  const cash1Open = canAwardCashInBlock(globalSpins, 0, CASH_1_BLOCK_SPINS);
+
+  const cash50 = adminTest ? 0.01 : (cash50Open ? 1 / CASH_50_BLOCK_SPINS : 0);
+  const cash1 = adminTest ? 0.05 : (cash1Open && globalSpins % CASH_1_BLOCK_SPINS === 0 ? 1 : 0);
+  const tickets = 0.45;
+  const noLuck = 0.30;
+  const boost = 0.25;
+  const fillerScale = Math.max(0, 1 - cash50 - cash1);
 
   return [
-    { id: "jackpot_1000", weight: jackpot },
-    { id: "cash_15", weight: cash15 },
-    { id: "cash_5", weight: cash5 },
-    { id: "no_luck", weight: noLuck },
-    { id: "boost_2x", weight: boost },
-    { id: "coins_500", weight: coins }
+    { id: "cash_50", weight: cash50 },
+    { id: "cash_1", weight: cash1 },
+    { id: "tickets_10", weight: tickets * fillerScale },
+    { id: "no_luck", weight: noLuck * fillerScale },
+    { id: "boost_2x", weight: boost * fillerScale }
   ];
 }
 
-function rollPremiumPrize(globalSpins, options = {}) {
-  const weights = getProbabilities(globalSpins, options);
-  const roll = Math.random();
-  let cursor = 0;
+function pickFillerPrize() {
+  let roll = Math.random();
+  let picked = FILLER_WEIGHTS[0].id;
 
-  for (const entry of weights) {
-    cursor += entry.weight;
-    if (roll < cursor) {
-      return PRIZE_BY_ID.get(entry.id);
+  for (const entry of FILLER_WEIGHTS) {
+    roll -= entry.weight;
+    if (roll <= 0) {
+      picked = entry.id;
+      break;
     }
   }
 
-  return PRIZE_BY_ID.get("coins_500");
+  const prize = { ...PRIZE_BY_ID.get(picked) };
+  if (picked === "tickets_10") {
+    prize.segmentIndex = Math.random() < 0.5 ? 2 : 5;
+  }
+  return prize;
+}
+
+async function getCounterValue(supabase, key) {
+  const { data, error } = await supabase
+    .from("global_counters")
+    .select("counter_value")
+    .eq("counter_key", key)
+    .maybeSingle();
+
+  if (error) {
+    console.warn(`COUNTER_READ_FAILED:${key}`, error.message);
+    return 0;
+  }
+
+  return number(data?.counter_value);
+}
+
+async function setCounterValue(supabase, key, value) {
+  const { error } = await supabase
+    .from("global_counters")
+    .upsert({
+      counter_key: key,
+      counter_value: value,
+      updated_at: new Date().toISOString()
+    });
+
+  if (error) throw error;
+}
+
+async function rollPremiumPrize(supabase, globalSpins, options = {}) {
+  if (options.adminTest) {
+    return pickFillerPrize();
+  }
+
+  const lastCash50 = await getCounterValue(supabase, CASH_50_LAST_SPIN_KEY);
+  const lastCash1 = await getCounterValue(supabase, CASH_1_LAST_SPIN_KEY);
+  const cash50Open = canAwardCashInBlock(globalSpins, lastCash50, CASH_50_BLOCK_SPINS);
+  const cash1Open = canAwardCashInBlock(globalSpins, lastCash1, CASH_1_BLOCK_SPINS);
+
+  if (cash50Open) {
+    const forceOnBoundary = globalSpins % CASH_50_BLOCK_SPINS === 0;
+    const rareRoll = Math.random() < (1 / CASH_50_BLOCK_SPINS);
+
+    if (forceOnBoundary || rareRoll) {
+      await setCounterValue(supabase, CASH_50_LAST_SPIN_KEY, globalSpins);
+      return { ...PRIZE_BY_ID.get("cash_50") };
+    }
+  }
+
+  if (cash1Open && globalSpins % CASH_1_BLOCK_SPINS === 0) {
+    await setCounterValue(supabase, CASH_1_LAST_SPIN_KEY, globalSpins);
+    return { ...PRIZE_BY_ID.get("cash_1") };
+  }
+
+  return pickFillerPrize();
 }
 
 async function getGlobalPremiumSpins(supabase) {
@@ -127,15 +216,27 @@ async function createPendingPayout(supabase, {
   if (error) throw error;
 }
 
-function buildPremiumSpinUpdate(row, prize, extendBoostUntil) {
+function buildPremiumSpinUpdate(row, prize, extendBoostUntil, today = todayKey()) {
   const updated = {
     updated_at: new Date().toISOString()
   };
 
-  if (prize.type === "coins") {
-    const coins = number(row.coins) + number(prize.amount);
-    updated.coins = coins;
-    updated.city_value = coins + number(row.spent);
+  if (prize.type === "tickets") {
+    const ticketCount = Math.max(1, number(prize.amount) || 10);
+    const bonusScore = ticketCount * economy.TICKETS_PER_SCORE;
+    let score = number(row.daily_contest_score);
+    let contestDate = String(row.contest_date || "");
+    let baseline = number(row.contest_baseline_city);
+
+    if (contestDate !== today) {
+      score = 0;
+      baseline = number(row.coins) + number(row.spent);
+      contestDate = today;
+    }
+
+    updated.daily_contest_score = score + bonusScore;
+    updated.contest_date = contestDate;
+    updated.contest_baseline_city = baseline;
     return updated;
   }
 
@@ -160,6 +261,8 @@ function formatPrizeResult(prize, extra = {}) {
 
 module.exports = {
   PREMIUM_SPIN_STARS,
+  CASH_50_BLOCK_SPINS,
+  CASH_1_BLOCK_SPINS,
   PRIZE_SEGMENTS,
   PRIZE_BY_ID,
   getProbabilities,
