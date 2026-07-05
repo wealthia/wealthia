@@ -2109,8 +2109,10 @@ function renderRankRow(row, mode = "global", options = {}) {
 }
 
 function isDailyPodiumEligible(row) {
-  const score = Number(row?.dailyScore ?? row?.score ?? 0);
-  return score > 0 && rowTicketCount(row) >= 1;
+  const score = Number(row?.dailyScore ?? 0);
+  if (score <= 0) return false;
+  if (typeof row?.tickets === "number") return row.tickets >= 1;
+  return rowTicketCount({ ...row, dailyScore: score }) >= 1;
 }
 
 function getDailyPodiumTop3() {
@@ -2216,7 +2218,7 @@ function resolveYourRankRow(dailyMode) {
     const rank = Number(dailyYourRank || 0) || (score > 0 ? podiumTop3.length + 1 : 0);
 
     return {
-      rank: rank > 0 ? rank : 1,
+      rank: rank > 0 ? rank : 0,
       name: "You",
       dailyScore: score,
       isYou: true
@@ -2234,13 +2236,14 @@ function resolveYourRankRow(dailyMode) {
 }
 
 function renderYourRankRowHtml(row, dailyMode) {
-  const rank = Number(row.rank || 1);
+  const rank = Number(row.rank || 0);
+  const rankText = rank > 0 ? `#${rank}` : "—";
   const scoreText = podiumDisplayScore(row, dailyMode);
 
   return `
     <div class="rank-you-row">
       <span class="rank-you-row__star" aria-hidden="true">&#11088;</span>
-      <span class="rank-you-row__text">Your Rank: #${rank} | Score: ${scoreText}</span>
+      <span class="rank-you-row__text">Your Rank: ${rankText} | Score: ${scoreText}</span>
     </div>
   `;
 }
