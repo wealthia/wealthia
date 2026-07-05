@@ -34,7 +34,7 @@
     }
     [hidden] { display: none !important; }
   </style>
-  <link rel="stylesheet" href="./v5.css?v=2071" />
+  <link rel="stylesheet" href="./v5.css?v=2072" />
 </head>
 <body>
   <div class="ambient" aria-hidden="true">
@@ -113,19 +113,22 @@
 
     <section class="tap-area">
       <div class="energy-wrap">
-        <div class="energy-bar">
-          <span id="energyBar"></span>
+        <div class="energy-card">
+          <span class="energy-label">Energy Reserve</span>
+          <div class="energy-bar">
+            <span id="energyBar"></span>
+          </div>
         </div>
-        <span class="energy-label">Energy Reserve</span>
       </div>
       <div class="tap-button-wrap">
         <div class="tap-ring tap-ring--outer" aria-hidden="true"></div>
         <div class="tap-ring tap-ring--inner" aria-hidden="true"></div>
         <button class="tap-button" id="tapButton" type="button">
           <span class="tap-button__shine" aria-hidden="true"></span>
-          <span id="tapLabel">Tap</span>
-          <strong>+<span id="tapPower">1</span></strong>
-          <small class="tap-button__hint">per tap</small>
+          <span class="tap-button__content">
+            <span class="tap-button__label" id="tapLabel">Tap</span>
+            <span class="tap-button__power">+<span id="tapPower">1</span> <small class="tap-button__hint">per tap</small></span>
+          </span>
         </button>
       </div>
     </section>
@@ -351,5 +354,5 @@
   </div>
 
   <script src="./config.js?v=19"></script>
-  <script src="./v5.js?v=10089"></script></body>
+  <script src="./v5.js?v=10090"></script></body>
 </html>

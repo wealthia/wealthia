@@ -900,8 +900,9 @@ function render() {
   if (energyMaxEl) energyMaxEl.textContent = format(maxEnergy);
 
   if (els.energyBar) {
-    els.energyBar.style.width = `${Math.max(0, Math.min(100, (state.energy / maxEnergy) * 100))}%`;
-    els.energyBar.style.background = state.energy / maxEnergy < 0.2 ? "var(--red)" : "var(--green)";
+    const energyRatio = state.energy / maxEnergy;
+    els.energyBar.style.width = `${Math.max(0, Math.min(100, energyRatio * 100))}%`;
+    els.energyBar.classList.toggle("is-low", energyRatio < 0.2);
   }
 
   if (els.tapPower) els.tapPower.textContent = tapPower();
