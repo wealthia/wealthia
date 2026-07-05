@@ -1,5 +1,5 @@
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
-const WEBAPP_URL = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2101";
+const WEBAPP_URL = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2102";
 const BOT_USERNAME = process.env.BOT_USERNAME || "WealthiaGameBot";
 const CHANNEL_URL = process.env.CHANNEL_URL || "";
 const BACKEND_URL = process.env.BACKEND_URL || "https://wealthia-backend.onrender.com";
@@ -20,7 +20,12 @@ const STAR_PRODUCT_IDS = new Set([
   "tickets_5",
   "tickets_10",
   "tickets_50",
-  "tickets_100"
+  "tickets_100",
+  "coins_5000",
+  "coins_15000",
+  "coins_50000",
+  "coins_150000",
+  "coins_500000"
 ]);
 
 const STAR_PRODUCT_STARS = {
@@ -33,7 +38,12 @@ const STAR_PRODUCT_STARS = {
   tickets_5: 20,
   tickets_10: 35,
   tickets_50: 150,
-  tickets_100: 250
+  tickets_100: 250,
+  coins_5000: 10,
+  coins_15000: 25,
+  coins_50000: 70,
+  coins_150000: 180,
+  coins_500000: 450
 };
 
 const STAR_SUCCESS_MESSAGES = {
@@ -46,7 +56,12 @@ const STAR_SUCCESS_MESSAGES = {
   tickets_5: "+5 Tickets added!",
   tickets_10: "+10 Tickets added!",
   tickets_50: "+50 Tickets added!",
-  tickets_100: "+100 Tickets added!"
+  tickets_100: "+100 Tickets added!",
+  coins_5000: "+5,000 Coins added!",
+  coins_15000: "+15,000 Coins added!",
+  coins_50000: "+50,000 Coins added!",
+  coins_150000: "+150,000 Coins added!",
+  coins_500000: "+500,000 Coins added!"
 };
 
 const STAR_PRODUCTS = Object.fromEntries(

@@ -2,7 +2,7 @@
 // Full monetization guide: MONETIZATION.md
 window.WEALTHIA_CONFIG = {
   API_URL: "https://wealthia-backend.onrender.com",
-  GAME_URL: "https://wealthia.github.io/wealthia/v5.html?v=2101",
+  GAME_URL: "https://wealthia.github.io/wealthia/v5.html?v=2102",
   ADMIN_URL: "https://wealthia.github.io/wealthia/admin.html",
 
   // Your bot username without @ — used for invite links
@@ -43,6 +43,14 @@ window.WEALTHIA_CONFIG = {
   },
 
   // Ticket store packs on Rank tab (must match server STAR_PRODUCTS)
+  COIN_STORE_PACKS: [
+    { productId: 'coins_5000', coins: 5000, stars: 10 },
+    { productId: 'coins_15000', coins: 15000, stars: 25 },
+    { productId: 'coins_50000', coins: 50000, stars: 70 },
+    { productId: 'coins_150000', coins: 150000, stars: 180 },
+    { productId: 'coins_500000', coins: 500000, stars: 450 },
+  ],
+
   TICKET_STORE_PACKS: [
     { id: "tickets_1", tickets: 1, stars: 5 },
     { id: "tickets_5", tickets: 5, stars: 20 },

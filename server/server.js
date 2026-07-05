@@ -172,6 +172,41 @@ const STAR_PRODUCTS = {
     description: "Add 100 tickets to today's Daily Race",
     successMessage: "+100 Tickets added!",
     ticketCount: 100
+  },
+  coins_5000: {
+    stars: 10,
+    title: "5,000 Wealth Coins",
+    description: "Instant coin pack for your empire",
+    successMessage: "+5,000 Coins added!",
+    coinAmount: 5000
+  },
+  coins_15000: {
+    stars: 25,
+    title: "15,000 Wealth Coins",
+    description: "Instant coin pack for your empire",
+    successMessage: "+15,000 Coins added!",
+    coinAmount: 15000
+  },
+  coins_50000: {
+    stars: 70,
+    title: "50,000 Wealth Coins",
+    description: "Instant coin pack for your empire",
+    successMessage: "+50,000 Coins added!",
+    coinAmount: 50000
+  },
+  coins_150000: {
+    stars: 180,
+    title: "150,000 Wealth Coins",
+    description: "Instant coin pack for your empire",
+    successMessage: "+150,000 Coins added!",
+    coinAmount: 150000
+  },
+  coins_500000: {
+    stars: 450,
+    title: "500,000 Wealth Coins",
+    description: "Instant coin pack for your empire",
+    successMessage: "+500,000 Coins added!",
+    coinAmount: 500000
   }
 };
 
@@ -450,11 +485,26 @@ function applyTicketPackPurchase(row, ticketCount) {
   };
 }
 
+function applyCoinPackPurchase(row, coinAmount) {
+  const bonusCoins = Math.max(0, number(coinAmount));
+  const newCoins = number(row.coins) + bonusCoins;
+
+  return {
+    coins: newCoins,
+    city_value: newCoins + number(row.spent),
+    updated_at: new Date().toISOString()
+  };
+}
+
 function applyStarProduct(row, productId) {
   const product = STAR_PRODUCTS[productId];
   const updated = {
     updated_at: new Date().toISOString()
   };
+
+  if (productId.startsWith("coins_") && product?.coinAmount) {
+    return applyCoinPackPurchase(row, product.coinAmount);
+  }
 
   if (productId.startsWith("tickets_") && product?.ticketCount) {
     return applyTicketPackPurchase(row, product.ticketCount);
@@ -3803,7 +3853,7 @@ async function sendPushMessage(telegramId, text) {
   if (!TELEGRAM_BOT_TOKEN) return false;
 
   try {
-    const webAppUrl = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2101";
+    const webAppUrl = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2102";
     await telegramApi("sendMessage", {
       chat_id: telegramId,
       text,
