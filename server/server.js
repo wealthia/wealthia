@@ -719,24 +719,51 @@ function computeDailyRank(rows, userId, userTickets) {
   return 1 + sorted.filter((row) => ticketCount(row) > number(userTickets)).length;
 }
 
+function sortDailyContestRows(rows) {
+  const ticketCount = (row) => economy.computeTickets(row.daily_contest_score);
+  return [...rows].sort((a, b) => {
+    const byTickets = ticketCount(b) - ticketCount(a);
+    if (byTickets !== 0) return byTickets;
+    return number(b.daily_contest_score) - number(a.daily_contest_score);
+  });
+}
+
+function buildDailyPodiumRows(dailyCandidates) {
+  return sortDailyContestRows(dailyCandidates || [])
+    .filter((row) =>
+      number(row.daily_contest_score) > 0 &&
+      economy.computeTickets(row.daily_contest_score) >= 1
+    )
+    .slice(0, 3);
+}
+
+function computeGlobalDailyRank(dailyCandidates, userId, userScore) {
+  if (!userId) return 0;
+
+  const scorers = sortDailyContestRows(
+    (dailyCandidates || []).filter((row) => number(row.daily_contest_score) > 0)
+  );
+  const index = scorers.findIndex((row) => row.user_id === userId);
+  if (index >= 0) return index + 1;
+
+  const score = number(userScore);
+  if (score <= 0) return 0;
+
+  const userTickets = economy.computeTickets(score);
+  return 1 + scorers.filter((row) => {
+    const rowTickets = economy.computeTickets(row.daily_contest_score);
+    if (rowTickets !== userTickets) return rowTickets > userTickets;
+    return number(row.daily_contest_score) > score;
+  }).length;
+}
+
 function mergeDailyLeaderboardRows(
   today,
   dailyEligibleRows,
   realDailyScores,
-  yourDailyGame,
-  userId,
   systemBotRows = []
 ) {
   const merged = [...dailyEligibleRows];
-
-  if (
-    yourDailyGame &&
-    userId &&
-    number(yourDailyGame.daily_contest_score) > 0 &&
-    !merged.some((row) => row.user_id === userId)
-  ) {
-    merged.push(yourDailyGame);
-  }
 
   if (systemBotRows.length) {
     merged.push(...systemBotRows);
@@ -2913,25 +2940,23 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
       today,
       dailyEligibleRows,
       realDailyScores,
-      yourDailyGame,
-      userId,
       systemBotRows
     );
-    const dailyPodiumEligible = (row) =>
-      number(row.daily_contest_score) > 0 &&
-      economy.computeTickets(row.daily_contest_score) >= 1;
-    dailyTopData = dailyMerged.filter(dailyPodiumEligible).slice(0, 3);
+    dailyTopData = buildDailyPodiumRows(dailyCandidates);
     const dailyListData = dailyMerged.slice(0, DAILY_LEADERBOARD_LIMIT);
 
     if (yourDailyGame && userId) {
-      yourDailyRank = computeDailyRank(
-        dailyMerged,
+      yourDailyRank = computeGlobalDailyRank(
+        dailyCandidates,
         userId,
-        economy.computeTickets(yourDailyGame.daily_contest_score)
+        number(yourDailyGame.daily_contest_score)
       );
     }
 
-    const dailyIds = dailyMerged.map((row) => row.user_id);
+    const dailyIds = [
+      ...dailyMerged.map((row) => row.user_id),
+      ...dailyTopData.map((row) => row.user_id)
+    ];
     lookupIds.push(...dailyIds);
     if (userId && !lookupIds.includes(userId)) {
       lookupIds.push(userId);
@@ -2979,8 +3004,9 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
     const dailyTop3 = dailyTopData.map((row, index) => rowFromGame(row, index + 1, "dailyScore"));
     const dailyRows = dailyListData.map((row, index) => rowFromGame(row, index + 1, "dailyScore"));
 
+    const youInDailyTop3 = dailyTop3.some((row) => row.isYou);
     const youInDailyList = dailyRows.some((row) => row.isYou);
-    const dailyYou = yourDailyGame && !youInDailyList
+    const dailyYou = yourDailyGame && !youInDailyTop3 && !youInDailyList
       ? rowFromGame(yourDailyGame, yourDailyRank, "dailyScore")
       : null;
 
