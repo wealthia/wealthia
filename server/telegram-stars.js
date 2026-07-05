@@ -1,16 +1,19 @@
 const STARS_PRODUCTION_MODE = process.env.STARS_TEST_MODE !== "true";
 
 function buildStarsInvoiceBody({ title, description, payload, stars }) {
+  const safeTitle = String(title || "Wealthia").trim().slice(0, 32);
+  const safeDescription = String(description || "Premium purchase").trim().slice(0, 255);
   const productionPayload = String(payload || "").startsWith("prod|")
     ? String(payload)
     : `prod|${String(payload || "")}`;
+  const starAmount = Math.max(1, Math.round(Number(stars) || 0));
 
   return {
-    title: String(title || "Wealthia"),
-    description: String(description || "Premium purchase"),
-    payload: productionPayload,
+    title: safeTitle,
+    description: safeDescription,
+    payload: productionPayload.slice(0, 128),
     currency: "XTR",
-    prices: [{ label: String(title || "Wealthia"), amount: Number(stars) }]
+    prices: [{ label: safeTitle, amount: starAmount }]
   };
 }
 
