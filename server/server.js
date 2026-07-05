@@ -2457,26 +2457,26 @@ app.get("/api/stars/products", (_req, res) => {
 
 app.post("/api/stars/invoice", requirePlayer, async (req, res) => {
   try {
-    const userId = req.playerId;
-    const productId = String(req.body.productId || "");
+    const userId = String(req.playerId || "");
+    const productId = String(req.body.productId || "").trim();
     const product = STAR_PRODUCTS[productId];
 
     if (!userId || !product) {
-      res.status(400).json({ error: "BAD_PRODUCT" });
+      res.status(400).json({ ok: false, error: "BAD_PRODUCT" });
       return;
     }
 
     if (!TELEGRAM_BOT_TOKEN) {
-      res.status(503).json({ error: "STARS_NOT_CONFIGURED" });
+      res.status(503).json({ ok: false, error: "STARS_NOT_CONFIGURED" });
       return;
     }
 
     if (!telegramStars.STARS_PRODUCTION_MODE) {
-      res.status(503).json({ error: "STARS_TEST_MODE_DISABLED" });
+      res.status(503).json({ ok: false, error: "STARS_TEST_MODE_DISABLED" });
       return;
     }
 
-    const invoiceLink = await telegramApi(
+    const invoice = await telegramApiSafe(
       "createInvoiceLink",
       telegramStars.buildStarsInvoiceBody({
         title: product.title,
@@ -2485,6 +2485,26 @@ app.post("/api/stars/invoice", requirePlayer, async (req, res) => {
         stars: product.stars
       })
     );
+
+    if (!invoice.ok || !invoice.result) {
+      console.error("CREATE_INVOICE_LINK_FAILED:", productId, invoice.error);
+      res.status(502).json({
+        ok: false,
+        error: "INVOICE_CREATE_FAILED",
+        message: invoice.error || "Could not create Telegram Stars payment link."
+      });
+      return;
+    }
+
+    const invoiceLink = String(invoice.result || "").trim();
+    if (!invoiceLink.startsWith("https://")) {
+      res.status(502).json({
+        ok: false,
+        error: "INVALID_INVOICE_LINK",
+        message: "Telegram returned an invalid payment link."
+      });
+      return;
+    }
 
     res.json({
       ok: true,
@@ -2497,7 +2517,12 @@ app.post("/api/stars/invoice", requirePlayer, async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("STARS_INVOICE_ERROR:", error.message);
+    res.status(500).json({
+      ok: false,
+      error: "INVOICE_ERROR",
+      message: error.message || "Could not create payment link."
+    });
   }
 });
 

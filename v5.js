@@ -1499,8 +1499,8 @@ async function openPremiumSpinInvoice(spinButton, tg) {
 async function startPremiumSpinPurchase() {
   if (premiumSpinBusy || premiumSpinWaiting) return;
 
-  if (!(await ensureBackend())) {
-    showToast("Server not connected. Tap Retry at top.");
+  if (!(await ensureBackendForPayment())) {
+    showToast("Server not connected. Wait 10 seconds and try again.");
     return;
   }
 
@@ -2292,7 +2292,8 @@ function renderTicketStoreHtml() {
             data-ticket-count="${pack.tickets}"
             data-ticket-stars="${pack.stars}"
           >
-            <span class="ticket-store__amount">${pack.tickets}x &#127915;</span>
+            <span class="ticket-store__amount">${pack.tickets}x</span>
+            <span class="ticket-store__icon" aria-hidden="true">&#127915;</span>
             <span class="ticket-store__price">${pack.stars} &#11088;</span>
           </button>
         `).join("")}
@@ -3085,6 +3086,9 @@ function starsInvoiceErrorMessage(result, status) {
   if (result?.error === "BAD_PRODUCT") {
     return "This pack is not available yet. Refresh the game.";
   }
+  if (result?.error === "INVOICE_CREATE_FAILED" || result?.error === "INVALID_INVOICE_LINK") {
+    return result?.message || "Could not create Stars payment. Try again.";
+  }
   if (result?.error === "CONNECTION_ERROR" || status === 0) {
     return "Server is waking up. Wait 10 seconds and try again.";
   }
@@ -3093,11 +3097,22 @@ function starsInvoiceErrorMessage(result, status) {
   return "Could not open Stars payment.";
 }
 
+async function ensureBackendForPayment() {
+  if (backendReady && backendSessionToken) {
+    await warmBackendForPayment(2);
+    return true;
+  }
+
+  await warmBackendForPayment(4);
+  const connected = await connectBackend(4, { silent: true });
+  if (connected) return true;
+
+  await warmBackendForPayment(5);
+  return backendReady;
+}
+
 async function requestStarsInvoice(productId) {
-  const createInvoice = () => apiPost("/api/stars/invoice", {
-    userId: backendUserId,
-    productId
-  });
+  const createInvoice = () => apiPostSecure("/api/stars/invoice", { productId });
 
   await warmBackendForPayment();
 
@@ -3106,7 +3121,7 @@ async function requestStarsInvoice(productId) {
   if (response.status === 401 || response.result?.error === "SESSION_EXPIRED") {
     backendReady = false;
     backendSessionToken = "";
-    if (await connectBackend(2)) {
+    if (await connectBackend(3, { silent: true })) {
       response = await createInvoice();
     }
   }
@@ -3116,10 +3131,23 @@ async function requestStarsInvoice(productId) {
     response = await createInvoice();
   }
 
+  const link = response.result?.invoiceLink;
+  if (response.ok && link && typeof link !== "string") {
+    return {
+      ok: false,
+      status: response.status,
+      result: {
+        error: "INVALID_INVOICE_LINK",
+        message: "Payment link was invalid. Please try again."
+      }
+    };
+  }
+
   return response;
 }
 
-async function connectBackend(retries = 6) {
+async function connectBackend(retries = 6, options = {}) {
+  const silent = Boolean(options.silent);
   renderSyncBar();
   await wakeBackend();
 
@@ -3198,10 +3226,10 @@ async function connectBackend(retries = 6) {
     if (result && result.error === "CONNECTION_ERROR") {
       backendReady = false;
       backendSessionToken = "";
-      if (els.syncBarText) {
+      if (!silent && els.syncBarText) {
         els.syncBarText.textContent = CONNECTION_ERROR_TOAST;
       }
-      showConnectionErrorToast();
+      if (!silent) showConnectionErrorToast();
       renderSyncBar();
       render();
       if (attempt < retries && (status === 0 || status >= 500)) {
@@ -3212,7 +3240,7 @@ async function connectBackend(retries = 6) {
     }
 
     if (attempt < retries && (status === 0 || status >= 500)) {
-      if (els.syncBarText) {
+      if (!silent && els.syncBarText) {
         els.syncBarText.textContent = status === 0
           ? "Network error — retrying..."
           : CONNECTION_ERROR_TOAST;
@@ -3227,15 +3255,15 @@ async function connectBackend(retries = 6) {
   backendReady = false;
   backendSessionToken = "";
   if (!getTelegramInitData()) {
-    showToast("Backend offline. Local mode — tap still works.");
+    if (!silent) showToast("Backend offline. Local mode — tap still works.");
   } else {
     const health = await fetchBackendHealth();
     if (health && health.database === false) {
-      showToast("Database offline. Tap works, sync paused.");
-    } else {
+      if (!silent) showToast("Database offline. Tap works, sync paused.");
+    } else if (!silent) {
       showConnectionErrorToast();
     }
-    scheduleBackendReconnect();
+    if (!silent) scheduleBackendReconnect();
   }
   renderSyncBar();
   render();
@@ -3662,12 +3690,10 @@ async function buyTicketPack(productId, ticketCount, button) {
     return;
   }
 
-  if (!(await ensureBackend())) {
-    showToast("Server not connected. Tap Retry at top.");
+  if (!(await ensureBackendForPayment())) {
+    showToast("Server not connected. Wait 10 seconds and try again.");
     return;
   }
-
-  await warmBackendForPayment();
 
   const beforeTickets = ticketCount();
   if (button) {
@@ -3730,12 +3756,10 @@ async function buyStarsProduct(productId) {
     return;
   }
 
-  if (!(await ensureBackend())) {
-    showToast("Server not connected. Tap Retry at top.");
+  if (!(await ensureBackendForPayment())) {
+    showToast("Server not connected. Wait 10 seconds and try again.");
     return;
   }
-
-  await warmBackendForPayment();
 
   const { ok, result, status } = await requestStarsInvoice(productId);
 
