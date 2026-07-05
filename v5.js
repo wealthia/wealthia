@@ -1175,7 +1175,7 @@ function premiumWinModalCopy(prize) {
 
   if (prize.type === "cash") {
     const amount = Number(prize.amount || 0);
-    const isCashPayout = amount === 1 || amount === 50;
+    const isCashPayout = amount === 1 || amount === 2 || amount === 5 || amount === 10;
     return {
       title: "Cash Prize",
       body: isCashPayout
