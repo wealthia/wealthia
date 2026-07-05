@@ -192,5 +192,6 @@ module.exports = {
   diagnoseTelegramAuth,
   requireVerifiedTelegramPlayer,
   resolveTelegramUser,
+  verifyTelegramInitData,
   verifyToken
 };
