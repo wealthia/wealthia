@@ -485,7 +485,11 @@ function renderTicketProgressHtml() {
   return `
     <div class="daily-prize__tickets">
       <div class="daily-prize__tickets-head">
-        <strong class="daily-prize__tickets-label">Your Tickets: &#127915; ${tickets}</strong>
+        <div class="daily-prize__tickets-left">
+          <span class="daily-prize__tickets-label">Your Tickets:</span>
+          <span class="daily-prize__ticket-icon" aria-hidden="true">&#127915;</span>
+          <span class="daily-prize__ticket-count">${tickets}</span>
+        </div>
         <span class="daily-prize__tickets-next">Next ticket at: ${format(progress.current)} / ${format(progress.target)} points</span>
       </div>
       <div class="daily-prize__ticket-progress" role="progressbar" aria-valuenow="${progress.percent}" aria-valuemin="0" aria-valuemax="100">
