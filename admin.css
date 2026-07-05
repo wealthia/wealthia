@@ -401,6 +401,57 @@ input, select {
   cursor: not-allowed;
 }
 
+.broadcast-form {
+  display: grid;
+  gap: 16px;
+}
+
+.broadcast-form textarea {
+  min-height: 180px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.broadcast-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.btn-broadcast {
+  background: linear-gradient(135deg, #7c5cff, #5a3fe0);
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.btn-save-config {
+  background: linear-gradient(135deg, var(--gold), #c98b1e);
+  color: #1a1204;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.btn-give-reward {
+  background: linear-gradient(135deg, #3dd68c, #1f9d62);
+  color: #07150f;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.broadcast-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.reward-card {
+  margin-bottom: 16px;
+}
+
+.reward-form {
+  margin-top: 4px;
+}
+
 .stat-card {
   background: var(--surface);
   border: 1px solid var(--line);
