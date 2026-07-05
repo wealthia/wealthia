@@ -1302,7 +1302,7 @@ p {
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  gap: 8px;
+  gap: 6px;
   overflow: hidden;
 }
 
@@ -1312,8 +1312,8 @@ p {
   display: flex;
   flex-direction: column;
   margin: 0;
-  padding: 10px 12px;
-  gap: 16px;
+  padding: 8px 10px;
+  gap: 8px;
   overflow: hidden;
 }
 
@@ -1404,7 +1404,7 @@ p {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 8px 10px;
+  padding: 6px 8px;
   border-radius: 12px;
   background: linear-gradient(135deg, rgba(245, 196, 81, 0.22), rgba(245, 196, 81, 0.08));
   border: 1px solid rgba(245, 196, 81, 0.42);
@@ -1429,13 +1429,14 @@ p {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 0 2px;
+  gap: 4px;
+  padding: 0 4px;
+  align-items: center;
 }
 
 .app.view-rank .ticket-store__title {
   margin: 0;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-align: center;
@@ -1444,27 +1445,26 @@ p {
 
 .app.view-rank .ticket-store__row {
   display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 2px;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-
-.app.view-rank .ticket-store__row::-webkit-scrollbar {
-  display: none;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: stretch;
+  gap: 5px;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0 2px 1px;
 }
 
 .app.view-rank .ticket-store__pack {
-  flex: 0 0 auto;
-  min-width: 62px;
+  flex: 0 1 58px;
+  min-width: 54px;
+  max-width: 64px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 8px 6px;
+  gap: 3px;
+  padding: 6px 4px;
   border-radius: 12px;
   border: 1px solid rgba(155, 123, 255, 0.35);
   background: linear-gradient(160deg, rgba(36, 28, 58, 0.95), rgba(20, 18, 34, 0.98));
@@ -1483,14 +1483,14 @@ p {
 }
 
 .app.view-rank .ticket-store__amount {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 800;
   color: #f4f0ff;
   white-space: nowrap;
 }
 
 .app.view-rank .ticket-store__price {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 900;
   color: var(--gold-light);
   white-space: nowrap;
@@ -1530,23 +1530,23 @@ p {
   margin-top: auto;
   display: flex;
   justify-content: center;
-  padding-bottom: 2px;
+  padding: 2px 0 4px;
 }
 
 .app.view-rank .rank-daily-rules .rank-rules-btn {
-  padding: 5px 12px;
-  font-size: 9px;
+  padding: 4px 10px;
+  font-size: 8px;
 }
 
 .app.view-rank .tournament-card.card {
   margin-bottom: 0;
-  padding: 8px 10px;
+  padding: 6px 8px;
   min-height: 0;
   gap: 2px;
 }
 
 .app.view-rank .tournament-card--empty {
-  padding: 7px 9px !important;
+  padding: 6px 8px !important;
 }
 
 .app.view-rank .tournament-card--empty h2 {
@@ -1571,71 +1571,87 @@ p {
   font-size: 13px;
 }
 
+.app.view-rank .rank-stack .grand-prize-card__head {
+  padding: 0 4px;
+}
+
 .app.view-rank .rank-stack .grand-prize-card__head h3 {
-  font-size: 12px;
+  font-size: 11px;
   margin: 0;
   line-height: 1.15;
 }
 
 .app.view-rank .rank-stack .grand-prize-card__head p {
-  font-size: 9px;
-  line-height: 1.2;
+  font-size: 11px;
+  line-height: 1.25;
+  padding: 0 4px;
 }
 
 .app.view-rank .rank-stack .grand-prize__badge {
-  font-size: 8px;
+  font-size: 7px;
   margin-bottom: 0;
 }
 
 .app.view-rank .rank-stack .daily-prize__gain-box {
-  padding: 6px 8px;
-  gap: 2px;
+  padding: 5px 6px;
+  gap: 1px;
 }
 
 .app.view-rank .rank-stack .daily-prize__gain-label {
-  font-size: 8px;
+  font-size: 7px;
 }
 
 .app.view-rank .rank-stack .daily-prize__gain-value {
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .app.view-rank .rank-stack .daily-prize__tickets {
-  gap: 8px;
+  gap: 5px;
+  padding: 0 2px;
 }
 
 .app.view-rank .rank-stack .daily-prize__tickets-head {
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .app.view-rank .rank-stack .daily-prize__tickets-left {
-  gap: 4px;
-  min-height: 1rem;
+  gap: 3px;
+  min-height: 0.9rem;
+  flex-shrink: 0;
 }
 
 .app.view-rank .rank-stack .daily-prize__tickets-label,
 .app.view-rank .rank-stack .daily-prize__ticket-count {
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1;
 }
 
 .app.view-rank .rank-stack .daily-prize__ticket-icon {
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .app.view-rank .rank-stack .daily-prize__tickets-next {
-  font-size: 8px;
-  line-height: 1.15;
+  font-size: 11px;
+  line-height: 1.2;
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  padding-left: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .app.view-rank .rank-stack .daily-prize__ticket-progress {
-  height: 5px;
+  height: 4px;
 }
 
 .app.view-rank .rank-stack .daily-prize-card__boost-tip {
-  font-size: 9px;
-  line-height: 1.25;
+  font-size: 11px;
+  line-height: 1.2;
+  padding: 0 4px;
+  margin: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -1643,9 +1659,16 @@ p {
 }
 
 .app.view-rank .rank-stack .grand-prize-card__channel {
-  padding: 6px 8px;
-  font-size: 9px;
+  margin-top: 0;
+  padding: 5px 8px;
+  font-size: 10px;
   line-height: 1.2;
+  border-radius: 10px;
+}
+
+.app.view-rank .tabs {
+  margin-top: 4px;
+  flex-shrink: 0;
 }
 
 .rank-rules-btn {
