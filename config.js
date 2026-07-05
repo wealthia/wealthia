@@ -39,7 +39,7 @@ window.WEALTHIA_CONFIG = {
     tap_boost_30: 10,
     endless_energy_30: 15,
     income_boost_30: 15,
-    premium_spin: 50
+    premium_spin: 30
   },
 
   // Premium spin cash prize claim support

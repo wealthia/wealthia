@@ -23,7 +23,7 @@ const STAR_PRODUCT_STARS = {
   tap_boost_30: 10,
   endless_energy_30: 15,
   income_boost_30: 15,
-  premium_spin: 50
+  premium_spin: 30
 };
 
 const STAR_PRODUCTS = Object.fromEntries(
