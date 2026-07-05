@@ -2108,127 +2108,22 @@ function renderRankRow(row, mode = "global", options = {}) {
   `;
 }
 
-function buildDailyLeaderboardView() {
-  const yourScore = Math.max(
-    Number(dailyContestScore || 0),
-    Number(state.dailyContest?.score || 0),
-    todayGainScore()
-  );
-
-  if (dailyLeaderboardRows.length) {
-    const ranked = dailyLeaderboardRows.map((row) => ({
-      ...row,
-      dailyScore: Number(row.dailyScore || row.score || 0),
-      tickets: rowTicketCount(row),
-      name: row.isYou ? "You" : (row.name || "Player")
-    }));
-
-    const youRow = ranked.find((row) => row.isYou);
-    if (youRow) {
-      youRow.dailyScore = Math.max(youRow.dailyScore, yourScore);
-      youRow.tickets = rowTicketCount(youRow);
-    }
-
-    const youInList = ranked.some((row) => row.isYou);
-    const yourPlace = !youInList && dailyLeaderboardYou
-      ? {
-        ...dailyLeaderboardYou,
-        dailyScore: Math.max(Number(dailyLeaderboardYou.dailyScore || 0), yourScore),
-        tickets: rowTicketCount({
-          ...dailyLeaderboardYou,
-          dailyScore: Math.max(Number(dailyLeaderboardYou.dailyScore || 0), yourScore)
-        }),
-        isYou: true,
-        name: "You"
-      }
-      : null;
-
-    if (!ranked.length) {
-      return {
-        top3: [{
-          rank: 1,
-          name: "You",
-          dailyScore: yourScore,
-          tickets: Math.floor(yourScore / TICKETS_PER_SCORE),
-          isYou: true
-        }],
-        yourPlace: null
-      };
-    }
-
-    return { top3: ranked, yourPlace };
-  }
-
-  const candidates = [];
-  const seen = new Set();
-
-  const addCandidate = (row) => {
-    if (!row) return;
-    const key = leaderboardCandidateKey(row);
-    if (!key || seen.has(key)) return;
-    seen.add(key);
-    candidates.push({
-      ...row,
-      userId: row.userId || CONTEST_SEED_IDS[row.name] || row.userId,
-      dailyScore: Number(row.dailyScore || row.score || 0),
-      tickets: rowTicketCount(row),
-      name: row.isYou ? "You" : (row.name || "Player")
-    });
-  };
-
-  for (const row of dailyLeaderboardTop3) addCandidate(row);
-  if (dailyLeaderboardYou) addCandidate({ ...dailyLeaderboardYou, isYou: true });
-
-  let merged = candidates;
-
-  const youRow = merged.find((row) => row.isYou);
-  if (youRow) {
-    youRow.dailyScore = Math.max(youRow.dailyScore, yourScore);
-    youRow.tickets = rowTicketCount(youRow);
-  } else {
-    merged.push({
-      name: "You",
-      dailyScore: yourScore,
-      tickets: Math.floor(yourScore / TICKETS_PER_SCORE),
-      isYou: true
-    });
-  }
-
-  merged.sort((a, b) => {
-    const byTickets = rowTicketCount(b) - rowTicketCount(a);
-    if (byTickets !== 0) return byTickets;
-    return Number(b.dailyScore || 0) - Number(a.dailyScore || 0);
-  });
-
-  const ranked = merged.map((row, index) => ({
-    ...row,
-    rank: index + 1
-  }));
-
-  const top3 = ranked.slice(0, 3);
-  const youInTop3 = top3.some((row) => row.isYou);
-  const yourPlace = !youInTop3
-    ? ranked.find((row) => row.isYou) || null
-    : null;
-
-  if (!top3.length) {
-    return {
-      top3: [{
-        rank: 1,
-        name: "You",
-        dailyScore: yourScore,
-        tickets: Math.floor(yourScore / TICKETS_PER_SCORE),
-        isYou: true
-      }],
-      yourPlace: null
-    };
-  }
-
-  return { top3, yourPlace };
+function isDailyPodiumEligible(row) {
+  const score = Number(row?.dailyScore ?? row?.score ?? 0);
+  return score > 0 && rowTicketCount(row) >= 1;
 }
 
-function buildDailyLeaderboardRows() {
-  return buildDailyLeaderboardView().top3;
+function getDailyPodiumTop3() {
+  const rows = Array.isArray(dailyLeaderboardTop3) ? dailyLeaderboardTop3 : [];
+  return rows
+    .filter(isDailyPodiumEligible)
+    .sort((a, b) => Number(a.rank || 99) - Number(b.rank || 99))
+    .slice(0, 3)
+    .map((row) => ({
+      ...row,
+      dailyScore: Number(row.dailyScore || row.score || 0),
+      name: row.isYou ? "You" : (row.name || "Player")
+    }));
 }
 
 function rankMark(rank) {
@@ -2294,15 +2189,34 @@ function renderPodiumHtml(rows, dailyMode) {
 
 function resolveYourRankRow(dailyMode) {
   if (dailyMode) {
-    const view = buildDailyLeaderboardView();
-    const youInTop3 = view.top3.find((row) => row.isYou);
-    if (youInTop3) return youInTop3;
+    const podiumTop3 = getDailyPodiumTop3();
+    const youOnPodium = podiumTop3.find((row) => row.isYou);
+    if (youOnPodium) return youOnPodium;
 
-    if (view.yourPlace) return view.yourPlace;
+    if (dailyLeaderboardYou) {
+      return {
+        ...dailyLeaderboardYou,
+        name: "You",
+        isYou: true,
+        dailyScore: Number(dailyLeaderboardYou.dailyScore ?? dailyContestScore ?? 0)
+      };
+    }
 
-    const score = todayGainScore();
+    const youInRows = dailyLeaderboardRows.find((row) => row.isYou);
+    if (youInRows) {
+      return {
+        ...youInRows,
+        name: "You",
+        isYou: true,
+        dailyScore: Number(youInRows.dailyScore ?? dailyContestScore ?? 0)
+      };
+    }
+
+    const score = Number(dailyContestScore || state.dailyContest?.score || 0);
+    const rank = Number(dailyYourRank || 0) || (score > 0 ? podiumTop3.length + 1 : 0);
+
     return {
-      rank: Math.max(1, view.top3.length + 1),
+      rank: rank > 0 ? rank : 1,
       name: "You",
       dailyScore: score,
       isYou: true
@@ -2361,7 +2275,7 @@ function renderRankPanel() {
     : "";
 
   const top3 = dailyMode
-    ? buildDailyLeaderboardView().top3
+    ? getDailyPodiumTop3()
     : (leaderboardTop3.length
       ? leaderboardTop3
       : [{
