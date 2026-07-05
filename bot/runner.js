@@ -15,7 +15,12 @@ const STAR_PRODUCT_IDS = new Set([
   "tap_boost_30",
   "endless_energy_30",
   "income_boost_30",
-  "premium_spin"
+  "premium_spin",
+  "tickets_1",
+  "tickets_5",
+  "tickets_10",
+  "tickets_50",
+  "tickets_100"
 ]);
 
 const STAR_PRODUCT_STARS = {
@@ -23,7 +28,12 @@ const STAR_PRODUCT_STARS = {
   tap_boost_30: 10,
   endless_energy_30: 15,
   income_boost_30: 15,
-  premium_spin: 30
+  premium_spin: 30,
+  tickets_1: 5,
+  tickets_5: 20,
+  tickets_10: 35,
+  tickets_50: 150,
+  tickets_100: 250
 };
 
 const STAR_PRODUCTS = Object.fromEntries(
@@ -43,7 +53,12 @@ const STAR_SUCCESS_MESSAGES = {
   tap_boost_30: "2x Tap boost active for 30 minutes!",
   endless_energy_30: "Endless Energy active for 30 minutes!",
   income_boost_30: "2x Income boost active for 30 minutes!",
-  premium_spin: "Premium spin ready!"
+  premium_spin: "Premium spin ready!",
+  tickets_1: "+1 Ticket added!",
+  tickets_5: "+5 Tickets added!",
+  tickets_10: "+10 Tickets added!",
+  tickets_50: "+50 Tickets added!",
+  tickets_100: "+100 Tickets added!"
 };
 
 const BOT_DESCRIPTION = process.env.BOT_DESCRIPTION || [
