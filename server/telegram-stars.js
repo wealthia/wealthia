@@ -38,7 +38,7 @@ function isValidStarCheckout(query, starProducts, parseStarPayload) {
     parsed &&
     product &&
     telegramId &&
-    parsed.userId === telegramId &&
+    String(parsed.userId) === String(telegramId) &&
     query.currency === "XTR" &&
     Number(query.total_amount) === expectedStars
   );
@@ -54,6 +54,19 @@ async function answerPreCheckoutQuery(telegramApiSafe, query, options = {}) {
 
   try {
     const approved = isValidStarCheckout(query, starProducts, parseStarPayload);
+    if (!approved) {
+      const invoicePayload = normalizeInvoicePayload(query?.invoice_payload);
+      const parsed = parseStarPayload(invoicePayload);
+      const product = parsed ? starProducts[parsed.productId] : null;
+      console.warn("PRE_CHECKOUT_REJECTED:", {
+        productId: parsed?.productId || "",
+        payloadUserId: parsed?.userId || "",
+        telegramId: String(query?.from?.id || ""),
+        currency: query?.currency || "",
+        totalAmount: Number(query?.total_amount || 0),
+        expectedStars: product ? Number(product.stars) : 0
+      });
+    }
     const response = await telegramApiSafe("answerPreCheckoutQuery", approved
       ? {
         pre_checkout_query_id: queryId,

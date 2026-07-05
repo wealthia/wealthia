@@ -2515,15 +2515,17 @@ app.post("/api/telegram/webhook/:secret", async (req, res) => {
 
   try {
     if (update.pre_checkout_query) {
-      await telegramStars.answerPreCheckoutQuery(
+      res.json({ ok: true });
+      telegramStars.answerPreCheckoutQuery(
         telegramApiSafe,
         update.pre_checkout_query,
         {
           starProducts: STAR_PRODUCTS,
           parseStarPayload
         }
-      );
-      res.json({ ok: true });
+      ).catch((error) => {
+        console.error("PRE_CHECKOUT_HANDLER_ERROR:", error.message);
+      });
       return;
     }
 

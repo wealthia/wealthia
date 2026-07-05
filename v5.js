@@ -1459,13 +1459,10 @@ async function runPremiumSpinAfterPayment() {
 async function openPremiumSpinInvoice(spinButton, tg) {
   setPremiumSpinButton(spinButton, true, "Opening payment...");
 
-  const { ok, result } = await apiPost("/api/stars/invoice", {
-    userId: backendUserId,
-    productId: "premium_spin"
-  });
+  const { ok, result, status } = await requestStarsInvoice("premium_spin");
 
   if (!ok || !result || !result.invoiceLink) {
-    showToast("Could not open Stars payment.");
+    showToast(starsInvoiceErrorMessage(result, status));
     resetPremiumSpinButton(spinButton);
     return;
   }
@@ -3053,6 +3050,75 @@ async function wakeBackend() {
   }
 }
 
+async function warmBackendForPayment(attempts = 4) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const health = await fetch(`${API_URL}/health`, { method: "GET", cache: "no-store" });
+      if (!health.ok) {
+        await sleep(700 * (attempt + 1));
+        continue;
+      }
+
+      if (backendSessionToken) {
+        await fetch(`${API_URL}/api/stars/products`, { method: "GET", cache: "no-store" });
+      }
+
+      return true;
+    } catch {
+      await sleep(700 * (attempt + 1));
+    }
+  }
+
+  return false;
+}
+
+function starsInvoiceErrorMessage(result, status) {
+  if (result?.error === "STARS_NOT_CONFIGURED") {
+    return "Stars payments not configured yet.";
+  }
+  if (result?.error === "STARS_TEST_MODE_DISABLED") {
+    return "Stars payments are unavailable in test mode.";
+  }
+  if (result?.error === "SESSION_EXPIRED") {
+    return "Session expired. Close and reopen the game.";
+  }
+  if (result?.error === "BAD_PRODUCT") {
+    return "This pack is not available yet. Refresh the game.";
+  }
+  if (result?.error === "CONNECTION_ERROR" || status === 0) {
+    return "Server is waking up. Wait 10 seconds and try again.";
+  }
+  if (result?.message) return String(result.message);
+  if (result?.error) return String(result.error);
+  return "Could not open Stars payment.";
+}
+
+async function requestStarsInvoice(productId) {
+  const createInvoice = () => apiPost("/api/stars/invoice", {
+    userId: backendUserId,
+    productId
+  });
+
+  await warmBackendForPayment();
+
+  let response = await createInvoice();
+
+  if (response.status === 401 || response.result?.error === "SESSION_EXPIRED") {
+    backendReady = false;
+    backendSessionToken = "";
+    if (await connectBackend(2)) {
+      response = await createInvoice();
+    }
+  }
+
+  if (!response.ok && (response.status === 0 || response.status >= 500)) {
+    await warmBackendForPayment(5);
+    response = await createInvoice();
+  }
+
+  return response;
+}
+
 async function connectBackend(retries = 6) {
   renderSyncBar();
   await wakeBackend();
@@ -3601,27 +3667,22 @@ async function buyTicketPack(productId, ticketCount, button) {
     return;
   }
 
+  await warmBackendForPayment();
+
   const beforeTickets = ticketCount();
   if (button) {
     button.disabled = true;
     button.classList.add("ticket-store__pack--busy");
   }
 
-  const { ok, result } = await apiPost("/api/stars/invoice", {
-    userId: backendUserId,
-    productId
-  });
+  const { ok, result, status } = await requestStarsInvoice(productId);
 
   if (!ok || !result || !result.invoiceLink) {
     if (button) {
       button.disabled = false;
       button.classList.remove("ticket-store__pack--busy");
     }
-    if (result && result.error === "STARS_NOT_CONFIGURED") {
-      showToast("Stars payments not configured yet.");
-    } else {
-      showToast("Could not open Stars payment.");
-    }
+    showToast(starsInvoiceErrorMessage(result, status));
     return;
   }
 
@@ -3651,7 +3712,7 @@ async function buyTicketPack(productId, ticketCount, button) {
     }
 
     if (status === "failed") {
-      showToast("Payment failed.");
+      showToast("Payment failed. Wait a few seconds and try again.");
       return;
     }
 
@@ -3674,17 +3735,12 @@ async function buyStarsProduct(productId) {
     return;
   }
 
-  const { ok, result } = await apiPost("/api/stars/invoice", {
-    userId: backendUserId,
-    productId
-  });
+  await warmBackendForPayment();
+
+  const { ok, result, status } = await requestStarsInvoice(productId);
 
   if (!ok || !result || !result.invoiceLink) {
-    if (result && result.error === "STARS_NOT_CONFIGURED") {
-      showToast("Stars payments not configured yet.");
-    } else {
-      showToast("Could not open Stars payment.");
-    }
+    showToast(starsInvoiceErrorMessage(result, status));
     return;
   }
 
@@ -3703,7 +3759,7 @@ async function buyStarsProduct(productId) {
     }
 
     if (status === "failed") {
-      showToast("Payment failed.");
+      showToast("Payment failed. Wait a few seconds and try again.");
       return;
     }
 
