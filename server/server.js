@@ -134,7 +134,7 @@ const STAR_PRODUCTS = {
   premium_spin: {
     stars: premiumSpin.PREMIUM_SPIN_STARS,
     title: "Premium Lucky Spin",
-    description: "Spin the premium wheel for cash and coin prizes",
+    description: "Spin the premium wheel for cash prizes, tickets and boosts",
     successMessage: "Premium spin ready!"
   }
 };
@@ -2678,7 +2678,7 @@ app.post(
     }
 
     const globalSpins = await premiumSpin.incrementGlobalPremiumSpins(supabase);
-    const prize = premiumSpin.rollPremiumPrize(globalSpins);
+    const prize = await premiumSpin.rollPremiumPrize(supabase, globalSpins);
     const row = await loadGame(userId);
 
     const username = String(buyer?.username || "").trim();

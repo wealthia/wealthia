@@ -1,55 +1,86 @@
 const economy = require("./economy");
 
 const GLOBAL_COUNTER_KEY = "global_premium_spins";
-const PREMIUM_SPIN_STARS = 1;
+const PREMIUM_SPIN_STARS = 30;
+const CASH_10_MIN_SPINS = 150;
+const CASH_10_BLOCK_SPINS = 150;
+const CASH_5_BLOCK_SPINS = 70;
+const CASH_2_BLOCK_SPINS = 30;
 
 const PRIZE_SEGMENTS = [
-  { id: "jackpot_1000", label: "💰 1000$ JACKPOT", segmentIndex: 0, type: "cash", amount: 1000 },
-  { id: "cash_15", label: "💵 15$", segmentIndex: 1, type: "cash", amount: 15 },
-  { id: "cash_5", label: "💵 5$", segmentIndex: 2, type: "cash", amount: 5 },
-  { id: "no_luck", label: "❌ NO LUCK", segmentIndex: 3, type: "none" },
-  { id: "boost_2x", label: "⚡ 2x BOOST", segmentIndex: 4, type: "boost" },
-  { id: "coins_500", label: "🪙 500 COINS", segmentIndex: 5, type: "coins", amount: 500 }
+  { id: "cash_10", label: "💰 $10 CASH", segmentIndex: 0, type: "cash", amount: 10 },
+  { id: "cash_5", label: "💵 $5 CASH", segmentIndex: 1, type: "cash", amount: 5 },
+  { id: "cash_2", label: "💵 $2 CASH", segmentIndex: 2, type: "cash", amount: 2 },
+  { id: "tickets_10", label: "🎟️ 10 TICKETS", segmentIndex: 3, type: "tickets", amount: 10 },
+  { id: "coins_500", label: "🪙 500 COINS", segmentIndex: 4, type: "coins", amount: 500 },
+  { id: "no_luck", label: "❌ NO LUCK", segmentIndex: 5, type: "none" }
 ];
 
 const PRIZE_BY_ID = new Map(PRIZE_SEGMENTS.map((prize) => [prize.id, prize]));
+
+const NON_CASH_WEIGHTS = [
+  { id: "tickets_10", weight: 0.55 },
+  { id: "coins_500", weight: 0.25 },
+  { id: "no_luck", weight: 0.20 }
+];
 
 function number(value) {
   return Number(value || 0);
 }
 
-function getProbabilities(globalSpins, options = {}) {
-  const adminTest = Boolean(options.adminTest);
-  const noLuck = 0.25;
-  const boost = 0.12;
-  const cash5 = adminTest || globalSpins > 50 ? 0.06 : 0;
-  const cash15 = adminTest || globalSpins > 80 ? 0.0125 : 0;
-  const jackpot = adminTest || globalSpins >= 100000 ? 0.0000000001 : 0;
-  const coins = 1 - noLuck - boost - cash5 - cash15 - jackpot;
-
-  return [
-    { id: "jackpot_1000", weight: jackpot },
-    { id: "cash_15", weight: cash15 },
-    { id: "cash_5", weight: cash5 },
-    { id: "no_luck", weight: noLuck },
-    { id: "boost_2x", weight: boost },
-    { id: "coins_500", weight: coins }
-  ];
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
 }
 
-function rollPremiumPrize(globalSpins, options = {}) {
-  const weights = getProbabilities(globalSpins, options);
-  const roll = Math.random();
-  let cursor = 0;
+function resolveStrictCashPrize(globalSpins) {
+  const spins = number(globalSpins);
 
-  for (const entry of weights) {
-    cursor += entry.weight;
-    if (roll < cursor) {
-      return PRIZE_BY_ID.get(entry.id);
+  if (spins >= CASH_10_MIN_SPINS && spins % CASH_10_BLOCK_SPINS === 0) {
+    return PRIZE_BY_ID.get("cash_10");
+  }
+
+  if (spins % CASH_5_BLOCK_SPINS === 0) {
+    return PRIZE_BY_ID.get("cash_5");
+  }
+
+  if (spins % CASH_2_BLOCK_SPINS === 0) {
+    return PRIZE_BY_ID.get("cash_2");
+  }
+
+  return null;
+}
+
+function pickNonCashPrize() {
+  let roll = Math.random();
+  let picked = NON_CASH_WEIGHTS[0].id;
+
+  for (const entry of NON_CASH_WEIGHTS) {
+    roll -= entry.weight;
+    if (roll <= 0) {
+      picked = entry.id;
+      break;
     }
   }
 
-  return PRIZE_BY_ID.get("coins_500");
+  return { ...PRIZE_BY_ID.get(picked) };
+}
+
+function getProbabilities(globalSpins) {
+  const cash = resolveStrictCashPrize(globalSpins);
+  if (cash) {
+    return [{ id: cash.id, weight: 1 }];
+  }
+
+  return NON_CASH_WEIGHTS.map((entry) => ({ ...entry }));
+}
+
+async function rollPremiumPrize(supabase, globalSpins) {
+  const cash = resolveStrictCashPrize(globalSpins);
+  if (cash) {
+    return { ...cash };
+  }
+
+  return pickNonCashPrize();
 }
 
 async function getGlobalPremiumSpins(supabase) {
@@ -127,13 +158,32 @@ async function createPendingPayout(supabase, {
   if (error) throw error;
 }
 
-function buildPremiumSpinUpdate(row, prize, extendBoostUntil) {
+function buildPremiumSpinUpdate(row, prize, extendBoostUntil, today = todayKey()) {
   const updated = {
     updated_at: new Date().toISOString()
   };
 
+  if (prize.type === "tickets") {
+    const ticketCount = Math.max(1, number(prize.amount) || 10);
+    const bonusScore = ticketCount * economy.TICKETS_PER_SCORE;
+    let score = number(row.daily_contest_score);
+    let contestDate = String(row.contest_date || "");
+    let baseline = number(row.contest_baseline_city);
+
+    if (contestDate !== today) {
+      score = 0;
+      baseline = number(row.coins) + number(row.spent);
+      contestDate = today;
+    }
+
+    updated.daily_contest_score = score + bonusScore;
+    updated.contest_date = contestDate;
+    updated.contest_baseline_city = baseline;
+    return updated;
+  }
+
   if (prize.type === "coins") {
-    const coins = number(row.coins) + number(prize.amount);
+    const coins = number(row.coins) + number(prize.amount || 500);
     updated.coins = coins;
     updated.city_value = coins + number(row.spent);
     return updated;
@@ -160,9 +210,14 @@ function formatPrizeResult(prize, extra = {}) {
 
 module.exports = {
   PREMIUM_SPIN_STARS,
+  CASH_10_MIN_SPINS,
+  CASH_10_BLOCK_SPINS,
+  CASH_5_BLOCK_SPINS,
+  CASH_2_BLOCK_SPINS,
   PRIZE_SEGMENTS,
   PRIZE_BY_ID,
   getProbabilities,
+  resolveStrictCashPrize,
   rollPremiumPrize,
   getGlobalPremiumSpins,
   incrementGlobalPremiumSpins,

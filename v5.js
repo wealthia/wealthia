@@ -31,8 +31,9 @@ let premiumSpinBusy = false;
 let premiumSpinAwaitingRetry = false;
 let premiumSpinPaid = false;
 let premiumSpinWaiting = false;
+let premiumSpinLastUser = null;
 
-const PREMIUM_SPIN_STARS = Number((CONFIG.STAR_PRICES && CONFIG.STAR_PRICES.premium_spin) || 1);
+const PREMIUM_SPIN_STARS = Number((CONFIG.STAR_PRICES && CONFIG.STAR_PRICES.premium_spin) || 30);
 const PREMIUM_WHEEL_SLICE_DEG = 60;
 const PREMIUM_WHEEL_POINTER_DEG = 0;
 const PREMIUM_WHEEL_DECEL_MS = 4500;
@@ -1048,7 +1049,7 @@ function ensurePremiumSpinCard() {
 function renderPremiumSpinCard() {
   ensurePremiumSpinCard();
   if (els.premiumSpinHint) {
-    els.premiumSpinHint.textContent = `${PREMIUM_SPIN_STARS}⭐ per spin · cash & coins`;
+    els.premiumSpinHint.textContent = `${PREMIUM_SPIN_STARS}⭐ per spin · cash & tickets`;
   }
 }
 
@@ -1175,13 +1176,22 @@ function premiumWinModalCopy(prize) {
 
   if (prize.type === "cash") {
     const amount = Number(prize.amount || 0);
-    const isCashPayout = amount === 5 || amount === 15;
+    const isCashPayout = amount === 2 || amount === 5 || amount === 10;
     return {
       title: "Cash Prize",
       body: isCashPayout
         ? `💰 You won $${amount}! Our support team will process the amount within 3-5 days.`
         : `💰 You won $${amount}!`,
       showClaim: isCashPayout
+    };
+  }
+
+  if (prize.type === "tickets") {
+    const amount = Number(prize.amount || 10);
+    return {
+      title: "Congratulations!",
+      body: `🎉 You won ${amount} Tournament Tickets! They were added to your daily balance.`,
+      showClaim: false
     };
   }
 
@@ -1229,7 +1239,12 @@ function openPremiumWinModal(prize) {
 async function closePremiumWinModal() {
   const modal = document.getElementById("premiumCashWinModal");
   if (modal) modal.hidden = true;
+  if (premiumSpinLastUser) {
+    await applyBackendUser(premiumSpinLastUser);
+    premiumSpinLastUser = null;
+  }
   await fetchUserData();
+  render();
 }
 
 function openPremiumNoLuckModal() {
@@ -1364,19 +1379,28 @@ async function requestPremiumSpinResult(maxAttempts = 4) {
 async function finishPremiumSpinResult(spinResult) {
   if (!spinResult || !spinResult.prize) return;
 
+  premiumSpinLastUser = spinResult.user || null;
   const sliceId = premiumWheelWinnerSliceId(spinResult);
   await animatePremiumWheelToSegment(sliceId);
   await sleep(PREMIUM_WHEEL_WIN_MODAL_DELAY_MS);
 
   const prize = spinResult.prize;
-  if (prize.type === "coins" || prize.type === "boost") {
+  if (prize.type === "coins" || prize.type === "tickets") {
     await applyBackendUser(spinResult.user);
+    premiumSpinLastUser = null;
     await fetchUserData();
+    render();
   }
 
   if (prize.type === "none") {
     await fetchUserData();
+    render();
     openPremiumNoLuckModal();
+    return;
+  }
+
+  if (prize.type === "cash") {
+    openPremiumWinModal(prize);
     return;
   }
 
