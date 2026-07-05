@@ -34,7 +34,7 @@
     }
     [hidden] { display: none !important; }
   </style>
-  <link rel="stylesheet" href="./v5.css?v=2074" />
+  <link rel="stylesheet" href="./v5.css?v=2076" />
 </head>
 <body>
   <div class="ambient" aria-hidden="true">
@@ -108,30 +108,31 @@
 
     <section class="energy-section">
       <div id="grandPrizeMount"></div>
-      <div class="energy-reserve" aria-label="Energy Reserve">
-        <div class="energy-wrap">
-          <div class="energy-card">
-            <span class="energy-label">Energy Reserve</span>
-            <div class="energy-bar">
-              <span id="energyBar"></span>
+      <div id="goldRushMount"></div>
+      <div class="play-stack">
+        <div class="energy-reserve" aria-label="Energy Reserve">
+          <div class="energy-wrap">
+            <div class="energy-card">
+              <span class="energy-label">Energy Reserve</span>
+              <div class="energy-bar">
+                <span id="energyBar"></span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-      <div id="goldRushMount"></div>
-    </section>
-
-    <section class="tap-area">
-      <div class="tap-button-wrap">
-        <div class="tap-ring tap-ring--outer" aria-hidden="true"></div>
-        <div class="tap-ring tap-ring--inner" aria-hidden="true"></div>
-        <button class="tap-button" id="tapButton" type="button">
-          <span class="tap-button__shine" aria-hidden="true"></span>
-          <span class="tap-button__content">
-            <span class="tap-button__label" id="tapLabel">Tap</span>
-            <span class="tap-button__power">+<span id="tapPower">1</span> <small class="tap-button__hint">per tap</small></span>
-          </span>
-        </button>
+        <section class="tap-area">
+          <div class="tap-button-wrap">
+            <div class="tap-ring tap-ring--outer" aria-hidden="true"></div>
+            <div class="tap-ring tap-ring--inner" aria-hidden="true"></div>
+            <button class="tap-button" id="tapButton" type="button">
+              <span class="tap-button__shine" aria-hidden="true"></span>
+              <span class="tap-button__content">
+                <span class="tap-button__label" id="tapLabel">Tap</span>
+                <span class="tap-button__power">+<span id="tapPower">1</span> <small class="tap-button__hint">per tap</small></span>
+              </span>
+            </button>
+          </div>
+        </section>
       </div>
     </section>
     </div>
