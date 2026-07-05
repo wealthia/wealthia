@@ -1425,6 +1425,106 @@ p {
   text-align: center;
 }
 
+.app.view-rank .ticket-store {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 2px;
+}
+
+.app.view-rank .ticket-store__title {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: #e8dcff;
+}
+
+.app.view-rank .ticket-store__row {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.app.view-rank .ticket-store__row::-webkit-scrollbar {
+  display: none;
+}
+
+.app.view-rank .ticket-store__pack {
+  flex: 0 0 auto;
+  min-width: 62px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(155, 123, 255, 0.35);
+  background: linear-gradient(160deg, rgba(36, 28, 58, 0.95), rgba(20, 18, 34, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+}
+
+.app.view-rank .ticket-store__pack:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.app.view-rank .ticket-store__pack--busy,
+.app.view-rank .ticket-store__pack:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.app.view-rank .ticket-store__amount {
+  font-size: 10px;
+  font-weight: 800;
+  color: #f4f0ff;
+  white-space: nowrap;
+}
+
+.app.view-rank .ticket-store__price {
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--gold-light);
+  white-space: nowrap;
+}
+
+.ticket-confetti {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 12000;
+  overflow: hidden;
+}
+
+.ticket-confetti__piece {
+  position: absolute;
+  top: -12px;
+  width: 8px;
+  height: 12px;
+  border-radius: 2px;
+  opacity: 0.95;
+  animation: ticket-confetti-fall 2.4s ease-out forwards;
+}
+
+@keyframes ticket-confetti-fall {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+
 .app.view-rank .rank-daily-rules {
   flex-shrink: 0;
   margin-top: auto;

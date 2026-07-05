@@ -136,6 +136,41 @@ const STAR_PRODUCTS = {
     title: "Premium Lucky Spin",
     description: "Spin the premium wheel for cash prizes, tickets and boosts",
     successMessage: "Premium spin ready!"
+  },
+  tickets_1: {
+    stars: 5,
+    title: "1 Tournament Ticket",
+    description: "Add 1 ticket to today's Daily Race",
+    successMessage: "+1 Ticket added!",
+    ticketCount: 1
+  },
+  tickets_5: {
+    stars: 20,
+    title: "5 Tournament Tickets",
+    description: "Add 5 tickets to today's Daily Race",
+    successMessage: "+5 Tickets added!",
+    ticketCount: 5
+  },
+  tickets_10: {
+    stars: 35,
+    title: "10 Tournament Tickets",
+    description: "Add 10 tickets to today's Daily Race",
+    successMessage: "+10 Tickets added!",
+    ticketCount: 10
+  },
+  tickets_50: {
+    stars: 150,
+    title: "50 Tournament Tickets",
+    description: "Add 50 tickets to today's Daily Race",
+    successMessage: "+50 Tickets added!",
+    ticketCount: 50
+  },
+  tickets_100: {
+    stars: 250,
+    title: "100 Tournament Tickets",
+    description: "Add 100 tickets to today's Daily Race",
+    successMessage: "+100 Tickets added!",
+    ticketCount: 100
   }
 };
 
@@ -392,10 +427,37 @@ function bonusAdRewardOnCooldown(row) {
   return bonusAdRewardNextAt(row) > nowMs();
 }
 
+function applyTicketPackPurchase(row, ticketCount) {
+  const today = todayKey();
+  let score = number(row.daily_contest_score);
+  let contestDate = String(row.contest_date || "");
+  let baseline = number(row.contest_baseline_city);
+
+  if (contestDate !== today) {
+    score = 0;
+    baseline = number(row.coins) + number(row.spent);
+    contestDate = today;
+  }
+
+  const bonusScore = Math.max(1, number(ticketCount)) * economy.TICKETS_PER_SCORE;
+
+  return {
+    daily_contest_score: score + bonusScore,
+    contest_date: contestDate,
+    contest_baseline_city: baseline,
+    updated_at: new Date().toISOString()
+  };
+}
+
 function applyStarProduct(row, productId) {
+  const product = STAR_PRODUCTS[productId];
   const updated = {
     updated_at: new Date().toISOString()
   };
+
+  if (productId.startsWith("tickets_") && product?.ticketCount) {
+    return applyTicketPackPurchase(row, product.ticketCount);
+  }
 
   if (productId === "refill_energy") {
     updated.energy = economy.maxEnergy(row);

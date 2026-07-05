@@ -42,6 +42,15 @@ window.WEALTHIA_CONFIG = {
     premium_spin: 30
   },
 
+  // Ticket store packs on Rank tab (must match server STAR_PRODUCTS)
+  TICKET_STORE_PACKS: [
+    { id: "tickets_1", tickets: 1, stars: 5 },
+    { id: "tickets_5", tickets: 5, stars: 20 },
+    { id: "tickets_10", tickets: 10, stars: 35 },
+    { id: "tickets_50", tickets: 50, stars: 150 },
+    { id: "tickets_100", tickets: 100, stars: 250 }
+  ],
+
   // Premium spin cash prize claim support
   SUPPORT_TELEGRAM_URL: "https://t.me/WealthiaGameBot",
 

@@ -2272,6 +2272,59 @@ function renderYourRankRowHtml(row, dailyMode) {
   `;
 }
 
+function getTicketStorePacks() {
+  const packs = CONFIG.TICKET_STORE_PACKS;
+  return Array.isArray(packs) ? packs : [];
+}
+
+function renderTicketStoreHtml() {
+  if (!getDailyPrizeConfig()) return "";
+
+  const packs = getTicketStorePacks();
+  if (!packs.length) return "";
+
+  return `
+    <section class="ticket-store" aria-label="Buy tournament tickets">
+      <h3 class="ticket-store__title">&#128142; BUY TICKETS (Stars)</h3>
+      <div class="ticket-store__row">
+        ${packs.map((pack) => `
+          <button
+            class="ticket-store__pack"
+            type="button"
+            data-ticket-pack="${pack.id}"
+            data-ticket-count="${pack.tickets}"
+            data-ticket-stars="${pack.stars}"
+          >
+            <span class="ticket-store__amount">${pack.tickets}x &#127915;</span>
+            <span class="ticket-store__price">${pack.stars} &#11088;</span>
+          </button>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function showTicketConfetti() {
+  const layer = document.createElement("div");
+  layer.className = "ticket-confetti";
+  layer.setAttribute("aria-hidden", "true");
+
+  const colors = ["#f5c451", "#ffd86b", "#ffffff", "#9b7bff", "#4ade80"];
+
+  for (let i = 0; i < 42; i += 1) {
+    const piece = document.createElement("span");
+    piece.className = "ticket-confetti__piece";
+    piece.style.left = `${Math.random() * 100}%`;
+    piece.style.animationDelay = `${Math.random() * 0.35}s`;
+    piece.style.background = colors[i % colors.length];
+    piece.style.transform = `rotate(${Math.random() * 360}deg)`;
+    layer.appendChild(piece);
+  }
+
+  document.body.appendChild(layer);
+  window.setTimeout(() => layer.remove(), 2800);
+}
+
 function bindRankPanelActions(panel) {
   if (!panel) return;
 
@@ -2286,6 +2339,16 @@ function bindRankPanelActions(panel) {
   if (rulesButton) {
     rulesButton.addEventListener("click", openRankRulesModal);
   }
+
+  panel.querySelectorAll("[data-ticket-pack]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const productId = button.dataset.ticketPack;
+      const count = Number(button.dataset.ticketCount || 0);
+      if (productId && count > 0) {
+        buyTicketPack(productId, count, button);
+      }
+    });
+  });
 
   bindRankRulesModal();
 }
@@ -2320,6 +2383,7 @@ function renderRankPanel() {
       ${dailyMode ? renderDailyPrizeCardHtml() : ""}
       ${renderPodiumHtml(top3, dailyMode)}
       ${renderYourRankRowHtml(youRow, dailyMode)}
+      ${dailyMode ? renderTicketStoreHtml() : ""}
       ${dailyMode ? `
         <div class="rank-daily-rules">
           <button class="rank-rules-btn" type="button" id="rankRulesBtn">Rules</button>
@@ -3482,10 +3546,20 @@ const STAR_SUCCESS_LABELS = {
   tap_boost_30: "2x Tap active for 30 min!",
   endless_energy_30: "Endless Energy for 30 min!",
   income_boost_30: "2x Income active for 30 min!",
-  premium_spin: "Premium spin ready!"
+  premium_spin: "Premium spin ready!",
+  tickets_1: "+1 Ticket added!",
+  tickets_5: "+5 Tickets added!",
+  tickets_10: "+10 Tickets added!",
+  tickets_50: "+50 Tickets added!",
+  tickets_100: "+100 Tickets added!"
 };
 
+function ticketPackProductId(productId) {
+  return String(productId || "").startsWith("tickets_");
+}
+
 function starProductFulfilled(productId) {
+  if (ticketPackProductId(productId)) return false;
   if (productId === "refill_energy") {
     return Number(state.energy) >= Number(state.maxEnergy);
   }
@@ -3502,6 +3576,89 @@ async function waitForStarFulfillment(productId, attempts = 20) {
     await sleep(1000);
   }
   return false;
+}
+
+async function waitForTicketFulfillment(beforeTickets, expectedAdd, attempts = 20) {
+  for (let i = 0; i < attempts; i += 1) {
+    await refreshBackendState();
+    await loadLeaderboard();
+    if (ticketCount() >= beforeTickets + expectedAdd) return true;
+    await sleep(1000);
+  }
+  return false;
+}
+
+async function buyTicketPack(productId, ticketCount, button) {
+  const tg = window.Telegram && window.Telegram.WebApp;
+
+  if (!tg || typeof tg.openInvoice !== "function") {
+    showToast("Open in Telegram to pay with Stars.");
+    return;
+  }
+
+  if (!(await ensureBackend())) {
+    showToast("Server not connected. Tap Retry at top.");
+    return;
+  }
+
+  const beforeTickets = ticketCount();
+  if (button) {
+    button.disabled = true;
+    button.classList.add("ticket-store__pack--busy");
+  }
+
+  const { ok, result } = await apiPost("/api/stars/invoice", {
+    userId: backendUserId,
+    productId
+  });
+
+  if (!ok || !result || !result.invoiceLink) {
+    if (button) {
+      button.disabled = false;
+      button.classList.remove("ticket-store__pack--busy");
+    }
+    if (result && result.error === "STARS_NOT_CONFIGURED") {
+      showToast("Stars payments not configured yet.");
+    } else {
+      showToast("Could not open Stars payment.");
+    }
+    return;
+  }
+
+  tg.openInvoice(result.invoiceLink, async (status) => {
+    if (button) {
+      button.disabled = false;
+      button.classList.remove("ticket-store__pack--busy");
+    }
+
+    if (status === "paid") {
+      const fulfilled = await waitForTicketFulfillment(beforeTickets, ticketCount);
+      if (fulfilled) {
+        showTicketConfetti();
+        renderRankPanel();
+        renderCampaignBanner();
+        showToast(STAR_SUCCESS_LABELS[productId] || `+${ticketCount} Tickets added!`);
+        if (tg.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === "function") {
+          tg.HapticFeedback.notificationOccurred("success");
+        }
+      } else {
+        showToast("Payment received. Tickets are syncing...");
+        await loadLeaderboard();
+        renderRankPanel();
+        renderCampaignBanner();
+      }
+      return;
+    }
+
+    if (status === "failed") {
+      showToast("Payment failed.");
+      return;
+    }
+
+    if (status === "cancelled") {
+      showToast("Payment cancelled.");
+    }
+  });
 }
 
 async function buyStarsProduct(productId) {
