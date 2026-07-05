@@ -616,17 +616,38 @@ p {
   flex-shrink: 0;
 }
 
-/* City tab — zero-scroll compact buildings */
+/* City tab — zero-scroll ultra-compact buildings */
 .app.view-city {
   height: 100dvh;
   max-height: 100dvh;
   overflow: hidden;
-  padding: max(5px, env(safe-area-inset-top)) 8px max(3px, env(safe-area-inset-bottom));
+  padding: max(4px, env(safe-area-inset-top)) 8px 0;
 }
 
 .app.view-city .header {
   flex-shrink: 0;
-  margin-bottom: 1px;
+  margin-bottom: 0;
+  padding: 0;
+}
+
+.app.view-city .header h1 {
+  font-size: 15px;
+}
+
+.app.view-city .brand__eyebrow {
+  display: none;
+}
+
+.app.view-city .brand__mark {
+  width: 26px;
+  height: 26px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+
+.app.view-city .round-button {
+  width: 28px;
+  height: 28px;
 }
 
 .app.view-city .app-scroll {
@@ -635,7 +656,6 @@ p {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  overflow-y: hidden;
   padding-bottom: 0;
 }
 
@@ -645,23 +665,22 @@ p {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  gap: 2px;
+  gap: 1px;
 }
 
 .app.view-city #cityPanel .panel-head--city {
   flex-shrink: 0;
   margin-bottom: 0;
+  padding: 0 2px;
 }
 
 .app.view-city #cityPanel .panel-head--city h2 {
-  font-size: 11px;
-  line-height: 1.05;
+  font-size: 10px;
+  line-height: 1;
 }
 
 .app.view-city #cityPanel .panel-head--city p {
-  margin-top: 0;
-  font-size: 7px;
-  line-height: 1.1;
+  display: none;
 }
 
 .app.view-city .city-buildings {
@@ -669,7 +688,7 @@ p {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   overflow: hidden;
 }
 
@@ -677,11 +696,14 @@ p {
 .app.view-city #cityPanel .city-buildings .card--casino-spin,
 .app.view-city #cityPanel .city-buildings .card--premium-spin {
   flex: 1 1 0;
-  min-height: 0;
+  min-height: 0 !important;
   height: auto;
-  padding: 4px 5px;
-  gap: 4px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.14);
+  padding: 2px 4px;
+  gap: 3px;
+  align-items: center;
+  border-radius: 8px;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .app.view-city #cityPanel .city-buildings .card[hidden] {
@@ -689,37 +711,46 @@ p {
 }
 
 .app.view-city #cityPanel .city-buildings .card__icon {
-  width: 21px;
-  height: 21px;
-  border-radius: 6px;
-  font-size: 11px;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  font-size: 9px;
 }
 
 .app.view-city #cityPanel .city-buildings .card__body {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
+  line-height: 1;
 }
 
 .app.view-city #cityPanel .city-buildings .card h2 {
-  font-size: 8px;
+  font-size: 7px;
   line-height: 1.05;
+  margin: 0;
 }
 
 .app.view-city #cityPanel .city-buildings .card p {
   font-size: 6px;
-  line-height: 1.1;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  line-height: 1.05;
+  margin: 0;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .app.view-city #cityPanel .city-buildings .buy-button,
 .app.view-city #cityPanel .city-buildings .casino-spin-button,
 .app.view-city #cityPanel .city-buildings .premium-spin-open {
-  min-height: 20px;
-  padding: 0 5px;
-  font-size: 7px;
-  border-radius: 7px;
+  min-height: 16px !important;
+  max-height: 16px;
+  padding: 0 4px;
+  font-size: 6px;
+  border-radius: 5px;
+  line-height: 1;
+  box-shadow: none;
 }
 
 /* Tasks tab — fill screen, large cards */

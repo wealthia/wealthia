@@ -964,12 +964,10 @@ function renderCasinoCard() {
 
   if (els.casinoCardDesc) {
     if (level < 1) {
-      els.casinoCardDesc.textContent =
-        "Build to unlock daily Lucky Spin. Each casino level adds +1 Empire Level.";
+      els.casinoCardDesc.textContent = "Build for Lucky Spin";
     } else {
       const { small, jackpot } = casinoRewardRange(level);
-      els.casinoCardDesc.textContent =
-        `Level ${level} · Daily spin rewards ${format(small)}–${format(jackpot)} coins`;
+      els.casinoCardDesc.textContent = `Lv.${level} · ${format(small)}–${format(jackpot)}`;
     }
   }
 }
@@ -1013,16 +1011,15 @@ function renderCasinoSpin() {
 
   if (els.casinoSpinButton) {
     els.casinoSpinButton.disabled = !canSpin;
-    els.casinoSpinButton.textContent = spunToday ? "Spin Today" : "Spin Now";
+    els.casinoSpinButton.textContent = spunToday ? "Done" : "Spin";
   }
 
   if (els.casinoSpinHint) {
     if (spunToday) {
-      els.casinoSpinHint.textContent = "Come back tomorrow for another spin.";
+      els.casinoSpinHint.textContent = "Back tomorrow";
     } else {
       const { small, jackpot } = casinoRewardRange(level);
-      els.casinoSpinHint.textContent =
-        `Free daily spin · Win ${format(small)} to ${format(jackpot)} coins (5% jackpot)`;
+      els.casinoSpinHint.textContent = `${format(small)}–${format(jackpot)} coins`;
     }
   }
 }
@@ -1035,8 +1032,7 @@ function ensurePremiumSpinCard() {
 function renderPremiumSpinCard() {
   ensurePremiumSpinCard();
   if (els.premiumSpinHint) {
-    els.premiumSpinHint.textContent =
-      `Win cash prizes, boosts and coins · ${PREMIUM_SPIN_STARS} ⭐ per spin`;
+    els.premiumSpinHint.textContent = `${PREMIUM_SPIN_STARS}⭐ · cash & coins`;
   }
 }
 
@@ -1142,23 +1138,6 @@ function openPremiumSpinOverlay() {
   overlay.hidden = false;
   document.body.classList.add("premium-spin-open-body");
   resetPremiumSpinState();
-}
-
-async function refreshPremiumSpinPaymentState() {
-  const spinButton = document.getElementById("premiumWheelSpinButton");
-  if (!spinButton || premiumSpinBusy) return;
-
-  const ready = await isPremiumSpinPaymentReady();
-  if (!ready) {
-    premiumSpinAwaitingRetry = false;
-    premiumSpinPaid = false;
-    resetPremiumSpinButton(spinButton);
-    return;
-  }
-
-  premiumSpinAwaitingRetry = true;
-  premiumSpinPaid = true;
-  spinButton.textContent = "SPIN (PAID)";
 }
 
 function closePremiumSpinOverlay() {
