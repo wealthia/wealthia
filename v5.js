@@ -2215,97 +2215,166 @@ function rankMark(rank) {
   return `${value}.`;
 }
 
+function podiumDisplayScore(row, dailyMode) {
+  if (dailyMode) {
+    const score = Number(row.dailyScore || row.score || 0);
+    return `+${format(score)}`;
+  }
+  return format(Number(row.cityValue || 0));
+}
+
+function podiumDisplayName(row) {
+  if (!row) return "—";
+  return row.isYou ? "You" : (row.name || "Player");
+}
+
+function normalizePodiumTop3(rows, dailyMode) {
+  const sorted = [...(rows || [])]
+    .sort((a, b) => Number(a.rank || 99) - Number(b.rank || 99))
+    .slice(0, 3);
+
+  const byRank = { 1: null, 2: null, 3: null };
+  sorted.forEach((row, index) => {
+    const rank = Number(row.rank || index + 1);
+    if (rank >= 1 && rank <= 3) byRank[rank] = row;
+  });
+
+  return byRank;
+}
+
+function renderPodiumSlot(row, place, dailyMode) {
+  const empty = !row;
+  const name = empty ? "—" : podiumDisplayName(row);
+  const score = empty ? "—" : podiumDisplayScore(row, dailyMode);
+
+  return `
+    <article class="rank-podium__slot rank-podium__slot--${place}${empty ? " rank-podium__slot--empty" : ""}${row && row.isYou ? " rank-podium__slot--you" : ""}">
+      <span class="rank-podium__medal">${rankMark(place)}</span>
+      <span class="rank-podium__name">${name}</span>
+      <span class="rank-podium__score">${score}</span>
+    </article>
+  `;
+}
+
+function renderPodiumHtml(rows, dailyMode) {
+  const byRank = normalizePodiumTop3(rows, dailyMode);
+
+  return `
+    <section class="rank-podium" aria-label="Top 3 leaders">
+      ${renderPodiumSlot(byRank[2], 2, dailyMode)}
+      ${renderPodiumSlot(byRank[1], 1, dailyMode)}
+      ${renderPodiumSlot(byRank[3], 3, dailyMode)}
+    </section>
+  `;
+}
+
+function resolveYourRankRow(dailyMode) {
+  if (dailyMode) {
+    const view = buildDailyLeaderboardView();
+    const youInTop3 = view.top3.find((row) => row.isYou);
+    if (youInTop3) return youInTop3;
+
+    if (view.yourPlace) return view.yourPlace;
+
+    const score = todayGainScore();
+    return {
+      rank: Math.max(1, view.top3.length + 1),
+      name: "You",
+      dailyScore: score,
+      isYou: true
+    };
+  }
+
+  if (leaderboardYou) return leaderboardYou;
+
+  return {
+    rank: 1,
+    name: "You",
+    cityValue: cityValue(),
+    isYou: true
+  };
+}
+
+function renderYourRankRowHtml(row, dailyMode) {
+  const rank = Number(row.rank || 1);
+  const scoreText = podiumDisplayScore(row, dailyMode);
+
+  return `
+    <div class="rank-you-row">
+      <span class="rank-you-row__star" aria-hidden="true">&#11088;</span>
+      <span class="rank-you-row__text">Your Rank: #${rank} | Score: ${scoreText}</span>
+    </div>
+  `;
+}
+
+function bindRankPanelActions(panel) {
+  if (!panel) return;
+
+  const channelButton = panel.querySelector(".grand-prize-card__channel");
+  if (channelButton) {
+    channelButton.addEventListener("click", () => {
+      openPartnerLink(channelButton.dataset.channel || "");
+    });
+  }
+
+  const rulesButton = panel.querySelector("#rankRulesBtn");
+  if (rulesButton) {
+    rulesButton.addEventListener("click", openRankRulesModal);
+  }
+
+  bindRankRulesModal();
+}
+
 function renderRankPanel() {
   const panel = els.globalLeaderboard;
   if (!panel) return;
 
   const dailyMode = Boolean(getDailyPrizeConfig());
-
-  if (dailyMode) {
-    const offlineBanner = !backendReady && !getTelegramInitData()
-      ? `<p class="rank-offline-note">Open in Telegram for live sync.</p>`
-      : "";
-
-    panel.innerHTML = `
-      ${offlineBanner}
-      ${renderCampaignRankCard()}
-      <div class="rank-daily-rules">
-        <button class="rank-rules-btn" type="button" id="rankRulesBtn">Rules</button>
-      </div>
-    `;
-
-    const channelButton = panel.querySelector(".grand-prize-card__channel");
-    if (channelButton) {
-      channelButton.addEventListener("click", () => {
-        openPartnerLink(channelButton.dataset.channel || "");
-      });
-    }
-
-    const rulesButton = document.getElementById("rankRulesBtn");
-    if (rulesButton) {
-      rulesButton.addEventListener("click", openRankRulesModal);
-    }
-
-    bindRankRulesModal();
-    setRankPanelLayoutMode(true);
-    return;
-  }
-
-  setRankPanelLayoutMode(false);
-
-  const top3 = leaderboardTop3.length
-    ? leaderboardTop3
-    : [{
-      rank: 1,
-      name: "You",
-      cityValue: cityValue(),
-      isYou: true
-    }];
-
-  const you = leaderboardYou;
-  const youBlock = you
-    ? `
-      <div class="rank-your-place">
-        <span class="rank-your-place__label">Your place · ${ordinalRank(you.rank)}</span>
-      </div>
-      <ol class="rank rank--you-only">
-        ${renderRankRow(you, "global")}
-      </ol>
-    `
-    : "";
+  setRankPanelLayoutMode(true);
 
   const offlineBanner = !backendReady && !getTelegramInitData()
     ? `<p class="rank-offline-note">Open in Telegram for live sync.</p>`
     : "";
 
+  const top3 = dailyMode
+    ? buildDailyLeaderboardView().top3
+    : (leaderboardTop3.length
+      ? leaderboardTop3
+      : [{
+        rank: 1,
+        name: "You",
+        cityValue: cityValue(),
+        isYou: true
+      }]);
+
+  const youRow = resolveYourRankRow(dailyMode);
+
   panel.innerHTML = `
     ${offlineBanner}
-    <div class="panel-head panel-head--rank">
-      <div>
-        <h2>Global Leaderboard</h2>
-        <p>Top empire builders by city value</p>
-      </div>
+    <div class="rank-stack">
+      ${dailyMode ? renderDailyPrizeCardHtml() : ""}
+      ${renderPodiumHtml(top3, dailyMode)}
+      ${renderYourRankRowHtml(youRow, dailyMode)}
+      ${dailyMode ? `
+        <div class="rank-daily-rules">
+          <button class="rank-rules-btn" type="button" id="rankRulesBtn">Rules</button>
+        </div>
+      ` : ""}
     </div>
-    <ol class="rank rank--compact">
-      ${top3.map((row) => renderRankRow(row, "global", {
-        isYourPlaceRow: Boolean(row.isYourPlaceRow)
-      })).join("")}
-    </ol>
-    ${youBlock}
   `;
 
-  bindRankRulesModal();
+  bindRankPanelActions(panel);
 }
 
-function setRankPanelLayoutMode(dailyLayout) {
+function setRankPanelLayoutMode() {
   const rankPanel = document.getElementById("rankPanel");
   const leaderboard = els.globalLeaderboard;
   if (rankPanel) {
-    rankPanel.classList.toggle("rank-panel--daily", dailyLayout);
-    rankPanel.classList.toggle("rank-panel--scroll", !dailyLayout);
+    rankPanel.classList.add("rank-panel--daily");
+    rankPanel.classList.remove("rank-panel--scroll");
   }
   if (leaderboard) {
-    leaderboard.classList.toggle("rank-leaderboard--daily", dailyLayout);
+    leaderboard.classList.add("rank-leaderboard--daily");
   }
 }
 

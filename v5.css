@@ -1165,9 +1165,12 @@ p {
   color: var(--gold-light);
 }
 
-/* Rank tab — compact single-screen daily layout */
+/* Rank tab — zero-scroll tournament layout */
 .app.view-rank {
+  height: 100dvh;
+  max-height: 100dvh;
   padding: max(6px, env(safe-area-inset-top)) 10px max(4px, env(safe-area-inset-bottom));
+  overflow: hidden;
 }
 
 .app.view-rank .header {
@@ -1191,7 +1194,7 @@ p {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  gap: 4px;
+  gap: 6px;
 }
 
 .app.view-rank #tournamentPanel {
@@ -1204,42 +1207,147 @@ p {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  gap: 4px;
 }
 
-.app.view-rank #globalLeaderboard .grand-prize-card.daily-prize-card {
+.app.view-rank .rank-stack {
+  display: flex;
+  flex-direction: column;
   flex: 1;
+  min-height: 0;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.app.view-rank .rank-stack .grand-prize-card.daily-prize-card {
+  flex: 0 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
   margin: 0;
-  padding: 8px 10px;
-  gap: 4px;
+  padding: 10px 12px;
+  gap: 16px;
   overflow: hidden;
 }
 
-.app.view-rank #globalLeaderboard .daily-prize-card .grand-prize-card__channel {
-  margin-top: auto;
+.app.view-rank .rank-stack .daily-prize-card .grand-prize-card__head,
+.app.view-rank .rank-stack .daily-prize-card .daily-prize__gain-box,
+.app.view-rank .rank-stack .daily-prize-card .daily-prize__tickets,
+.app.view-rank .rank-stack .daily-prize-card .daily-prize-card__boost-tip,
+.app.view-rank .rank-stack .daily-prize-card .grand-prize-card__channel {
+  margin: 0;
+}
+
+.app.view-rank .rank-stack .daily-prize-card .grand-prize-card__channel {
   flex-shrink: 0;
+}
+
+.app.view-rank .rank-podium {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: 1fr 1.12fr 1fr;
+  align-items: end;
+  gap: 6px;
+}
+
+.app.view-rank .rank-podium__slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  min-height: 50px;
+  padding: 6px 4px 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: center;
+}
+
+.app.view-rank .rank-podium__slot--1 {
+  min-height: 62px;
+  background: linear-gradient(180deg, rgba(245, 196, 81, 0.2), rgba(255, 255, 255, 0.04));
+  border-color: rgba(245, 196, 81, 0.38);
+  box-shadow: 0 0 16px rgba(245, 196, 81, 0.12);
+}
+
+.app.view-rank .rank-podium__slot--2 {
+  min-height: 54px;
+}
+
+.app.view-rank .rank-podium__slot--3 {
+  min-height: 48px;
+}
+
+.app.view-rank .rank-podium__slot--you {
+  border-color: rgba(245, 196, 81, 0.28);
+}
+
+.app.view-rank .rank-podium__slot--empty {
+  opacity: 0.45;
+}
+
+.app.view-rank .rank-podium__medal {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.app.view-rank .rank-podium__name {
+  width: 100%;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.15;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app.view-rank .rank-podium__score {
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--gold-light);
+  font-variant-numeric: tabular-nums;
+}
+
+.app.view-rank .rank-you-row {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(245, 196, 81, 0.22), rgba(245, 196, 81, 0.08));
+  border: 1px solid rgba(245, 196, 81, 0.42);
+  box-shadow: 0 0 14px rgba(245, 196, 81, 0.1);
+}
+
+.app.view-rank .rank-you-row__star {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.app.view-rank .rank-you-row__text {
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: #fff4d0;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 
 .app.view-rank .rank-daily-rules {
   flex-shrink: 0;
+  margin-top: auto;
   display: flex;
   justify-content: center;
-  padding-top: 2px;
+  padding-bottom: 2px;
 }
 
 .app.view-rank .rank-daily-rules .rank-rules-btn {
-  padding: 4px 10px;
+  padding: 5px 12px;
   font-size: 9px;
-}
-
-.app.view-rank .rank-your-place {
-  position: static;
-  margin-top: 0;
-  padding-top: 0;
-  background: none;
 }
 
 .app.view-rank .tournament-card.card {
@@ -1275,74 +1383,70 @@ p {
   font-size: 13px;
 }
 
-.app.view-rank .grand-prize-card__head h3 {
+.app.view-rank .rank-stack .grand-prize-card__head h3 {
   font-size: 12px;
-  margin: 2px 0;
+  margin: 0;
   line-height: 1.15;
 }
 
-.app.view-rank .grand-prize-card__head p {
+.app.view-rank .rank-stack .grand-prize-card__head p {
   font-size: 9px;
   line-height: 1.2;
 }
 
-.app.view-rank .grand-prize__badge {
+.app.view-rank .rank-stack .grand-prize__badge {
   font-size: 8px;
-  margin-bottom: 2px;
+  margin-bottom: 0;
 }
 
-.app.view-rank .daily-prize__gain-box {
-  margin-top: 2px;
-  margin-bottom: 0;
-  padding: 4px 8px;
+.app.view-rank .rank-stack .daily-prize__gain-box {
+  padding: 6px 8px;
   gap: 2px;
 }
 
-.app.view-rank .daily-prize__gain-label {
+.app.view-rank .rank-stack .daily-prize__gain-label {
   font-size: 8px;
 }
 
-.app.view-rank .daily-prize__gain-value {
+.app.view-rank .rank-stack .daily-prize__gain-value {
   font-size: 14px;
 }
 
-.app.view-rank .daily-prize__tickets {
-  margin-top: 4px;
-  gap: 4px;
+.app.view-rank .rank-stack .daily-prize__tickets {
+  gap: 8px;
 }
 
-.app.view-rank .daily-prize__tickets-head {
+.app.view-rank .rank-stack .daily-prize__tickets-head {
   align-items: center;
   gap: 8px;
 }
 
-.app.view-rank .daily-prize__tickets-left {
+.app.view-rank .rank-stack .daily-prize__tickets-left {
   gap: 4px;
   min-height: 1rem;
 }
 
-.app.view-rank .daily-prize__tickets-label,
-.app.view-rank .daily-prize__ticket-count {
+.app.view-rank .rank-stack .daily-prize__tickets-label,
+.app.view-rank .rank-stack .daily-prize__ticket-count {
   font-size: 11px;
   line-height: 1;
 }
 
-.app.view-rank .daily-prize__ticket-icon {
+.app.view-rank .rank-stack .daily-prize__ticket-icon {
   font-size: 12px;
 }
 
-.app.view-rank .daily-prize__tickets-next {
+.app.view-rank .rank-stack .daily-prize__tickets-next {
   font-size: 8px;
   line-height: 1.15;
 }
 
-.app.view-rank .daily-prize__ticket-progress {
+.app.view-rank .rank-stack .daily-prize__ticket-progress {
   height: 5px;
 }
 
-.app.view-rank .daily-prize-card__boost-tip {
+.app.view-rank .rank-stack .daily-prize-card__boost-tip {
   font-size: 9px;
-  margin: 0;
   line-height: 1.25;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -1350,26 +1454,10 @@ p {
   overflow: hidden;
 }
 
-.app.view-rank .grand-prize-card__channel {
-  margin-top: 4px;
+.app.view-rank .rank-stack .grand-prize-card__channel {
   padding: 6px 8px;
   font-size: 9px;
   line-height: 1.2;
-}
-
-.app.view-rank .panel-head--rank h2 {
-  font-size: 18px;
-}
-
-.app.view-rank .panel-head--rank p {
-  font-size: 12px;
-}
-
-.app.view-rank .panel-head--rank-lottery {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
 }
 
 .rank-rules-btn {
@@ -1542,34 +1630,17 @@ p {
   background: linear-gradient(90deg, #d89a24, #ffe08a);
 }
 
-.app.view-rank #rankPanel.panel.active.rank-panel--scroll {
-  overflow-y: auto;
-}
-
-.app.view-rank #globalLeaderboard.rank-leaderboard--daily {
-  gap: 4px;
-}
-
-.app.view-rank .rank--compact li {
-  min-height: 48px;
-  padding: 10px 12px;
-}
-
-.app.view-rank .rank--you-only li {
-  min-height: 52px;
-  border-width: 2px;
-}
-
 .rank-offline-note {
-  margin: 0 0 8px;
-  padding: 8px 12px;
+  margin: 0;
+  padding: 6px 8px;
   border-radius: 10px;
   border: 1px solid rgba(245, 196, 81, 0.25);
   background: rgba(245, 196, 81, 0.08);
   color: var(--gold-light);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   text-align: center;
+  flex-shrink: 0;
 }
 
 .daily-prize--strip {
