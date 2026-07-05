@@ -36,18 +36,6 @@ const STAR_PRODUCT_STARS = {
   tickets_100: 250
 };
 
-const STAR_PRODUCTS = Object.fromEntries(
-  Object.entries(STAR_PRODUCT_STARS).map(([id, stars]) => [
-    id,
-    {
-      stars,
-      title: id,
-      description: id,
-      successMessage: STAR_SUCCESS_MESSAGES[id] || "Premium purchase activated!"
-    }
-  ])
-);
-
 const STAR_SUCCESS_MESSAGES = {
   refill_energy: "Energy refilled to 100%!",
   tap_boost_30: "2x Tap boost active for 30 minutes!",
@@ -60,6 +48,18 @@ const STAR_SUCCESS_MESSAGES = {
   tickets_50: "+50 Tickets added!",
   tickets_100: "+100 Tickets added!"
 };
+
+const STAR_PRODUCTS = Object.fromEntries(
+  Object.entries(STAR_PRODUCT_STARS).map(([id, stars]) => [
+    id,
+    {
+      stars,
+      title: id,
+      description: id,
+      successMessage: STAR_SUCCESS_MESSAGES[id] || "Premium purchase activated!"
+    }
+  ])
+);
 
 const BOT_DESCRIPTION = process.env.BOT_DESCRIPTION || [
   "🏙️ Wealthia — Build your wealth empire in Telegram!",
