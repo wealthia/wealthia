@@ -309,6 +309,15 @@ function startPaymentPolling(telegramApiSafe, options = {}) {
 }
 
 async function startStarsPaymentListener(telegramApiSafe, options = {}) {
+  const preferPolling = process.env.STARS_USE_POLLING !== "false";
+
+  if (preferPolling) {
+    await telegramApiSafe("deleteWebhook", { drop_pending_updates: false });
+    const stop = startPaymentPolling(telegramApiSafe, options);
+    console.log("Stars payment listener: polling mode (Render-safe)");
+    return { mode: "polling", stop };
+  }
+
   const webhook = await registerTelegramWebhook(telegramApiSafe, options);
   if (webhook.ok) {
     return { mode: "webhook", stop: () => {} };

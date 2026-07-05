@@ -27,8 +27,10 @@ services:
         sync: false
       - key: STARS_TEST_MODE
         value: "false"
+      - key: STARS_USE_POLLING
+        value: "true"
       - key: WEBAPP_URL
-        value: https://wealthia.github.io/wealthia/v5.html?v=2100
+        value: https://wealthia.github.io/wealthia/v5.html?v=2101
       - key: CHANNEL_URL
         sync: false
       - key: ALLOW_EARN_RESET
@@ -50,7 +52,7 @@ services:
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: WEBAPP_URL
-        value: https://wealthia.github.io/wealthia/v5.html?v=2100
+        value: https://wealthia.github.io/wealthia/v5.html?v=2101
       - key: BOT_USERNAME
         value: WealthiaGameBot
       - key: CHANNEL_URL

@@ -1469,7 +1469,7 @@ async function openPremiumSpinInvoice(spinButton, tg) {
 
   resetPremiumSpinButton(spinButton);
 
-  tg.openInvoice(result.invoiceLink, async (status) => {
+  openStarsPaymentSheet(tg, result.invoiceLink, async (status) => {
     if (status !== "paid") {
       if (status === "failed") showToast("Payment failed.");
       if (status === "cancelled") showToast("Payment cancelled.");
@@ -2270,8 +2270,15 @@ function renderYourRankRowHtml(row, dailyMode) {
 }
 
 function getTicketStorePacks() {
+  const defaults = [
+    { id: "tickets_1", tickets: 1, stars: 5 },
+    { id: "tickets_5", tickets: 5, stars: 20 },
+    { id: "tickets_10", tickets: 10, stars: 35 },
+    { id: "tickets_50", tickets: 50, stars: 150 },
+    { id: "tickets_100", tickets: 100, stars: 250 }
+  ];
   const packs = CONFIG.TICKET_STORE_PACKS;
-  return Array.isArray(packs) ? packs : [];
+  return Array.isArray(packs) && packs.length ? packs : defaults;
 }
 
 function renderTicketStoreHtml() {
@@ -2343,7 +2350,12 @@ function bindRankPanelActions(panel) {
       const productId = button.dataset.ticketPack;
       const count = Number(button.dataset.ticketCount || 0);
       if (productId && count > 0) {
-        buyTicketPack(productId, count, button);
+        buyTicketPack(productId, count, button).catch((error) => {
+          console.error("BUY_TICKET_PACK_ERROR:", error);
+          showToast("Could not start payment. Please try again.");
+          button.disabled = false;
+          button.classList.remove("ticket-store__pack--busy");
+        });
       }
     });
   });
@@ -3101,29 +3113,70 @@ function starsInvoiceErrorMessage(result, status) {
 }
 
 async function ensureBackendForPayment() {
+  await warmBackendForPayment(3);
+
   if (backendReady && backendSessionToken) {
     await warmBackendForPayment(2);
     return true;
   }
 
-  await warmBackendForPayment(4);
-  const connected = await connectBackend(4, { silent: true });
-  if (connected) return true;
+  if (isTelegramWebApp()) {
+    await waitForTelegramInitData(5000);
+  }
 
-  await warmBackendForPayment(5);
-  return backendReady;
+  await connectBackend(3, { silent: true });
+  await warmBackendForPayment(2);
+  return Boolean(backendReady && backendSessionToken);
+}
+
+function openStarsPaymentSheet(tg, invoiceLink, onStatus) {
+  const link = String(invoiceLink || "").trim();
+  if (!link.startsWith("https://")) {
+    showToast("Invalid payment link. Please try again.");
+    if (onStatus) onStatus("failed");
+    return false;
+  }
+
+  if (tg && typeof tg.openInvoice === "function") {
+    tg.openInvoice(link, onStatus || (() => {}));
+    return true;
+  }
+
+  if (tg && typeof tg.openTelegramLink === "function" && link.includes("t.me")) {
+    tg.openTelegramLink(link);
+    showToast("Complete payment in Telegram, then return to the game.");
+    return true;
+  }
+
+  if (tg && typeof tg.openLink === "function") {
+    tg.openLink(link);
+    return true;
+  }
+
+  showToast("Update Telegram to pay with Stars.");
+  if (onStatus) onStatus("failed");
+  return false;
 }
 
 async function requestStarsInvoice(productId) {
-  await waitForTelegramInitData(4000);
+  const normalizedProductId = String(productId || "").trim();
+  if (!normalizedProductId) {
+    return {
+      ok: false,
+      status: 400,
+      result: { error: "BAD_PRODUCT", message: "Missing product id." }
+    };
+  }
+
+  await waitForTelegramInitData(5000);
 
   const createInvoice = async () => {
     const initData = getTelegramInitData();
     if (initData) {
-      return apiPost("/api/stars/invoice", { productId, initData });
+      return apiPost("/api/stars/invoice", { productId: normalizedProductId, initData });
     }
     if (backendSessionToken) {
-      return apiPost("/api/stars/invoice", { productId });
+      return apiPost("/api/stars/invoice", { productId: normalizedProductId });
     }
     return {
       ok: false,
@@ -3153,10 +3206,10 @@ async function requestStarsInvoice(productId) {
   }
 
   const link = response.result?.invoiceLink;
-  if (response.ok && link && typeof link !== "string") {
+  if (response.ok && (!link || typeof link !== "string" || !String(link).startsWith("https://"))) {
     return {
       ok: false,
-      status: response.status,
+      status: response.status || 502,
       result: {
         error: "INVALID_INVOICE_LINK",
         message: "Payment link was invalid. Please try again."
@@ -3229,7 +3282,7 @@ async function connectBackend(retries = 6, options = {}) {
         message = `Server bot is @${health.telegram.username}, expected @${CONFIG.BOT_USERNAME}.`;
       }
 
-      showToast(message);
+      if (!silent) showToast(message);
       renderSyncBar();
       render();
       return false;
@@ -3706,10 +3759,12 @@ async function waitForTicketFulfillment(beforeTickets, expectedAdd, attempts = 2
 async function buyTicketPack(productId, packTickets, button) {
   const tg = window.Telegram && window.Telegram.WebApp;
 
-  if (!tg || typeof tg.openInvoice !== "function") {
+  if (!tg) {
     showToast("Open in Telegram to pay with Stars.");
     return;
   }
+
+  tg.ready();
 
   if (!(await ensureBackendForPayment())) {
     showToast("Server not connected. Wait 10 seconds and try again.");
@@ -3722,51 +3777,64 @@ async function buyTicketPack(productId, packTickets, button) {
     button.classList.add("ticket-store__pack--busy");
   }
 
-  const { ok, result, status } = await requestStarsInvoice(productId);
+  const releaseButton = () => {
+    if (!button) return;
+    button.disabled = false;
+    button.classList.remove("ticket-store__pack--busy");
+  };
 
-  if (!ok || !result || !result.invoiceLink) {
-    if (button) {
-      button.disabled = false;
-      button.classList.remove("ticket-store__pack--busy");
-    }
-    showToast(starsInvoiceErrorMessage(result, status));
-    return;
-  }
+  try {
+    const { ok, result, status } = await requestStarsInvoice(productId);
 
-  tg.openInvoice(result.invoiceLink, async (paymentStatus) => {
-    if (button) {
-      button.disabled = false;
-      button.classList.remove("ticket-store__pack--busy");
+    if (!ok || !result?.invoiceLink) {
+      showToast(starsInvoiceErrorMessage(result, status));
+      releaseButton();
+      return;
     }
 
-    if (paymentStatus === "paid") {
-      const fulfilled = await waitForTicketFulfillment(beforeTickets, packTickets);
-      if (fulfilled) {
-        showTicketConfetti();
-        renderRankPanel();
-        renderCampaignBanner();
-        showToast(STAR_SUCCESS_LABELS[productId] || `+${packTickets} Tickets added!`);
-        if (tg.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === "function") {
-          tg.HapticFeedback.notificationOccurred("success");
+    await warmBackendForPayment(2);
+
+    const opened = openStarsPaymentSheet(tg, result.invoiceLink, async (paymentStatus) => {
+      releaseButton();
+
+      if (paymentStatus === "paid") {
+        const fulfilled = await waitForTicketFulfillment(beforeTickets, packTickets);
+        if (fulfilled) {
+          showTicketConfetti();
+          renderRankPanel();
+          renderCampaignBanner();
+          showToast(STAR_SUCCESS_LABELS[productId] || `+${packTickets} Tickets added!`);
+          if (tg.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === "function") {
+            tg.HapticFeedback.notificationOccurred("success");
+          }
+        } else {
+          showToast("Payment received. Tickets are syncing...");
+          await loadLeaderboard();
+          renderRankPanel();
+          renderCampaignBanner();
         }
-      } else {
-        showToast("Payment received. Tickets are syncing...");
-        await loadLeaderboard();
-        renderRankPanel();
-        renderCampaignBanner();
+        return;
       }
-      return;
-    }
 
-    if (paymentStatus === "failed") {
-      showToast("Payment failed. Wait a few seconds and try again.");
-      return;
-    }
+      if (paymentStatus === "failed") {
+        showToast("Payment failed. Wait a few seconds and try again.");
+        return;
+      }
 
-    if (paymentStatus === "cancelled") {
-      showToast("Payment cancelled.");
+      if (paymentStatus === "cancelled") {
+        showToast("Payment cancelled.");
+      }
+    });
+
+    if (!opened) {
+      showToast("Could not open Stars payment.");
+      releaseButton();
     }
-  });
+  } catch (error) {
+    console.error("BUY_TICKET_PACK_ERROR:", error);
+    showToast("Could not start payment. Please try again.");
+    releaseButton();
+  }
 }
 
 async function buyStarsProduct(productId) {
@@ -3789,7 +3857,7 @@ async function buyStarsProduct(productId) {
     return;
   }
 
-  tg.openInvoice(result.invoiceLink, async (status) => {
+  openStarsPaymentSheet(tg, result.invoiceLink, async (status) => {
     if (status === "paid") {
       const fulfilled = await waitForStarFulfillment(productId);
       if (fulfilled) {
