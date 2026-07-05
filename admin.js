@@ -25,15 +25,37 @@ const els = {
   revenueSummary: document.getElementById("revenueSummary"),
   metricsTable: document.getElementById("metricsTable"),
   payoutsTable: document.getElementById("payoutsTable"),
+  spinMonitorPanel: document.getElementById("spinMonitorPanel"),
+  spinMonitorCount: document.getElementById("spinMonitorCount"),
+  spinMonitorMilestones: document.getElementById("spinMonitorMilestones"),
+  spinWinnersTable: document.getElementById("spinWinnersTable"),
+  spinWinnerFilters: document.getElementById("spinWinnerFilters"),
+  fraudAlertsTable: document.getElementById("fraudAlertsTable"),
   toast: document.getElementById("toast")
 };
+
+let spinWinnerFilter = "all";
 
 function formatNumber(value) {
   return Math.floor(Number(value || 0)).toLocaleString("en-US");
 }
 
+function formatStars(value) {
+  return `${formatNumber(value)} ⭐`;
+}
+
 function formatMoney(value) {
   return `$${Number(value || 0).toFixed(2)}`;
+}
+
+function payoutStatusLabel(status) {
+  if (status === "completed" || status === "paid") return "Paid";
+  return "Pending";
+}
+
+function payoutStatusClass(status) {
+  if (status === "completed" || status === "paid") return "badge--active";
+  return "badge--draft";
 }
 
 function formatDate(value) {
@@ -202,6 +224,126 @@ function renderDashboardFromCache() {
   renderActiveTournament(dashboardData.tournaments.active);
 }
 
+function renderSpinWinners(rows) {
+  if (!els.spinWinnersTable) return;
+
+  if (!rows.length) {
+    els.spinWinnersTable.innerHTML = '<tr><td colspan="6" class="empty">No cash winners yet.</td></tr>';
+    return;
+  }
+
+  els.spinWinnersTable.innerHTML = rows.map((row) => {
+    const username = row.username ? `@${row.username}` : (row.displayName || "—");
+    const paid = row.status === "paid";
+    return `
+      <tr>
+        <td><code>${row.userId}</code></td>
+        <td>${username}</td>
+        <td><strong>${formatMoney(row.wonAmountUsd)}</strong></td>
+        <td>${formatDate(row.createdAt)}</td>
+        <td><span class="badge ${payoutStatusClass(row.status)}">${payoutStatusLabel(row.status)}</span></td>
+        <td>
+          <button
+            type="button"
+            class="btn-paid"
+            data-mark-paid="${row.id}"
+            ${paid ? "disabled" : ""}
+          >MARK AS PAID</button>
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+async function markSpinWinnerPaid(payoutId) {
+  const { ok, result } = await api("/api/admin/payouts/status", {
+    method: "POST",
+    body: JSON.stringify({ id: payoutId, status: "completed" })
+  });
+
+  if (!ok) {
+    showToast(result.error || "Could not update payout.");
+    return;
+  }
+
+  showToast("Winner marked as Paid.");
+  await Promise.all([loadSpinWinners(), loadDashboard(), loadPayouts()]);
+}
+
+async function loadSpinWinners() {
+  const query = new URLSearchParams({ status: spinWinnerFilter });
+  const { ok, result } = await api(`/api/admin/spin-winners?${query.toString()}`);
+
+  if (!ok) {
+    showLogin("Session expired.");
+    return;
+  }
+
+  renderSpinWinners(result.rows || []);
+}
+
+function renderFraudAlerts(rows) {
+  if (!els.fraudAlertsTable) return;
+
+  if (!rows.length) {
+    els.fraudAlertsTable.innerHTML = '<tr><td colspan="6" class="empty">No fraud alerts logged yet.</td></tr>';
+    return;
+  }
+
+  els.fraudAlertsTable.innerHTML = rows.map((row) => {
+    const username = row.username ? `@${row.username}` : (row.displayName || "—");
+    const banned = Boolean(row.isBanned);
+    return `
+      <tr class="fraud-row">
+        <td>${formatDate(row.createdAt)}</td>
+        <td><code>${row.userId || "—"}</code></td>
+        <td>${username}</td>
+        <td><span class="badge badge--ended">${row.eventType}</span></td>
+        <td class="fraud-detail">${row.detail || "—"}</td>
+        <td>
+          <button
+            type="button"
+            class="btn-ban"
+            data-ban-user="${row.userId}"
+            ${!row.userId || banned ? "disabled" : ""}
+          >${banned ? "BANNED" : "BAN USER"}</button>
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+async function banFraudUser(userId) {
+  if (!userId) return;
+  if (!window.confirm(`Ban Telegram user ${userId}? They will not be able to open the bot again.`)) {
+    return;
+  }
+
+  const { ok, result } = await api("/api/admin/ban-user", {
+    method: "POST",
+    body: JSON.stringify({ userId, reason: "Banned from admin Fraud Alerts panel" })
+  });
+
+  if (!ok) {
+    showToast(result.error || "Ban failed.");
+    return;
+  }
+
+  showToast(`User ${userId} banned.`);
+  await loadFraudAlerts();
+}
+
+async function loadFraudAlerts() {
+  const { ok, result } = await api("/api/admin/fraud-alerts?limit=100");
+
+  if (!ok) {
+    showLogin("Session expired.");
+    return;
+  }
+
+  renderFraudAlerts(result.rows || []);
+}
+
 function handleLogout() {
   adminSecret = "";
   localStorage.removeItem(SECRET_KEY);
@@ -220,6 +362,8 @@ function switchView(view) {
 
   const titles = {
     dashboard: "Dashboard",
+    spinWinners: "Lucky Spin Winners",
+    fraud: "Fraud Alerts",
     players: "Players",
     tournaments: "Tournaments",
     revenue: "Revenue",
@@ -232,6 +376,8 @@ function switchView(view) {
 
 async function loadCurrentView(view = getActiveView()) {
   if (view === "dashboard") await loadDashboard();
+  if (view === "spinWinners") await loadSpinWinners();
+  if (view === "fraud") await loadFraudAlerts();
   if (view === "players") await loadPlayers();
   if (view === "tournaments") await loadTournaments();
   if (view === "revenue") await loadRevenue();
@@ -247,22 +393,68 @@ function renderDashboardStats(data) {
   if (!els.dashboardStats || !data) return;
 
   const cards = [
-    ["Total Players", formatNumber(data.players.total)],
-    ["Active Today", formatNumber(data.players.activeToday)],
-    ["Total Coins", formatNumber(data.totals.coins)],
-    ["Total Taps", formatNumber(data.totals.taps)],
-    ["Tournament Fees", formatMoney(data.revenue.tournamentFees)],
-    ["Ad Revenue", formatMoney(data.revenue.adRevenue)],
-    ["Total Revenue", formatMoney(data.revenue.total)],
-    ["Tournament Entries", formatNumber(data.tournaments.totalEntries)]
+    {
+      label: "Total Revenue",
+      value: formatStars(data.stars?.totalRevenue || 0),
+      hint: "Telegram Stars from store purchases",
+      accent: "hero-stat--gold"
+    },
+    {
+      label: "Total Users",
+      value: formatNumber(data.players.total),
+      hint: "Registered players",
+      accent: "hero-stat--violet"
+    },
+    {
+      label: "Active Today",
+      value: formatNumber(data.players.activeToday),
+      hint: "Daily active users (DAU)",
+      accent: "hero-stat--green"
+    },
+    {
+      label: "Pending Cash Payouts",
+      value: formatNumber(data.payouts?.pendingCash || 0),
+      hint: "Lucky Spin cash winners awaiting payout",
+      accent: "hero-stat--red"
+    }
   ];
 
-  els.dashboardStats.innerHTML = cards.map(([label, value]) => `
-    <article class="stat-card">
-      <span>${label}</span>
-      <strong>${value}</strong>
+  els.dashboardStats.innerHTML = cards.map((card) => `
+    <article class="hero-stat ${card.accent}">
+      <span class="hero-stat__label">${card.label}</span>
+      <strong class="hero-stat__value">${card.value}</strong>
+      <small class="hero-stat__hint">${card.hint}</small>
     </article>
   `).join("");
+
+  renderSpinMonitor(data.spinMonitor || null);
+}
+
+function renderSpinMonitor(spinMonitor) {
+  if (!els.spinMonitorCount || !els.spinMonitorMilestones) return;
+
+  const count = number(spinMonitor?.globalSpinCount);
+  const milestones = spinMonitor?.milestones || {};
+
+  els.spinMonitorCount.textContent = formatNumber(count);
+
+  const rows = [
+    ["$10 Cash", milestones.remainingCash10, milestones.nextCash10],
+    ["$5 Cash", milestones.remainingCash5, milestones.nextCash5],
+    ["$2 Cash", milestones.remainingCash2, milestones.nextCash2]
+  ];
+
+  els.spinMonitorMilestones.innerHTML = rows.map(([label, remaining, nextAt]) => `
+    <div class="spin-monitor__row">
+      <span>${label}</span>
+      <strong>${formatNumber(remaining || 0)} spins left</strong>
+      <small>at spin #${formatNumber(nextAt || 0)}</small>
+    </div>
+  `).join("");
+}
+
+function number(value) {
+  return Number(value || 0);
 }
 
 function renderActiveTournament(tournament) {
@@ -497,16 +689,15 @@ function renderPayouts(rows) {
 
   els.payoutsTable.innerHTML = rows.map((row) => {
     const handle = row.username ? `@${row.username}` : (row.display_name || row.user_id);
-    const completeDisabled = row.status === "completed" ? "disabled" : "";
     return `
       <tr>
         <td>${handle}</td>
         <td>${formatMoney(row.amount_usd)}</td>
         <td>${row.prize_id || "—"}</td>
-        <td><span class="badge ${row.status === "completed" ? "badge--active" : "badge--draft"}">${row.status}</span></td>
+        <td><span class="badge ${payoutStatusClass(row.status)}">${payoutStatusLabel(row.status)}</span></td>
         <td>${formatDate(row.created_at)}</td>
         <td>
-          <button type="button" data-complete-payout="${row.id}" ${completeDisabled}>Mark completed</button>
+          <button type="button" class="btn-paid" data-complete-payout="${row.id}" ${row.status === "completed" ? "disabled" : ""}>MARK AS PAID</button>
         </td>
       </tr>
     `;
@@ -563,6 +754,34 @@ async function logRevenue(event) {
   form.reset();
   showToast("Revenue logged.");
   await loadRevenue();
+}
+
+if (els.spinWinnerFilters) {
+  els.spinWinnerFilters.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-spin-filter]");
+    if (!button) return;
+    spinWinnerFilter = button.dataset.spinFilter || "all";
+    els.spinWinnerFilters.querySelectorAll(".filter-tab").forEach((tab) => {
+      tab.classList.toggle("active", tab === button);
+    });
+    loadSpinWinners();
+  });
+}
+
+if (els.spinWinnersTable) {
+  els.spinWinnersTable.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-mark-paid]");
+    if (!button || button.disabled) return;
+    markSpinWinnerPaid(Number(button.dataset.markPaid));
+  });
+}
+
+if (els.fraudAlertsTable) {
+  els.fraudAlertsTable.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-ban-user]");
+    if (!button || button.disabled) return;
+    banFraudUser(button.dataset.banUser);
+  });
 }
 
 if (els.loginForm) {

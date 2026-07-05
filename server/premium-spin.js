@@ -208,6 +208,32 @@ function formatPrizeResult(prize, extra = {}) {
   };
 }
 
+function nextMultiple(spins, block) {
+  const current = number(spins);
+  const size = Math.max(1, number(block));
+  if (current % size === 0) return current + size;
+  return current + (size - (current % size));
+}
+
+function getSpinMilestoneInfo(globalSpins) {
+  const current = number(globalSpins);
+  const nextCash10 = current < CASH_10_MIN_SPINS
+    ? CASH_10_MIN_SPINS
+    : nextMultiple(current, CASH_10_BLOCK_SPINS);
+  const nextCash5 = nextMultiple(current, CASH_5_BLOCK_SPINS);
+  const nextCash2 = nextMultiple(current, CASH_2_BLOCK_SPINS);
+
+  return {
+    current,
+    nextCash10,
+    nextCash5,
+    nextCash2,
+    remainingCash10: Math.max(0, nextCash10 - current),
+    remainingCash5: Math.max(0, nextCash5 - current),
+    remainingCash2: Math.max(0, nextCash2 - current)
+  };
+}
+
 module.exports = {
   PREMIUM_SPIN_STARS,
   CASH_10_MIN_SPINS,
@@ -225,5 +251,7 @@ module.exports = {
   hasPendingPremiumPayment,
   createPendingPayout,
   buildPremiumSpinUpdate,
-  formatPrizeResult
+  formatPrizeResult,
+  getSpinMilestoneInfo,
+  nextMultiple
 };
