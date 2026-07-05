@@ -1860,6 +1860,21 @@ async function ensureUserProfile(telegramUser) {
     throw error;
   }
 
+  const { data: existingUser, error: existingUserError } = await supabase
+    .from("users")
+    .select("is_banned, ban_reason")
+    .eq("id", telegramId)
+    .maybeSingle();
+
+  if (existingUserError) throw existingUserError;
+
+  if (existingUser?.is_banned) {
+    const error = new Error("ACCOUNT_BANNED");
+    error.code = "ACCOUNT_BANNED";
+    error.banReason = String(existingUser.ban_reason || "");
+    throw error;
+  }
+
   const { error: userError } = await supabase.from("users").upsert({
     id: telegramId,
     telegram_id: telegramId,
@@ -2081,6 +2096,13 @@ app.post("/api/session", async (req, res) => {
         res.status(403).json({ error: "BOTS_NOT_ALLOWED" });
         return;
       }
+      if (profileError.code === "ACCOUNT_BANNED") {
+        res.status(403).json({
+          error: "ACCOUNT_BANNED",
+          message: profileError.banReason || "Your account has been blocked."
+        });
+        return;
+      }
       res.status(503).json({
         error: "CONNECTION_ERROR",
         message: CONNECTION_ERROR_MESSAGE
@@ -2139,6 +2161,10 @@ app.post("/api/session", async (req, res) => {
     console.error("SESSION_ERROR:", error);
     if (error.code === "BOTS_NOT_ALLOWED") {
       res.status(403).json({ error: "BOTS_NOT_ALLOWED" });
+      return;
+    }
+    if (error.code === "ACCOUNT_BANNED") {
+      res.status(403).json({ error: "ACCOUNT_BANNED", message: "Your account has been blocked." });
       return;
     }
     res.status(503).json({
@@ -3324,6 +3350,34 @@ app.get("/api/admin/dashboard", async (req, res) => {
       activeTournament = null;
     }
 
+    const { data: starPayments, error: starPaymentsError } = await supabase
+      .from("star_payments")
+      .select("stars_amount")
+      .eq("telegram_settled", true);
+
+    if (starPaymentsError && starPaymentsError.code !== "PGRST205") throw starPaymentsError;
+
+    const totalStarsRevenue = (starPayments || []).reduce(
+      (sum, row) => sum + number(row.stars_amount),
+      0
+    );
+
+    const { count: pendingCashPayouts, error: pendingPayoutsError } = await supabase
+      .from("pending_payouts")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "pending");
+
+    if (pendingPayoutsError && pendingPayoutsError.code !== "PGRST205") throw pendingPayoutsError;
+
+    let globalSpinCount = 0;
+    let spinMilestones = null;
+    try {
+      globalSpinCount = await premiumSpin.getGlobalPremiumSpins(supabase);
+      spinMilestones = premiumSpin.getSpinMilestoneInfo(globalSpinCount);
+    } catch (spinError) {
+      console.warn("ADMIN_SPIN_MONITOR_FAILED:", spinError.message);
+    }
+
     res.json({
       players: {
         total: totalPlayers || 0,
@@ -3331,6 +3385,16 @@ app.get("/api/admin/dashboard", async (req, res) => {
       },
       totals,
       revenue,
+      stars: {
+        totalRevenue: totalStarsRevenue
+      },
+      payouts: {
+        pendingCash: pendingCashPayouts || 0
+      },
+      spinMonitor: {
+        globalSpinCount,
+        milestones: spinMilestones
+      },
       tournaments: {
         active: activeTournament ? toClientTournament(activeTournament) : null,
         totalEntries: tournamentEntries || 0
@@ -3701,6 +3765,141 @@ app.post("/api/admin/payouts/status", async (req, res) => {
     if (error) throw error;
 
     res.json({ ok: true, payout: data });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/admin/spin-winners", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const status = String(req.query.status || "all").trim() || "all";
+    let query = supabase
+      .from("pending_payouts")
+      .select("*")
+      .in("prize_id", ["cash_10", "cash_5", "cash_2"])
+      .order("created_at", { ascending: false })
+      .limit(200);
+
+    if (status === "pending") {
+      query = query.eq("status", "pending");
+    } else if (status === "paid" || status === "completed") {
+      query = query.eq("status", "completed");
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const rows = (data || []).map((row) => ({
+      id: row.id,
+      userId: row.user_id,
+      username: row.username || "",
+      displayName: row.display_name || "",
+      wonAmountUsd: number(row.amount_usd),
+      prizeId: row.prize_id || "",
+      status: row.status === "completed" ? "paid" : "pending",
+      createdAt: row.created_at,
+      completedAt: row.completed_at || null
+    }));
+
+    res.json({ rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/admin/fraud-alerts", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const limit = Math.min(200, Math.max(1, number(req.query.limit) || 100));
+    const { data, error } = await supabase
+      .from("fraud_events")
+      .select("id, user_id, event_type, detail, created_at")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+
+    const userIds = [...new Set((data || []).map((row) => String(row.user_id || "")).filter(Boolean))];
+    const { data: users } = userIds.length
+      ? await supabase
+        .from("users")
+        .select("id, username, first_name, is_banned")
+        .in("id", userIds)
+      : { data: [] };
+
+    const userMap = new Map((users || []).map((user) => [user.id, user]));
+
+    const rows = (data || []).map((row) => {
+      const user = userMap.get(row.user_id) || {};
+      return {
+        id: row.id,
+        userId: row.user_id,
+        username: user.username || "",
+        displayName: user.first_name || "",
+        eventType: row.event_type,
+        detail: row.detail,
+        createdAt: row.created_at,
+        isBanned: Boolean(user.is_banned)
+      };
+    });
+
+    res.json({ rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/admin/ban-user", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const userId = String(req.body.userId || "").trim();
+    const reason = String(req.body.reason || "Fraud / anti-cheat violation").trim().slice(0, 500);
+
+    if (!userId) {
+      res.status(400).json({ error: "BAD_REQUEST" });
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("users")
+      .update({
+        is_banned: true,
+        banned_at: new Date().toISOString(),
+        ban_reason: reason
+      })
+      .eq("id", userId)
+      .select("id, username, first_name, is_banned, banned_at, ban_reason")
+      .single();
+
+    if (error) throw error;
+
+    await premiumSpinSecurity.logFraudEvent(supabase, {
+      userId,
+      eventType: "ADMIN_BAN",
+      detail: reason
+    });
+
+    res.json({ ok: true, user: data });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/admin/spin-monitor", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const globalSpinCount = await premiumSpin.getGlobalPremiumSpins(supabase);
+    const milestones = premiumSpin.getSpinMilestoneInfo(globalSpinCount);
+
+    res.json({
+      globalSpinCount,
+      milestones
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -13,7 +13,7 @@
     #adminApp { display: none; }
     [hidden] { display: none !important; }
   </style>
-  <link rel="stylesheet" href="./admin.css?v=5" />
+  <link rel="stylesheet" href="./admin.css?v=6" />
 </head>
 <body>
   <div class="login" id="loginScreen">
@@ -38,6 +38,8 @@
       </div>
       <nav class="sidebar__nav">
         <button class="nav-item active" type="button" data-view="dashboard">Dashboard</button>
+        <button class="nav-item" type="button" data-view="spinWinners">Lucky Spin Winners</button>
+        <button class="nav-item nav-item--danger" type="button" data-view="fraud">Fraud Alerts</button>
         <button class="nav-item" type="button" data-view="players">Players</button>
         <button class="nav-item" type="button" data-view="tournaments">Tournaments</button>
         <button class="nav-item" type="button" data-view="revenue">Revenue</button>
@@ -56,7 +58,14 @@
       </header>
 
       <section class="view active" id="dashboardView">
-        <div class="stats-grid" id="dashboardStats"></div>
+        <div class="dashboard-top">
+          <div class="hero-stats" id="dashboardStats"></div>
+          <aside class="spin-monitor" id="spinMonitorPanel">
+            <p class="spin-monitor__label">Global Spin Monitor</p>
+            <strong class="spin-monitor__value" id="spinMonitorCount">0</strong>
+            <div class="spin-monitor__milestones" id="spinMonitorMilestones"></div>
+          </aside>
+        </div>
         <div class="split">
           <article class="card">
             <h2>Active Tournament</h2>
@@ -71,6 +80,60 @@
             </div>
           </article>
         </div>
+      </section>
+
+      <section class="view" id="spinWinnersView">
+        <article class="card">
+          <div class="view-toolbar">
+            <h2>Lucky Spin Winners</h2>
+            <div class="filter-tabs" id="spinWinnerFilters">
+              <button type="button" class="filter-tab active" data-spin-filter="all">All</button>
+              <button type="button" class="filter-tab" data-spin-filter="pending">Pending</button>
+              <button type="button" class="filter-tab" data-spin-filter="paid">Paid</button>
+            </div>
+          </div>
+          <p class="empty">Cash prizes from the Premium Lucky Spin wheel ($10 / $5 / $2).</p>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Telegram ID</th>
+                  <th>Username</th>
+                  <th>Won Amount</th>
+                  <th>Date</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="spinWinnersTable"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="view" id="fraudView">
+        <article class="card card--danger">
+          <div class="view-toolbar">
+            <h2>Fraud Alerts</h2>
+            <span class="badge badge--ended">Anti-Cheat Live</span>
+          </div>
+          <p class="empty">Blocked payment attempts, replay attacks, and webhook fraud signals.</p>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Telegram ID</th>
+                  <th>Username</th>
+                  <th>Alert Type</th>
+                  <th>Detail</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="fraudAlertsTable"></tbody>
+            </table>
+          </div>
+        </article>
       </section>
 
       <section class="view" id="playersView">
@@ -225,6 +288,6 @@
   <div class="toast" id="toast"></div>
 
   <script src="./config.js?v=1"></script>
-  <script src="./admin.js?v=6"></script>
+  <script src="./admin.js?v=7"></script>
 </body>
 </html>
