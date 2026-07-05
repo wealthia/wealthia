@@ -530,6 +530,105 @@ async function getUserTotalSpins(userId) {
   return count || 0;
 }
 
+const ADMIN_USER_SELECT_FULL =
+  "id, first_name, username, last_seen_at, created_at, is_banned, banned_at, ban_reason";
+const ADMIN_USER_SELECT_BASE = "id, first_name, username, last_seen_at";
+
+function isMissingColumnError(error) {
+  const message = String(error?.message || "").toLowerCase();
+  return message.includes("column") && message.includes("does not exist");
+}
+
+function normalizeAdminUser(user) {
+  return {
+    ...user,
+    created_at: user.created_at || null,
+    is_banned: Boolean(user.is_banned),
+    banned_at: user.banned_at || null,
+    ban_reason: user.ban_reason || ""
+  };
+}
+
+async function queryAdminUser(applyFilters, useExtendedColumns = true) {
+  const selectFields = useExtendedColumns ? ADMIN_USER_SELECT_FULL : ADMIN_USER_SELECT_BASE;
+  let request = supabase.from("users").select(selectFields).limit(1);
+  request = applyFilters(request);
+
+  const { data, error } = await request;
+  if (error) {
+    if (useExtendedColumns && isMissingColumnError(error)) {
+      return queryAdminUser(applyFilters, false);
+    }
+    throw error;
+  }
+
+  const user = Array.isArray(data) ? data[0] : null;
+  return user ? normalizeAdminUser(user) : null;
+}
+
+async function findUserByAdminQuery(query) {
+  const trimmed = String(query || "").trim();
+  if (!trimmed) return null;
+
+  const normalized = trimmed.replace(/^@/, "").toLowerCase();
+
+  if (/^\d+$/.test(trimmed)) {
+    return queryAdminUser((request) => request.eq("id", trimmed));
+  }
+
+  let user = await queryAdminUser((request) => request.ilike("username", normalized));
+  if (user) return user;
+
+  user = await queryAdminUser((request) => request.ilike("username", `%${normalized}%`));
+  if (user) return user;
+
+  return queryAdminUser((request) => request.ilike("first_name", `%${normalized}%`));
+}
+
+async function loadGameRowForAdmin(userId) {
+  const emptyRow = {
+    user_id: String(userId),
+    coins: 0,
+    spent: 0,
+    daily_contest_score: 0,
+    contest_date: "",
+    contest_baseline_city: 0
+  };
+
+  const { data, error } = await supabase
+    .from("game_states")
+    .select("*")
+    .eq("user_id", String(userId))
+    .maybeSingle();
+
+  if (error) {
+    console.warn("ADMIN_LOAD_GAME_FAILED:", error.message);
+    return { row: emptyRow, exists: false };
+  }
+
+  if (!data) {
+    return { row: emptyRow, exists: false };
+  }
+
+  return { row: data, exists: true };
+}
+
+function toAdminUserProfile(user, gameRow, totalSpins) {
+  return {
+    userId: user.id,
+    username: user.username || "",
+    displayName: user.first_name || "",
+    coins: number(gameRow.coins),
+    tickets: ticketsFromRow(gameRow),
+    totalSpins,
+    registrationDate: user.created_at || null,
+    lastSeenAt: user.last_seen_at || null,
+    isBanned: Boolean(user.is_banned),
+    bannedAt: user.banned_at || null,
+    banReason: user.ban_reason || ""
+  };
+}
+
 function applyTicketPackPurchase(row, ticketCount) {
   const today = todayKey();
   let score = number(row.daily_contest_score);
@@ -4190,49 +4289,27 @@ app.get("/api/admin/user-profile", async (req, res) => {
       return;
     }
 
-    const normalized = query.replace(/^@/, "").toLowerCase();
-    let userQuery = supabase
-      .from("users")
-      .select("id, first_name, username, last_seen_at, created_at, is_banned, banned_at, ban_reason")
-      .limit(1);
-
-    if (/^\d+$/.test(query)) {
-      userQuery = userQuery.eq("id", query);
-    } else {
-      userQuery = userQuery.ilike("username", normalized);
-    }
-
-    const { data: users, error } = await userQuery;
-    if (error) throw error;
-
-    const user = Array.isArray(users) ? users[0] : null;
+    const user = await findUserByAdminQuery(query);
     if (!user) {
       res.status(404).json({ error: "USER_NOT_FOUND" });
       return;
     }
 
-    const row = await loadGame(user.id);
+    const { row, exists: hasGameState } = await loadGameRowForAdmin(user.id);
     const totalSpins = await getUserTotalSpins(user.id);
 
     res.json({
       ok: true,
-      profile: {
-        userId: user.id,
-        username: user.username || "",
-        displayName: user.first_name || "",
-        coins: number(row.coins),
-        tickets: ticketsFromRow(row),
-        totalSpins,
-        registrationDate: user.created_at || null,
-        lastSeenAt: user.last_seen_at || null,
-        isBanned: Boolean(user.is_banned),
-        bannedAt: user.banned_at || null,
-        banReason: user.ban_reason || ""
-      }
+      profile: toAdminUserProfile(user, row, totalSpins)
     });
   } catch (error) {
     console.error("ADMIN_USER_PROFILE_GET_ERROR:", error.message);
-    res.status(500).json({ error: error.message });
+    const payload = { error: error.message };
+    if (isMissingColumnError(error)) {
+      payload.error = "MIGRATION_REQUIRED";
+      payload.detail = "Run supabase/migration-user-ban.sql and migration-promo-codes.sql";
+    }
+    res.status(500).json(payload);
   }
 });
 
@@ -4246,19 +4323,13 @@ app.post("/api/admin/user-profile", async (req, res) => {
       return;
     }
 
-    const { data: user, error: userError } = await supabase
-      .from("users")
-      .select("id, first_name, username, created_at, is_banned, banned_at, ban_reason, last_seen_at")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (userError) throw userError;
+    const user = await queryAdminUser((request) => request.eq("id", userId));
     if (!user) {
       res.status(404).json({ error: "USER_NOT_FOUND" });
       return;
     }
 
-    const row = await loadGame(userId);
+    const { row, exists: hasGameState } = await loadGameRowForAdmin(userId);
     const gamePatch = {
       updated_at: new Date().toISOString()
     };
@@ -4273,14 +4344,49 @@ app.post("/api/admin/user-profile", async (req, res) => {
       Object.assign(gamePatch, applyTicketsValue(row, req.body.tickets));
     }
 
-    const { data: game, error: gameError } = await supabase
-      .from("game_states")
-      .update(gamePatch)
-      .eq("user_id", userId)
-      .select("*")
-      .single();
+    let game = row;
+    const shouldUpdateGame = req.body.coins !== undefined || req.body.tickets !== undefined;
 
-    if (gameError) throw gameError;
+    if (shouldUpdateGame) {
+      if (hasGameState) {
+        const { data, error: gameError } = await supabase
+          .from("game_states")
+          .update(gamePatch)
+          .eq("user_id", userId)
+          .select("*")
+          .single();
+
+        if (gameError) throw gameError;
+        game = data;
+      } else {
+        const { data, error: gameError } = await supabase
+          .from("game_states")
+          .insert({
+            user_id: userId,
+            coins: gamePatch.coins ?? 0,
+            city_value: gamePatch.city_value ?? 0,
+            energy: MAX_ENERGY,
+            max_energy: MAX_ENERGY,
+            taps: 0,
+            spent: 0,
+            shop_level: 1,
+            bank_level: 0,
+            factory_level: 0,
+            casino_level: 0,
+            casino_date: "",
+            daily_contest_score: gamePatch.daily_contest_score ?? 0,
+            contest_date: gamePatch.contest_date ?? "",
+            contest_baseline_city: gamePatch.contest_baseline_city ?? 0,
+            last_seen_at: new Date().toISOString(),
+            updated_at: gamePatch.updated_at
+          })
+          .select("*")
+          .single();
+
+        if (gameError) throw gameError;
+        game = data;
+      }
+    }
 
     let updatedUser = user;
     if (req.body.isBanned !== undefined) {
@@ -4316,23 +4422,16 @@ app.post("/api/admin/user-profile", async (req, res) => {
 
     res.json({
       ok: true,
-      profile: {
-        userId: updatedUser.id,
-        username: updatedUser.username || "",
-        displayName: updatedUser.first_name || "",
-        coins: number(game.coins),
-        tickets: ticketsFromRow(game),
-        totalSpins,
-        registrationDate: updatedUser.created_at || null,
-        lastSeenAt: updatedUser.last_seen_at || null,
-        isBanned: Boolean(updatedUser.is_banned),
-        bannedAt: updatedUser.banned_at || null,
-        banReason: updatedUser.ban_reason || ""
-      }
+      profile: toAdminUserProfile(updatedUser, game, totalSpins)
     });
   } catch (error) {
     console.error("ADMIN_USER_PROFILE_UPDATE_ERROR:", error.message);
-    res.status(500).json({ error: error.message });
+    const payload = { error: error.message };
+    if (isMissingColumnError(error)) {
+      payload.error = "MIGRATION_REQUIRED";
+      payload.detail = "Run supabase/migration-user-ban.sql and migration-promo-codes.sql";
+    }
+    res.status(500).json(payload);
   }
 });
 
