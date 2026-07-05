@@ -41,6 +41,16 @@ const PREMIUM_WHEEL_WIN_MODAL_DELAY_MS = 500;
 const PREMIUM_WHEEL_EXTRA_ROTATION_DEG = 1800;
 const SUPPORT_TELEGRAM_URL = CONFIG.SUPPORT_TELEGRAM_URL || "https://t.me/WealthiaGameBot";
 
+const COIN_STORE_PACKS = Array.isArray(CONFIG.COIN_STORE_PACKS) && CONFIG.COIN_STORE_PACKS.length
+  ? CONFIG.COIN_STORE_PACKS
+  : [
+    { productId: "coins_5000", coins: 5000, stars: 10 },
+    { productId: "coins_15000", coins: 15000, stars: 25 },
+    { productId: "coins_50000", coins: 50000, stars: 70 },
+    { productId: "coins_150000", coins: 150000, stars: 180 },
+    { productId: "coins_500000", coins: 500000, stars: 450 }
+  ];
+
 const TASK_REFRESH_MS = 12 * 60 * 60 * 1000;
 const TICKETS_PER_SCORE = 1000;
 const TICKET_EMOJI = "\u{1F39F}\uFE0F";
@@ -3719,7 +3729,12 @@ const STAR_SUCCESS_LABELS = {
   tickets_5: "+5 Tickets added!",
   tickets_10: "+10 Tickets added!",
   tickets_50: "+50 Tickets added!",
-  tickets_100: "+100 Tickets added!"
+  tickets_100: "+100 Tickets added!",
+  coins_5000: "+5,000 Coins added!",
+  coins_15000: "+15,000 Coins added!",
+  coins_50000: "+50,000 Coins added!",
+  coins_150000: "+150,000 Coins added!",
+  coins_500000: "+500,000 Coins added!"
 };
 
 function ticketPackProductId(productId) {
@@ -3754,6 +3769,164 @@ async function waitForTicketFulfillment(beforeTickets, expectedAdd, attempts = 2
     await sleep(1000);
   }
   return false;
+}
+
+async function waitForCoinFulfillment(beforeCoins, expectedAdd, attempts = 20) {
+  for (let i = 0; i < attempts; i += 1) {
+    await refreshBackendState();
+    if (Number(state.coins) >= beforeCoins + expectedAdd) return true;
+    await sleep(1000);
+  }
+  return false;
+}
+
+function renderCoinStorePacks() {
+  const mount = document.getElementById("coinStorePacks");
+  if (!mount || mount.dataset.bound === "1") return;
+
+  mount.dataset.bound = "1";
+  mount.innerHTML = COIN_STORE_PACKS.map((pack) => `
+    <button
+      type="button"
+      class="coin-store-pack"
+      data-coin-pack="${pack.productId}"
+      data-coin-amount="${pack.coins}"
+    >
+      <span class="coin-store-pack__coins">${format(pack.coins)} Coins</span>
+      <span class="coin-store-pack__arrow" aria-hidden="true">➡️</span>
+      <span class="coin-store-pack__price">${pack.stars} ⭐</span>
+    </button>
+  `).join("");
+
+  mount.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-coin-pack]");
+    if (!button || button.disabled) return;
+
+    const productId = button.dataset.coinPack;
+    const coinAmount = Number(button.dataset.coinAmount || 0);
+    buyCoinPack(productId, coinAmount, button).catch((error) => {
+      console.error("BUY_COIN_PACK_ERROR:", error);
+      showToast("Could not start payment. Please try again.");
+      button.disabled = false;
+      button.classList.remove("coin-store-pack--busy");
+    });
+  });
+}
+
+function openCoinStoreModal() {
+  const modal = document.getElementById("coinStoreModal");
+  if (!modal) return;
+  renderCoinStorePacks();
+  modal.hidden = false;
+}
+
+function closeCoinStoreModal() {
+  const modal = document.getElementById("coinStoreModal");
+  if (!modal) return;
+  modal.hidden = true;
+}
+
+function bindCoinStoreModal() {
+  const openButton = document.getElementById("coinStoreOpen");
+  const modal = document.getElementById("coinStoreModal");
+  if (!modal || modal.dataset.bound === "1") return;
+
+  modal.dataset.bound = "1";
+
+  if (openButton) {
+    openButton.addEventListener("click", () => openCoinStoreModal());
+  }
+
+  const closeButton = document.getElementById("coinStoreClose");
+  if (closeButton) {
+    closeButton.addEventListener("click", closeCoinStoreModal);
+  }
+
+  const backdrop = document.getElementById("coinStoreBackdrop");
+  if (backdrop) {
+    backdrop.addEventListener("click", closeCoinStoreModal);
+  }
+}
+
+async function buyCoinPack(productId, coinAmount, button) {
+  const tg = window.Telegram && window.Telegram.WebApp;
+
+  if (!tg) {
+    showToast("Open in Telegram to pay with Stars.");
+    return;
+  }
+
+  tg.ready();
+
+  if (!(await ensureBackendForPayment())) {
+    showToast("Server not connected. Wait 10 seconds and try again.");
+    return;
+  }
+
+  const beforeCoins = Number(state.coins || 0);
+  const expectedAdd = Math.max(0, Number(coinAmount || 0));
+
+  if (button) {
+    button.disabled = true;
+    button.classList.add("coin-store-pack--busy");
+  }
+
+  const releaseButton = () => {
+    if (!button) return;
+    button.disabled = false;
+    button.classList.remove("coin-store-pack--busy");
+  };
+
+  try {
+    const { ok, result, status } = await requestStarsInvoice(productId);
+
+    if (!ok || !result?.invoiceLink) {
+      showToast(starsInvoiceErrorMessage(result, status));
+      releaseButton();
+      return;
+    }
+
+    await warmBackendForPayment(2);
+
+    const opened = openStarsPaymentSheet(tg, result.invoiceLink, async (paymentStatus) => {
+      releaseButton();
+
+      if (paymentStatus === "paid") {
+        const fulfilled = await waitForCoinFulfillment(beforeCoins, expectedAdd);
+        await refreshBackendState();
+        render();
+
+        if (fulfilled) {
+          closeCoinStoreModal();
+          showToast(STAR_SUCCESS_LABELS[productId] || `+${format(expectedAdd)} Coins added!`);
+          if (tg.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === "function") {
+            tg.HapticFeedback.notificationOccurred("success");
+          }
+        } else {
+          showToast("Payment received. Coins are syncing...");
+        }
+        return;
+      }
+
+      if (paymentStatus === "failed") {
+        showToast("Payment failed. Wait a few seconds and try again.");
+        return;
+      }
+
+      if (paymentStatus === "cancelled") {
+        showToast("Payment cancelled.");
+      }
+    });
+
+    if (!opened) {
+      showToast("Could not open Stars payment.");
+      releaseButton();
+    }
+  } catch (error) {
+    console.error("BUY_COIN_PACK_ERROR:", error);
+    showToast("Could not start payment. Please try again.");
+    releaseButton();
+  }
 }
 
 async function buyTicketPack(productId, packTickets, button) {
@@ -4125,6 +4298,7 @@ function bootApp() {
   setupTapControls();
   startContestSeedRefresh();
   bindRankRulesModal();
+  bindCoinStoreModal();
   bindResetConfirmModal();
   bindChannelGateModal();
   bindPremiumSpinUi();
