@@ -3074,6 +3074,9 @@ async function warmBackendForPayment(attempts = 4) {
 }
 
 function starsInvoiceErrorMessage(result, status) {
+  if (result?.error === "TELEGRAM_AUTH_FAILED") {
+    return "Telegram auth missing. Close and reopen the game.";
+  }
   if (result?.error === "STARS_NOT_CONFIGURED") {
     return "Stars payments not configured yet.";
   }
@@ -3112,7 +3115,25 @@ async function ensureBackendForPayment() {
 }
 
 async function requestStarsInvoice(productId) {
-  const createInvoice = () => apiPostSecure("/api/stars/invoice", { productId });
+  await waitForTelegramInitData(4000);
+
+  const createInvoice = async () => {
+    const initData = getTelegramInitData();
+    if (initData) {
+      return apiPost("/api/stars/invoice", { productId, initData });
+    }
+    if (backendSessionToken) {
+      return apiPost("/api/stars/invoice", { productId });
+    }
+    return {
+      ok: false,
+      status: 403,
+      result: {
+        error: "SESSION_EXPIRED",
+        message: "Session expired. Close and reopen the game."
+      }
+    };
+  };
 
   await warmBackendForPayment();
 
@@ -3682,7 +3703,7 @@ async function waitForTicketFulfillment(beforeTickets, expectedAdd, attempts = 2
   return false;
 }
 
-async function buyTicketPack(productId, ticketCount, button) {
+async function buyTicketPack(productId, packTickets, button) {
   const tg = window.Telegram && window.Telegram.WebApp;
 
   if (!tg || typeof tg.openInvoice !== "function") {
@@ -3712,19 +3733,19 @@ async function buyTicketPack(productId, ticketCount, button) {
     return;
   }
 
-  tg.openInvoice(result.invoiceLink, async (status) => {
+  tg.openInvoice(result.invoiceLink, async (paymentStatus) => {
     if (button) {
       button.disabled = false;
       button.classList.remove("ticket-store__pack--busy");
     }
 
-    if (status === "paid") {
-      const fulfilled = await waitForTicketFulfillment(beforeTickets, ticketCount);
+    if (paymentStatus === "paid") {
+      const fulfilled = await waitForTicketFulfillment(beforeTickets, packTickets);
       if (fulfilled) {
         showTicketConfetti();
         renderRankPanel();
         renderCampaignBanner();
-        showToast(STAR_SUCCESS_LABELS[productId] || `+${ticketCount} Tickets added!`);
+        showToast(STAR_SUCCESS_LABELS[productId] || `+${packTickets} Tickets added!`);
         if (tg.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === "function") {
           tg.HapticFeedback.notificationOccurred("success");
         }
@@ -3737,12 +3758,12 @@ async function buyTicketPack(productId, ticketCount, button) {
       return;
     }
 
-    if (status === "failed") {
+    if (paymentStatus === "failed") {
       showToast("Payment failed. Wait a few seconds and try again.");
       return;
     }
 
-    if (status === "cancelled") {
+    if (paymentStatus === "cancelled") {
       showToast("Payment cancelled.");
     }
   });
