@@ -19,6 +19,7 @@ const systemBots = require("./system-bots");
 const premiumSpin = require("./premium-spin");
 const premiumSpinSecurity = require("./premium-spin-security");
 const paymentSecurity = require("./payment-security");
+const gameSettings = require("./game-settings");
 const telegramStars = require("./telegram-stars");
 const economy = require("./economy");
 
@@ -104,8 +105,28 @@ const EARN_TASKS = {
 const BOOST_OPTIONS = {
   fullEnergy: { cost: 100, type: "energy" },
   tapBoost: { cost: 150, type: "tap" },
-  incomeBoost: { cost: 200, type: "income" }
+  incomeBoost: { cost: 200, type: "income"   }
 };
+
+function getStarProduct(productId) {
+  const product = STAR_PRODUCTS[productId];
+  if (!product) return null;
+
+  if (productId === "premium_spin") {
+    return {
+      ...product,
+      stars: gameSettings.getSettingsSync().premium_spin_stars
+    };
+  }
+
+  return product;
+}
+
+function getStarProductsMap() {
+  return Object.fromEntries(
+    Object.keys(STAR_PRODUCTS).map((id) => [id, getStarProduct(id)])
+  );
+}
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const OWNER_TELEGRAM_ID = String(process.env.OWNER_TELEGRAM_ID || "").trim();
@@ -554,7 +575,7 @@ function parseStarPayload(payload) {
 function getTelegramStarsOptions() {
   return {
     telegramApiSafe,
-    starProducts: STAR_PRODUCTS,
+    starProducts: getStarProductsMap(),
     parseStarPayload,
     fulfillPayment: async (payload) => fulfillStarPaymentRecord({
       ...payload,
@@ -578,7 +599,7 @@ async function fulfillStarPaymentRecord({
     const starsAmount = number(stars);
     const payload = parseStarPayload(telegramStars.normalizeInvoicePayload(invoicePayload));
 
-    if (!userId || !productId || !chargeId || !STAR_PRODUCTS[productId]) {
+    if (!userId || !productId || !chargeId || !getStarProduct(productId)) {
       const error = new Error("BAD_REQUEST");
       error.code = "BAD_REQUEST";
       throw error;
@@ -595,7 +616,7 @@ async function fulfillStarPaymentRecord({
       throw error;
     }
 
-    const expectedStars = number(STAR_PRODUCTS[productId].stars);
+    const expectedStars = number(getStarProduct(productId).stars);
     if (!expectedStars || starsAmount !== expectedStars) {
       await paymentSecurity.logPaymentFraud(supabase, {
         userId,
@@ -681,7 +702,7 @@ async function fulfillStarPaymentRecord({
 
     await notifyOwnerStarsSale({
       playerName: buyer?.first_name || buyer?.username || `Player ${userId.slice(-4)}`,
-      productTitle: STAR_PRODUCTS[productId].title,
+      productTitle: getStarProduct(productId).title,
       stars: expectedStars
     });
 
@@ -2545,12 +2566,15 @@ app.post("/api/buy-boost", requirePlayer, async (req, res) => {
 });
 
 app.get("/api/stars/products", (_req, res) => {
-  const products = Object.entries(STAR_PRODUCTS).map(([id, product]) => ({
-    id,
-    stars: product.stars,
-    title: product.title,
-    description: product.description
-  }));
+  const products = Object.keys(STAR_PRODUCTS).map((id) => {
+    const product = getStarProduct(id);
+    return {
+      id,
+      stars: product.stars,
+      title: product.title,
+      description: product.description
+    };
+  });
 
   res.json({ ok: true, products });
 });
@@ -2559,7 +2583,7 @@ app.post("/api/stars/invoice", requirePlayer, paymentSecurity.starsInvoiceRateLi
   try {
     const tokenUserId = String(req.playerId || "");
     const productId = String(req.body.productId || "").trim();
-    const product = STAR_PRODUCTS[productId];
+    const product = getStarProduct(productId);
     let payloadUserId = tokenUserId;
 
     if (!tokenUserId || !product) {
@@ -2655,7 +2679,7 @@ app.post("/api/telegram/webhook/:secret", paymentSecurity.createTelegramWebhookG
         telegramApiSafe,
         update.pre_checkout_query,
         {
-          starProducts: STAR_PRODUCTS,
+          starProducts: getStarProductsMap(),
           parseStarPayload,
           logFraud: (detail) => paymentSecurity.logPaymentFraud(supabase, detail)
         }
@@ -2849,7 +2873,7 @@ app.post(
       return;
     }
 
-    if (number(payment.stars_amount) !== premiumSpin.PREMIUM_SPIN_STARS) {
+    if (number(payment.stars_amount) !== premiumSpin.getPremiumSpinStars()) {
       await premiumSpinSecurity.logFraudEvent(supabase, {
         userId,
         eventType: "INVALID_PAYMENT_AMOUNT",
@@ -3893,6 +3917,7 @@ app.get("/api/admin/spin-monitor", async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   try {
+    await gameSettings.loadSettings(supabase, { force: true });
     const globalSpinCount = await premiumSpin.getGlobalPremiumSpins(supabase);
     const milestones = premiumSpin.getSpinMilestoneInfo(globalSpinCount);
 
@@ -3901,6 +3926,187 @@ app.get("/api/admin/spin-monitor", async (req, res) => {
       milestones
     });
   } catch (error) {
+    console.error("ADMIN_SPIN_MONITOR_ERROR:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/admin/game-settings", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const settings = await gameSettings.loadSettings(supabase, { force: true });
+    res.json({ ok: true, settings });
+  } catch (error) {
+    console.error("ADMIN_GAME_SETTINGS_GET_ERROR:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/admin/game-settings", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const settings = await gameSettings.saveSettings(supabase, {
+      premium_spin_stars: req.body.premium_spin_stars,
+      cash_10_interval: req.body.cash_10_interval,
+      cash_5_interval: req.body.cash_5_interval,
+      cash_2_interval: req.body.cash_2_interval
+    });
+
+    STAR_PRODUCTS.premium_spin.stars = settings.premium_spin_stars;
+
+    res.json({ ok: true, settings });
+  } catch (error) {
+    console.error("ADMIN_GAME_SETTINGS_SAVE_ERROR:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/admin/broadcast", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const message = String(req.body.message || "").trim();
+
+    if (!message) {
+      res.status(400).json({ error: "EMPTY_MESSAGE" });
+      return;
+    }
+
+    if (message.length > 4096) {
+      res.status(400).json({ error: "MESSAGE_TOO_LONG" });
+      return;
+    }
+
+    if (!TELEGRAM_BOT_TOKEN) {
+      res.status(503).json({ error: "BOT_NOT_CONFIGURED" });
+      return;
+    }
+
+    const dayAgo = new Date(nowMs() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: users, error } = await supabase
+      .from("users")
+      .select("id, first_name")
+      .eq("is_banned", false)
+      .gte("last_seen_at", dayAgo)
+      .order("last_seen_at", { ascending: false })
+      .limit(5000);
+
+    if (error) throw error;
+
+    const recipients = users || [];
+    let sent = 0;
+    let failed = 0;
+    const BATCH_SIZE = 30;
+    const BATCH_DELAY_MS = 1000;
+
+    for (let index = 0; index < recipients.length; index += BATCH_SIZE) {
+      const batch = recipients.slice(index, index + BATCH_SIZE);
+
+      const results = await Promise.all(batch.map(async (user) => {
+        try {
+          const ok = await sendPushMessage(user.id, message);
+          return ok;
+        } catch (sendError) {
+          console.warn("BROADCAST_SEND_FAILED:", user.id, sendError.message);
+          return false;
+        }
+      }));
+
+      results.forEach((ok) => {
+        if (ok) sent += 1;
+        else failed += 1;
+      });
+
+      if (index + BATCH_SIZE < recipients.length) {
+        await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));
+      }
+    }
+
+    res.json({
+      ok: true,
+      sent,
+      failed,
+      total: recipients.length
+    });
+  } catch (error) {
+    console.error("ADMIN_BROADCAST_ERROR:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/admin/give-reward", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const userId = String(req.body.userId || req.body.telegramId || "").trim();
+    const amount = Math.floor(number(req.body.amount));
+    const rewardType = String(req.body.type || "coins").trim().toLowerCase();
+
+    if (!userId || amount <= 0) {
+      res.status(400).json({ error: "BAD_REQUEST" });
+      return;
+    }
+
+    if (!["coins", "tickets"].includes(rewardType)) {
+      res.status(400).json({ error: "INVALID_REWARD_TYPE" });
+      return;
+    }
+
+    const { data: userRow, error: userError } = await supabase
+      .from("users")
+      .select("id, is_banned")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (userError) throw userError;
+
+    if (!userRow) {
+      res.status(404).json({ error: "USER_NOT_FOUND" });
+      return;
+    }
+
+    if (userRow.is_banned) {
+      res.status(400).json({ error: "USER_BANNED" });
+      return;
+    }
+
+    const row = await loadGame(userId);
+    const productUpdate = rewardType === "coins"
+      ? applyCoinPackPurchase(row, amount)
+      : applyTicketPackPurchase(row, amount);
+
+    const { data, error } = await supabase
+      .from("game_states")
+      .update(productUpdate)
+      .eq("user_id", userId)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    await logMetric("manual_grant", amount, `Admin ${rewardType} reward`, { userId, rewardType });
+
+    let notified = false;
+    try {
+      notified = await sendPushMessage(
+        userId,
+        "An administrator has credited your account with a reward!"
+      );
+    } catch (notifyError) {
+      console.warn("ADMIN_REWARD_NOTIFY_FAILED:", userId, notifyError.message);
+    }
+
+    res.json({
+      ok: true,
+      amount,
+      type: rewardType,
+      notified,
+      user: toClientUser(data)
+    });
+  } catch (error) {
+    console.error("ADMIN_GIVE_REWARD_ERROR:", error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -4191,11 +4397,18 @@ app.post("/api/cron/daily-push", async (req, res) => {
 app.listen(port, () => {
   console.log(`Wealthia backend running on port ${port}`);
 
+  gameSettings.loadSettings(supabase, { force: true }).then((settings) => {
+    STAR_PRODUCTS.premium_spin.stars = settings.premium_spin_stars;
+    console.log("Game settings loaded:", settings);
+  }).catch((error) => {
+    console.warn("Game settings preload failed:", error.message);
+  });
+
   if (TELEGRAM_BOT_TOKEN) {
     telegramStars.startStarsPaymentListener(telegramApiSafe, {
       secret: TELEGRAM_WEBHOOK_SECRET,
       baseUrl: WEBHOOK_BASE_URL,
-      starProducts: STAR_PRODUCTS,
+      starProducts: getStarProductsMap(),
       parseStarPayload,
       fulfillPayment: fulfillStarPaymentRecord,
       sendBotMessage: async (chatId, text) => {

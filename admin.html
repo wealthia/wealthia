@@ -13,7 +13,7 @@
     #adminApp { display: none; }
     [hidden] { display: none !important; }
   </style>
-  <link rel="stylesheet" href="./admin.css?v=6" />
+  <link rel="stylesheet" href="./admin.css?v=7" />
 </head>
 <body>
   <div class="login" id="loginScreen">
@@ -40,7 +40,9 @@
         <button class="nav-item active" type="button" data-view="dashboard">Dashboard</button>
         <button class="nav-item" type="button" data-view="spinWinners">Lucky Spin Winners</button>
         <button class="nav-item nav-item--danger" type="button" data-view="fraud">Fraud Alerts</button>
-        <button class="nav-item" type="button" data-view="players">Players</button>
+        <button class="nav-item" type="button" data-view="broadcast">Broadcast</button>
+        <button class="nav-item" type="button" data-view="gameSettings">Game Settings</button>
+        <button class="nav-item" type="button" data-view="players">User Management</button>
         <button class="nav-item" type="button" data-view="tournaments">Tournaments</button>
         <button class="nav-item" type="button" data-view="revenue">Revenue</button>
         <button class="nav-item" type="button" data-view="payouts">Payouts</button>
@@ -136,7 +138,75 @@
         </article>
       </section>
 
+      <section class="view" id="broadcastView">
+        <article class="card">
+          <h2>Broadcast / Push Message</h2>
+          <p class="empty">Send a live Telegram message to active players (last 24h, max 30/sec rate limit).</p>
+          <form id="broadcastForm" class="broadcast-form">
+            <label class="full">
+              Message
+              <textarea id="broadcastMessage" rows="8" maxlength="4096" placeholder="Type your announcement for all active players..."></textarea>
+            </label>
+            <div class="broadcast-actions">
+              <button type="submit" class="btn-broadcast" id="broadcastSubmit">SEND BROADCAST</button>
+              <p class="broadcast-status" id="broadcastStatus" hidden></p>
+            </div>
+          </form>
+        </article>
+      </section>
+
+      <section class="view" id="gameSettingsView">
+        <article class="card form-card">
+          <h2>Game Settings</h2>
+          <p class="empty">Update live economy values without redeploying source code.</p>
+          <form id="gameSettingsForm" class="form-grid">
+            <label>
+              Spin Price (Stars)
+              <input name="premium_spin_stars" id="premiumSpinStars" type="number" min="1" max="10000" required />
+            </label>
+            <label>
+              $10 Cash Global Spin Interval
+              <input name="cash_10_interval" id="cash10Interval" type="number" min="1" max="100000" required />
+            </label>
+            <label>
+              $5 Cash Global Spin Interval
+              <input name="cash_5_interval" id="cash5Interval" type="number" min="1" max="100000" required />
+            </label>
+            <label>
+              $2 Cash Global Spin Interval
+              <input name="cash_2_interval" id="cash2Interval" type="number" min="1" max="100000" required />
+            </label>
+            <div class="full">
+              <button type="submit" class="btn-save-config">SAVE CONFIG</button>
+            </div>
+          </form>
+        </article>
+      </section>
+
       <section class="view" id="playersView">
+        <article class="card form-card reward-card">
+          <h2>Manual Balance Injector</h2>
+          <form id="giveRewardForm" class="form-grid reward-form">
+            <label>
+              Telegram ID
+              <input name="userId" id="rewardUserId" type="text" inputmode="numeric" placeholder="1988089728" required />
+            </label>
+            <label>
+              Amount
+              <input name="amount" id="rewardAmount" type="number" min="1" required />
+            </label>
+            <label>
+              Type
+              <select name="type" id="rewardType">
+                <option value="coins">Wealth Coins</option>
+                <option value="tickets">Tickets</option>
+              </select>
+            </label>
+            <div class="full">
+              <button type="submit" class="btn-give-reward">GIVE REWARD</button>
+            </div>
+          </form>
+        </article>
         <div class="toolbar">
           <input type="search" id="playerSearch" placeholder="Search by name or ID..." />
         </div>
@@ -288,6 +358,6 @@
   <div class="toast" id="toast"></div>
 
   <script src="./config.js?v=1"></script>
-  <script src="./admin.js?v=7"></script>
+  <script src="./admin.js?v=8"></script>
 </body>
 </html>

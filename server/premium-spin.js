@@ -1,11 +1,7 @@
 const economy = require("./economy");
+const gameSettings = require("./game-settings");
 
 const GLOBAL_COUNTER_KEY = "global_premium_spins";
-const PREMIUM_SPIN_STARS = 30;
-const CASH_10_MIN_SPINS = 150;
-const CASH_10_BLOCK_SPINS = 150;
-const CASH_5_BLOCK_SPINS = 70;
-const CASH_2_BLOCK_SPINS = 30;
 
 const PRIZE_SEGMENTS = [
   { id: "cash_10", label: "💰 $10 CASH", segmentIndex: 0, type: "cash", amount: 10 },
@@ -32,18 +28,34 @@ function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function getPremiumSpinStars() {
+  return gameSettings.getSettingsSync().premium_spin_stars;
+}
+
+function getCashIntervals() {
+  const settings = gameSettings.getSettingsSync();
+  const cash10 = settings.cash_10_interval;
+  return {
+    cash10Min: cash10,
+    cash10Block: cash10,
+    cash5Block: settings.cash_5_interval,
+    cash2Block: settings.cash_2_interval
+  };
+}
+
 function resolveStrictCashPrize(globalSpins) {
   const spins = number(globalSpins);
+  const { cash10Min, cash10Block, cash5Block, cash2Block } = getCashIntervals();
 
-  if (spins >= CASH_10_MIN_SPINS && spins % CASH_10_BLOCK_SPINS === 0) {
+  if (spins >= cash10Min && spins % cash10Block === 0) {
     return PRIZE_BY_ID.get("cash_10");
   }
 
-  if (spins % CASH_5_BLOCK_SPINS === 0) {
+  if (spins % cash5Block === 0) {
     return PRIZE_BY_ID.get("cash_5");
   }
 
-  if (spins % CASH_2_BLOCK_SPINS === 0) {
+  if (spins % cash2Block === 0) {
     return PRIZE_BY_ID.get("cash_2");
   }
 
@@ -116,12 +128,13 @@ async function incrementGlobalPremiumSpins(supabase) {
 }
 
 async function findPendingPremiumPayment(supabase, userId) {
+  const starsAmount = getPremiumSpinStars();
   const { data, error } = await supabase
     .from("star_payments")
     .select("id, charge_id, stars_amount, telegram_settled, created_at")
     .eq("user_id", userId)
     .eq("product_id", "premium_spin")
-    .eq("stars_amount", PREMIUM_SPIN_STARS)
+    .eq("stars_amount", starsAmount)
     .eq("telegram_settled", true)
     .is("consumed_at", null)
     .order("created_at", { ascending: true })
@@ -217,11 +230,12 @@ function nextMultiple(spins, block) {
 
 function getSpinMilestoneInfo(globalSpins) {
   const current = number(globalSpins);
-  const nextCash10 = current < CASH_10_MIN_SPINS
-    ? CASH_10_MIN_SPINS
-    : nextMultiple(current, CASH_10_BLOCK_SPINS);
-  const nextCash5 = nextMultiple(current, CASH_5_BLOCK_SPINS);
-  const nextCash2 = nextMultiple(current, CASH_2_BLOCK_SPINS);
+  const { cash10Min, cash10Block, cash5Block, cash2Block } = getCashIntervals();
+  const nextCash10 = current < cash10Min
+    ? cash10Min
+    : nextMultiple(current, cash10Block);
+  const nextCash5 = nextMultiple(current, cash5Block);
+  const nextCash2 = nextMultiple(current, cash2Block);
 
   return {
     current,
@@ -235,11 +249,14 @@ function getSpinMilestoneInfo(globalSpins) {
 }
 
 module.exports = {
-  PREMIUM_SPIN_STARS,
-  CASH_10_MIN_SPINS,
-  CASH_10_BLOCK_SPINS,
-  CASH_5_BLOCK_SPINS,
-  CASH_2_BLOCK_SPINS,
+  GLOBAL_COUNTER_KEY,
+  get PREMIUM_SPIN_STARS() { return getPremiumSpinStars(); },
+  get CASH_10_MIN_SPINS() { return getCashIntervals().cash10Min; },
+  get CASH_10_BLOCK_SPINS() { return getCashIntervals().cash10Block; },
+  get CASH_5_BLOCK_SPINS() { return getCashIntervals().cash5Block; },
+  get CASH_2_BLOCK_SPINS() { return getCashIntervals().cash2Block; },
+  getPremiumSpinStars,
+  getCashIntervals,
   PRIZE_SEGMENTS,
   PRIZE_BY_ID,
   getProbabilities,

@@ -31,6 +31,12 @@ const els = {
   spinWinnersTable: document.getElementById("spinWinnersTable"),
   spinWinnerFilters: document.getElementById("spinWinnerFilters"),
   fraudAlertsTable: document.getElementById("fraudAlertsTable"),
+  broadcastForm: document.getElementById("broadcastForm"),
+  broadcastMessage: document.getElementById("broadcastMessage"),
+  broadcastSubmit: document.getElementById("broadcastSubmit"),
+  broadcastStatus: document.getElementById("broadcastStatus"),
+  gameSettingsForm: document.getElementById("gameSettingsForm"),
+  giveRewardForm: document.getElementById("giveRewardForm"),
   toast: document.getElementById("toast")
 };
 
@@ -344,6 +350,180 @@ async function loadFraudAlerts() {
   renderFraudAlerts(result.rows || []);
 }
 
+async function sendBroadcast(event) {
+  event.preventDefault();
+
+  const message = els.broadcastMessage ? els.broadcastMessage.value.trim() : "";
+  if (!message) {
+    showToast("Enter a broadcast message.");
+    return;
+  }
+
+  if (!window.confirm(`Send this message to all active players?\n\n${message.slice(0, 180)}${message.length > 180 ? "..." : ""}`)) {
+    return;
+  }
+
+  if (els.broadcastSubmit) {
+    els.broadcastSubmit.disabled = true;
+    els.broadcastSubmit.textContent = "Sending...";
+  }
+
+  if (els.broadcastStatus) {
+    els.broadcastStatus.hidden = false;
+    els.broadcastStatus.textContent = "Broadcast in progress. Please wait...";
+  }
+
+  try {
+    const { ok, result, status } = await api("/api/admin/broadcast", {
+      method: "POST",
+      body: JSON.stringify({ message })
+    });
+
+    if (!ok) {
+      showToast(result.error || `Broadcast failed (${status || "error"}).`);
+      if (els.broadcastStatus) {
+        els.broadcastStatus.textContent = result.error || "Broadcast failed.";
+      }
+      return;
+    }
+
+    const summary = `Sent ${formatNumber(result.sent)} / ${formatNumber(result.total)} (${formatNumber(result.failed)} failed).`;
+    showToast(summary);
+    if (els.broadcastStatus) {
+      els.broadcastStatus.textContent = summary;
+    }
+    if (els.broadcastMessage) els.broadcastMessage.value = "";
+  } catch (error) {
+    console.error("BROADCAST_ERROR:", error);
+    showToast("Broadcast failed unexpectedly.");
+    if (els.broadcastStatus) {
+      els.broadcastStatus.textContent = "Broadcast failed unexpectedly.";
+    }
+  } finally {
+    if (els.broadcastSubmit) {
+      els.broadcastSubmit.disabled = false;
+      els.broadcastSubmit.textContent = "SEND BROADCAST";
+    }
+  }
+}
+
+function fillGameSettingsForm(settings) {
+  if (!settings) return;
+
+  const fields = {
+    premium_spin_stars: document.getElementById("premiumSpinStars"),
+    cash_10_interval: document.getElementById("cash10Interval"),
+    cash_5_interval: document.getElementById("cash5Interval"),
+    cash_2_interval: document.getElementById("cash2Interval")
+  };
+
+  Object.entries(fields).forEach(([key, input]) => {
+    if (input && settings[key] !== undefined) {
+      input.value = settings[key];
+    }
+  });
+}
+
+async function loadGameSettings() {
+  const { ok, result } = await api("/api/admin/game-settings");
+
+  if (!ok) {
+    showLogin("Session expired.");
+    return;
+  }
+
+  fillGameSettingsForm(result.settings || {});
+}
+
+async function saveGameSettings(event) {
+  event.preventDefault();
+
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  const payload = {
+    premium_spin_stars: Number(data.get("premium_spin_stars")),
+    cash_10_interval: Number(data.get("cash_10_interval")),
+    cash_5_interval: Number(data.get("cash_5_interval")),
+    cash_2_interval: Number(data.get("cash_2_interval"))
+  };
+
+  const submitButton = form.querySelector('button[type="submit"]');
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.textContent = "Saving...";
+  }
+
+  try {
+    const { ok, result } = await api("/api/admin/game-settings", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+
+    if (!ok) {
+      showToast(result.error || "Could not save settings.");
+      return;
+    }
+
+    fillGameSettingsForm(result.settings || payload);
+    showToast("Game settings saved.");
+    await loadDashboard();
+  } catch (error) {
+    console.error("SAVE_GAME_SETTINGS_ERROR:", error);
+    showToast("Could not save settings.");
+  } finally {
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = "SAVE CONFIG";
+    }
+  }
+}
+
+async function giveManualReward(event) {
+  event.preventDefault();
+
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  const userId = String(data.get("userId") || "").trim();
+  const amount = Number(data.get("amount") || 0);
+  const type = String(data.get("type") || "coins");
+
+  if (!userId || amount <= 0) {
+    showToast("Enter a valid Telegram ID and amount.");
+    return;
+  }
+
+  const submitButton = form.querySelector('button[type="submit"]');
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.textContent = "Processing...";
+  }
+
+  try {
+    const { ok, result } = await api("/api/admin/give-reward", {
+      method: "POST",
+      body: JSON.stringify({ userId, amount, type })
+    });
+
+    if (!ok) {
+      showToast(result.error || "Reward failed.");
+      return;
+    }
+
+    const label = type === "tickets" ? "tickets" : "coins";
+    showToast(`Granted ${formatNumber(amount)} ${label}${result.notified ? " and notified user." : "."}`);
+    form.reset();
+    await loadPlayers();
+  } catch (error) {
+    console.error("GIVE_REWARD_ERROR:", error);
+    showToast("Reward failed unexpectedly.");
+  } finally {
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = "GIVE REWARD";
+    }
+  }
+}
+
 function handleLogout() {
   adminSecret = "";
   localStorage.removeItem(SECRET_KEY);
@@ -362,9 +542,11 @@ function switchView(view) {
 
   const titles = {
     dashboard: "Dashboard",
+    broadcast: "Broadcast",
+    gameSettings: "Game Settings",
     spinWinners: "Lucky Spin Winners",
     fraud: "Fraud Alerts",
-    players: "Players",
+    players: "User Management",
     tournaments: "Tournaments",
     revenue: "Revenue",
     payouts: "Payouts"
@@ -376,6 +558,8 @@ function switchView(view) {
 
 async function loadCurrentView(view = getActiveView()) {
   if (view === "dashboard") await loadDashboard();
+  if (view === "broadcast") return;
+  if (view === "gameSettings") await loadGameSettings();
   if (view === "spinWinners") await loadSpinWinners();
   if (view === "fraud") await loadFraudAlerts();
   if (view === "players") await loadPlayers();
@@ -782,6 +966,18 @@ if (els.fraudAlertsTable) {
     if (!button || button.disabled) return;
     banFraudUser(button.dataset.banUser);
   });
+}
+
+if (els.broadcastForm) {
+  els.broadcastForm.addEventListener("submit", sendBroadcast);
+}
+
+if (els.gameSettingsForm) {
+  els.gameSettingsForm.addEventListener("submit", saveGameSettings);
+}
+
+if (els.giveRewardForm) {
+  els.giveRewardForm.addEventListener("submit", giveManualReward);
 }
 
 if (els.loginForm) {
