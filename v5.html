@@ -34,7 +34,7 @@
     }
     [hidden] { display: none !important; }
   </style>
-  <link rel="stylesheet" href="./v5.css?v=2077" />
+  <link rel="stylesheet" href="./v5.css?v=2078" />
 </head>
 <body>
   <div class="ambient" aria-hidden="true">
@@ -70,7 +70,10 @@
       <article class="stat stat--energy">
         <div class="stat__icon">&#x26A1;</div>
         <span>Energy</span>
-        <strong><span id="energy">1000</span><small>/<span id="energyMax">1000</span></small></strong>
+        <div class="stat__energy-values">
+          <strong id="energy">1000</strong>
+          <span class="stat__energy-max"><span id="energyMax">1000</span></span>
+        </div>
       </article>
       <article class="stat stat--city">
         <div class="stat__icon">&#x1F3D9;&#xFE0F;</div>

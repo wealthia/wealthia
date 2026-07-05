@@ -233,32 +233,70 @@ p {
 }
 
 .app.view-main .stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
   min-height: 32px;
-  padding: 4px 3px 3px;
+  padding: 4px 3px;
   text-align: center;
   border-radius: 9px;
 }
 
 .app.view-main .stat__icon {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
   font-size: 9px;
-  margin-bottom: 1px;
+  margin: 0;
   line-height: 1;
 }
 
 .app.view-main .stat span {
+  display: block;
+  width: 100%;
   font-size: 5px;
   letter-spacing: 0.04em;
   line-height: 1.05;
+  text-align: center;
 }
 
 .app.view-main .stat strong {
+  display: block;
+  width: 100%;
   font-size: 9px;
-  margin-top: 1px;
+  margin: 0;
+  line-height: 1.1;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
-.app.view-main .stat strong small {
-  font-size: 7px;
+.app.view-main .stat__energy-values {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 100%;
+  text-align: center;
+}
+
+.app.view-main .stat__energy-values strong {
+  font-size: 9px;
+  line-height: 1.1;
+}
+
+.app.view-main .stat__energy-max {
+  display: block;
+  width: 100%;
+  font-size: 6px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--muted);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .app.view-main .city {
@@ -367,7 +405,10 @@ p {
   margin-top: 4px;
   margin-bottom: 0;
   padding: 6px 8px;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
+  gap: 2px;
   text-align: center;
 }
 
@@ -1439,13 +1480,19 @@ h1 {
 .stat {
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   min-height: 92px;
-  padding: 12px 10px 10px;
+  padding: 12px 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: linear-gradient(160deg, var(--surface-2), var(--surface));
   backdrop-filter: blur(16px);
   box-shadow: var(--shadow);
+  text-align: center;
 }
 
 .stat::before {
@@ -1457,28 +1504,63 @@ h1 {
 }
 
 .stat__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
   font-size: 18px;
-  margin-bottom: 6px;
+  margin: 0;
+  line-height: 1;
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3));
 }
 
 .stat span {
   display: block;
+  width: 100%;
   color: var(--muted);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   line-height: 1.2;
+  text-align: center;
 }
 
 .stat strong {
   display: block;
-  margin-top: 6px;
+  width: 100%;
+  margin: 0;
   font-size: 20px;
   font-weight: 800;
-  line-height: 1;
+  line-height: 1.1;
   letter-spacing: -0.02em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat__energy-values {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 100%;
+  text-align: center;
+}
+
+.stat__energy-values strong {
+  margin: 0;
+}
+
+.stat__energy-max {
+  display: block;
+  width: 100%;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--muted);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .stat strong small {
@@ -1492,8 +1574,13 @@ h1 {
   text-shadow: 0 0 20px rgba(245, 196, 81, 0.35);
 }
 
-.stat--energy strong {
+.stat--energy strong,
+.stat--energy .stat__energy-max {
   color: var(--cyan);
+}
+
+.stat--energy .stat__energy-max {
+  opacity: 0.82;
 }
 
 .stat--city strong {
@@ -2732,7 +2819,10 @@ button.completed strong {
 }
 
 .daily-prize-card .daily-prize__gain-box {
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
+  gap: 4px;
   text-align: center;
 }
 
@@ -3531,15 +3621,21 @@ body.channel-gate-active .app {
 
   .app.view-main .stat {
     min-height: 30px;
-    padding: 3px 2px 2px;
+    padding: 3px 2px;
+    gap: 1px;
   }
 
   .app.view-main .stat__icon {
     font-size: 8px;
   }
 
-  .app.view-main .stat strong {
+  .app.view-main .stat strong,
+  .app.view-main .stat__energy-values strong {
     font-size: 8px;
+  }
+
+  .app.view-main .stat__energy-max {
+    font-size: 5px;
   }
 
   .app.view-main .city {
