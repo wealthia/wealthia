@@ -389,13 +389,39 @@ p {
   width: 100%;
 }
 
+.app.view-main .energy-card {
+  padding: 12px 14px;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
 .app.view-main .energy-bar {
-  height: 10px;
+  height: 6px;
+  margin-top: 8px;
+  border: none;
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.app.view-main .energy-bar span {
+  background: linear-gradient(90deg, #2ecc71, #00ffcc);
+  box-shadow: 0 0 12px rgba(0, 255, 204, 0.55);
+}
+
+.app.view-main .energy-bar span.is-low {
+  background: linear-gradient(90deg, #c0392b, #ff6b6b);
+  box-shadow: 0 0 10px rgba(255, 107, 107, 0.45);
 }
 
 .app.view-main .energy-label {
-  margin-top: 4px;
-  font-size: 9px;
+  margin-top: 0;
+  font-size: 8px;
+  letter-spacing: 0.2em;
+  color: rgba(245, 210, 130, 0.92);
   text-align: center;
 }
 
@@ -406,40 +432,52 @@ p {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 2px 0 2px;
+  gap: 14px;
+  margin-bottom: 1.5rem;
+  padding: 8px 0 1.5rem;
   touch-action: none;
   border-radius: 18px;
   background:
-    radial-gradient(ellipse 80% 70% at 50% 55%, rgba(245, 196, 81, 0.1), transparent 65%),
+    radial-gradient(ellipse 80% 70% at 50% 55%, rgba(245, 196, 81, 0.08), transparent 65%),
     rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(245, 196, 81, 0.1);
+  border: 1px solid rgba(245, 196, 81, 0.08);
 }
 
 .app.view-main .tap-button-wrap {
-  width: 72px;
-  height: 72px;
+  width: 88px;
+  height: 88px;
   flex-shrink: 0;
 }
 
 .app.view-main .tap-button {
-  width: 66px;
-  height: 66px;
+  width: 80px;
+  height: 80px;
+  border: 2px solid rgba(255, 220, 130, 0.5);
   box-shadow:
-    0 0 22px rgba(245, 196, 81, 0.45),
-    0 6px 18px rgba(0, 0, 0, 0.35);
+    0 0 25px rgba(212, 175, 55, 0.35),
+    inset 0 0 10px rgba(255, 255, 255, 0.2),
+    0 8px 20px rgba(0, 0, 0, 0.35);
 }
 
-.app.view-main .tap-button span {
-  font-size: 12px;
+.app.view-main .tap-button:active {
+  transform: scale(0.95);
 }
 
-.app.view-main .tap-button strong {
+.app.view-main .tap-button__content {
+  gap: 2px;
+}
+
+.app.view-main .tap-button__label {
   font-size: 13px;
+}
+
+.app.view-main .tap-button__power {
+  font-size: 9px;
 }
 
 .app.view-main .tap-button__hint {
   font-size: 7px;
+  letter-spacing: 0.08em;
 }
 
 .app.view-main .tap-ring--outer,
@@ -448,7 +486,7 @@ p {
 }
 
 .app.view-main .tabs {
-  margin-top: 4px;
+  margin-top: 12px;
 }
 
 .app.view-main .stat {
@@ -1612,7 +1650,9 @@ h1 {
   position: relative;
   display: grid;
   justify-items: center;
-  padding: 0 0 10px;
+  gap: 14px;
+  padding: 0 0 1.5rem;
+  margin-bottom: 1.5rem;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -1622,9 +1662,9 @@ h1 {
   position: relative;
   display: grid;
   place-items: center;
-  width: 64px;
-  height: 64px;
-  overflow: hidden;
+  width: 88px;
+  height: 88px;
+  overflow: visible;
   touch-action: none;
 }
 
@@ -1636,17 +1676,20 @@ h1 {
   position: relative;
   z-index: 2;
   display: grid;
-  place-content: center;
-  gap: 0;
-  width: 58px;
-  height: 58px;
+  place-items: center;
+  width: 80px;
+  height: 80px;
+  padding: 0;
   border-radius: 50%;
-  border: 2px solid rgba(255, 220, 130, 0.45);
+  border: 2px solid rgba(255, 220, 130, 0.5);
   background:
     radial-gradient(circle at 35% 28%, #fff4c4 0%, #f5c451 38%, #d4921a 72%, #8f5a0e 100%);
-  box-shadow: 0 0 18px rgba(245, 196, 81, 0.45);
+  box-shadow:
+    0 0 25px rgba(212, 175, 55, 0.35),
+    inset 0 0 10px rgba(255, 255, 255, 0.2),
+    0 8px 20px rgba(0, 0, 0, 0.35);
   color: #2a1604;
-  transition: transform 0.06s ease;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
 }
@@ -1659,52 +1702,84 @@ h1 {
   pointer-events: none;
 }
 
-.tap-button span {
+.tap-button__content {
   position: relative;
-  font-size: 11px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  text-align: center;
+  line-height: 1.1;
+}
+
+.tap-button__label {
+  font-size: 13px;
   font-weight: 900;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.tap-button strong {
-  position: relative;
-  font-size: 11px;
-  font-weight: 900;
+.tap-button__power {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.2em;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .tap-button__hint {
-  position: relative;
   font-size: 7px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  opacity: 0.65;
+  opacity: 0.72;
 }
 
 .tap-button:active {
-  transform: scale(0.94);
-  box-shadow: 0 0 12px rgba(245, 196, 81, 0.35);
+  transform: scale(0.95);
+  box-shadow:
+    0 0 18px rgba(212, 175, 55, 0.28),
+    inset 0 0 12px rgba(255, 255, 255, 0.16),
+    0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .tap-button.no-energy {
   filter: grayscale(0.7) brightness(0.75);
-  box-shadow: 0 0 10px rgba(120, 120, 120, 0.2);
+  box-shadow:
+    0 0 12px rgba(120, 120, 120, 0.2),
+    inset 0 0 8px rgba(255, 255, 255, 0.1);
 }
 
-.tap-button.no-energy span,
-.tap-button.no-energy strong {
+.tap-button.no-energy .tap-button__label,
+.tap-button.no-energy .tap-button__power {
   opacity: 0.7;
+}
+
+.energy-card {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
 
 .energy-bar {
   width: 100%;
-  height: 14px;
+  height: 6px;
+  margin-top: 8px;
   overflow: hidden;
-  border: 1px solid var(--line);
+  border: none;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.35);
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 
 .energy-bar span {
@@ -1712,19 +1787,24 @@ h1 {
   width: 100%;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #2a9d6a, var(--green), #7dffb8);
-  box-shadow: 0 0 16px rgba(61, 214, 140, 0.45);
-  transition: width 0.25s ease, background 0.25s ease;
+  background: linear-gradient(90deg, #2ecc71, #00ffcc);
+  box-shadow: 0 0 12px rgba(0, 255, 204, 0.55);
+  transition: width 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+}
+
+.energy-bar span.is-low {
+  background: linear-gradient(90deg, #c0392b, #ff6b6b);
+  box-shadow: 0 0 10px rgba(255, 107, 107, 0.45);
 }
 
 .energy-label {
   display: block;
-  margin-top: 6px;
+  margin-top: 0;
   text-align: center;
-  color: var(--muted);
-  font-size: 10px;
+  color: rgba(245, 210, 130, 0.92);
+  font-size: 9px;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
 }
 
@@ -3302,21 +3382,21 @@ body.channel-gate-active .app {
   .tab__icon { font-size: 13px; }
 
   .app.view-main .tap-button-wrap {
-    width: 66px;
-    height: 66px;
+    width: 80px;
+    height: 80px;
   }
 
   .app.view-main .tap-button {
-    width: 60px;
-    height: 60px;
+    width: 74px;
+    height: 74px;
   }
 
-  .app.view-main .tap-button span {
-    font-size: 11px;
-  }
-
-  .app.view-main .tap-button strong {
+  .app.view-main .tap-button__label {
     font-size: 12px;
+  }
+
+  .app.view-main .tap-button__power {
+    font-size: 8px;
   }
 
   .buy-button {
