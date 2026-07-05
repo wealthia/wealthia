@@ -227,21 +227,32 @@ p {
 
 .app.view-main .stats {
   flex-shrink: 0;
+  display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: stretch;
   gap: 3px;
   margin-bottom: 0;
 }
 
 .app.view-main .stat {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  min-height: 44px;
+  padding: 4px 2px;
+  text-align: center;
+  border-radius: 9px;
+}
+
+.app.view-main .stat__content {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1px;
-  min-height: 32px;
-  padding: 4px 3px;
+  gap: 2px;
+  width: 100%;
+  margin: 0;
   text-align: center;
-  border-radius: 9px;
 }
 
 .app.view-main .stat__icon {
@@ -254,16 +265,20 @@ p {
   line-height: 1;
 }
 
-.app.view-main .stat span {
+.app.view-main .stat__label {
   display: block;
   width: 100%;
   font-size: 5px;
   letter-spacing: 0.04em;
   line-height: 1.05;
   text-align: center;
+  color: var(--muted);
+  text-transform: uppercase;
+  font-weight: 600;
 }
 
-.app.view-main .stat strong {
+.app.view-main .stat__value,
+.app.view-main .stat strong.stat__value {
   display: block;
   width: 100%;
   font-size: 9px;
@@ -283,7 +298,7 @@ p {
   text-align: center;
 }
 
-.app.view-main .stat__energy-values strong {
+.app.view-main .stat__energy-values .stat__value {
   font-size: 9px;
   line-height: 1.1;
 }
@@ -293,7 +308,7 @@ p {
   width: 100%;
   font-size: 6px;
   font-weight: 600;
-  line-height: 1.1;
+  line-height: 1;
   color: var(--muted);
   text-align: center;
   font-variant-numeric: tabular-nums;
@@ -1480,18 +1495,26 @@ h1 {
 .stat {
   position: relative;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
+  display: grid;
+  place-items: center;
   min-height: 92px;
-  padding: 12px 10px;
+  padding: 12px 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: linear-gradient(160deg, var(--surface-2), var(--surface));
   backdrop-filter: blur(16px);
   box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.stat__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  margin: 0;
   text-align: center;
 }
 
@@ -1514,7 +1537,8 @@ h1 {
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3));
 }
 
-.stat span {
+.stat span,
+.stat__label {
   display: block;
   width: 100%;
   color: var(--muted);
@@ -1526,7 +1550,8 @@ h1 {
   text-align: center;
 }
 
-.stat strong {
+.stat strong,
+.stat__value {
   display: block;
   width: 100%;
   margin: 0;
@@ -1548,7 +1573,8 @@ h1 {
   text-align: center;
 }
 
-.stat__energy-values strong {
+.stat__energy-values strong,
+.stat__energy-values .stat__value {
   margin: 0;
 }
 
@@ -1574,13 +1600,12 @@ h1 {
   text-shadow: 0 0 20px rgba(245, 196, 81, 0.35);
 }
 
-.stat--energy strong,
-.stat--energy .stat__energy-max {
+.stat--energy strong {
   color: var(--cyan);
 }
 
 .stat--energy .stat__energy-max {
-  opacity: 0.82;
+  color: var(--muted);
 }
 
 .stat--city strong {
@@ -3620,8 +3645,11 @@ body.channel-gate-active .app {
   }
 
   .app.view-main .stat {
-    min-height: 30px;
+    min-height: 40px;
     padding: 3px 2px;
+  }
+
+  .app.view-main .stat__content {
     gap: 1px;
   }
 
@@ -3629,8 +3657,8 @@ body.channel-gate-active .app {
     font-size: 8px;
   }
 
-  .app.view-main .stat strong,
-  .app.view-main .stat__energy-values strong {
+  .app.view-main .stat__value,
+  .app.view-main .stat__energy-values .stat__value {
     font-size: 8px;
   }
 

@@ -901,7 +901,7 @@ function render() {
   if (els.energy) els.energy.textContent = Math.floor(state.energy);
   const maxEnergy = Math.max(1, Number(state.maxEnergy || 1000));
   const energyMaxEl = document.getElementById("energyMax");
-  if (energyMaxEl) energyMaxEl.textContent = format(maxEnergy);
+  if (energyMaxEl) energyMaxEl.textContent = `/ ${format(maxEnergy)}`;
 
   if (els.energyBar) {
     const energyRatio = state.energy / maxEnergy;

@@ -34,7 +34,7 @@
     }
     [hidden] { display: none !important; }
   </style>
-  <link rel="stylesheet" href="./v5.css?v=2078" />
+  <link rel="stylesheet" href="./v5.css?v=2079" />
 </head>
 <body>
   <div class="ambient" aria-hidden="true">
@@ -63,27 +63,35 @@
     <div class="game-shell" id="gameShell">
     <section class="stats">
       <article class="stat stat--coins">
-        <div class="stat__icon">&#x1F4B0;</div>
-        <span>Wealth Coin</span>
-        <strong id="coins">0</strong>
+        <div class="stat__content">
+          <div class="stat__icon">&#x1F4B0;</div>
+          <span class="stat__label">Wealth Coin</span>
+          <strong class="stat__value" id="coins">0</strong>
+        </div>
       </article>
       <article class="stat stat--energy">
-        <div class="stat__icon">&#x26A1;</div>
-        <span>Energy</span>
-        <div class="stat__energy-values">
-          <strong id="energy">1000</strong>
-          <span class="stat__energy-max"><span id="energyMax">1000</span></span>
+        <div class="stat__content">
+          <div class="stat__icon">&#x26A1;</div>
+          <span class="stat__label">Energy</span>
+          <div class="stat__energy-values">
+            <strong class="stat__value" id="energy">1000</strong>
+            <span class="stat__energy-max" id="energyMax">/ 1,000</span>
+          </div>
         </div>
       </article>
       <article class="stat stat--city">
-        <div class="stat__icon">&#x1F3D9;&#xFE0F;</div>
-        <span>City Value</span>
-        <strong id="cityValue">0</strong>
+        <div class="stat__content">
+          <div class="stat__icon">&#x1F3D9;&#xFE0F;</div>
+          <span class="stat__label">City Value</span>
+          <strong class="stat__value" id="cityValue">0</strong>
+        </div>
       </article>
       <article class="stat stat--empire">
-        <div class="stat__icon">&#x1F451;</div>
-        <span>Empire Level</span>
-        <strong id="empireLevelStat">1</strong>
+        <div class="stat__content">
+          <div class="stat__icon">&#x1F451;</div>
+          <span class="stat__label">Empire Level</span>
+          <strong class="stat__value" id="empireLevelStat">1</strong>
+        </div>
       </article>
     </section>
 
@@ -360,5 +368,5 @@
   </div>
 
   <script src="./config.js?v=19"></script>
-  <script src="./v5.js?v=10091"></script></body>
+  <script src="./v5.js?v=10092"></script></body>
 </html>
