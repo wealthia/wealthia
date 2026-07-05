@@ -136,6 +136,9 @@ const els = {
   bankLevel: document.getElementById("bankLevel"),
   factoryLevel: document.getElementById("factoryLevel"),
   shopCost: document.getElementById("shopCost"),
+  shopUpgradeButton: document.getElementById("shopUpgradeButton"),
+  bankUpgradeButton: document.getElementById("bankUpgradeButton"),
+  factoryUpgradeButton: document.getElementById("factoryUpgradeButton"),
   bankCost: document.getElementById("bankCost"),
   factoryCost: document.getElementById("factoryCost"),
   casinoCardDesc: document.getElementById("casinoCardDesc"),
@@ -936,11 +939,22 @@ function render() {
   if (els.factoryCost) els.factoryCost.textContent = format(upgradeCost("factory"));
   if (els.casinoCost) els.casinoCost.textContent = format(upgradeCost("casino"));
 
+  if (els.shopUpgradeButton) {
+    els.shopUpgradeButton.textContent = `Upgrade ${format(upgradeCost("shop"))}`;
+  }
+  if (els.bankUpgradeButton) {
+    els.bankUpgradeButton.textContent = `Upgrade ${format(upgradeCost("bank"))}`;
+  }
+  if (els.factoryUpgradeButton) {
+    els.factoryUpgradeButton.textContent = `Upgrade ${format(upgradeCost("factory"))}`;
+  }
+
   if (els.casinoUpgradeButton) {
+    const casinoCost = format(upgradeCost("casino"));
     els.casinoUpgradeButton.textContent =
       Number(state.buildings.casino || 0) < 1
-        ? `Build ${format(upgradeCost("casino"))}`
-        : `Upgrade ${format(upgradeCost("casino"))}`;
+        ? `Build ${casinoCost}`
+        : `Upgrade ${casinoCost}`;
   }
 
   renderCasinoCard();
@@ -964,10 +978,11 @@ function renderCasinoCard() {
 
   if (els.casinoCardDesc) {
     if (level < 1) {
-      els.casinoCardDesc.textContent = "Build for Lucky Spin";
+      els.casinoCardDesc.textContent = "Build to unlock Lucky Spin";
     } else {
       const { small, jackpot } = casinoRewardRange(level);
-      els.casinoCardDesc.textContent = `Lv.${level} · ${format(small)}–${format(jackpot)}`;
+      els.casinoCardDesc.textContent =
+        `Lv.${level} · Daily spin ${format(small)}–${format(jackpot)}`;
     }
   }
 }
@@ -1011,15 +1026,16 @@ function renderCasinoSpin() {
 
   if (els.casinoSpinButton) {
     els.casinoSpinButton.disabled = !canSpin;
-    els.casinoSpinButton.textContent = spunToday ? "Done" : "Spin";
+    els.casinoSpinButton.textContent = spunToday ? "Spin Today" : "Spin Now";
   }
 
   if (els.casinoSpinHint) {
     if (spunToday) {
-      els.casinoSpinHint.textContent = "Back tomorrow";
+      els.casinoSpinHint.textContent = "Come back tomorrow";
     } else {
       const { small, jackpot } = casinoRewardRange(level);
-      els.casinoSpinHint.textContent = `${format(small)}–${format(jackpot)} coins`;
+      els.casinoSpinHint.textContent =
+        `Win ${format(small)}–${format(jackpot)} coins`;
     }
   }
 }
@@ -1032,7 +1048,7 @@ function ensurePremiumSpinCard() {
 function renderPremiumSpinCard() {
   ensurePremiumSpinCard();
   if (els.premiumSpinHint) {
-    els.premiumSpinHint.textContent = `${PREMIUM_SPIN_STARS}⭐ · cash & coins`;
+    els.premiumSpinHint.textContent = `${PREMIUM_SPIN_STARS}⭐ per spin · cash & coins`;
   }
 }
 
