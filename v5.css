@@ -1165,18 +1165,192 @@ p {
   color: var(--gold-light);
 }
 
-/* Rank tab — compact */
+/* Rank tab — compact single-screen daily layout */
+.app.view-rank {
+  padding: max(6px, env(safe-area-inset-top)) 10px max(4px, env(safe-area-inset-bottom));
+}
+
+.app.view-rank .header {
+  flex-shrink: 0;
+  margin-bottom: 2px;
+}
+
 .app.view-rank .app-scroll {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
+  overflow-y: hidden;
+  padding-bottom: 0;
 }
 
 .app.view-rank #rankPanel.panel.active {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
+  gap: 4px;
+}
+
+.app.view-rank #tournamentPanel {
+  flex-shrink: 0;
+}
+
+.app.view-rank #globalLeaderboard {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  gap: 4px;
+}
+
+.app.view-rank #globalLeaderboard .grand-prize-card.daily-prize-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 8px 10px;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.app.view-rank #globalLeaderboard .daily-prize-card .grand-prize-card__channel {
+  margin-top: auto;
+  flex-shrink: 0;
+}
+
+.app.view-rank .rank-daily-rules {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  padding-top: 2px;
+}
+
+.app.view-rank .rank-daily-rules .rank-rules-btn {
+  padding: 4px 10px;
+  font-size: 9px;
+}
+
+.app.view-rank .rank-your-place {
+  position: static;
+  margin-top: 0;
+  padding-top: 0;
+  background: none;
+}
+
+.app.view-rank .tournament-card.card {
+  margin-bottom: 0;
+  padding: 8px 10px;
+  min-height: 0;
+  gap: 2px;
+}
+
+.app.view-rank .tournament-card--empty {
+  padding: 7px 9px !important;
+}
+
+.app.view-rank .tournament-card--empty h2 {
+  font-size: 12px;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.app.view-rank .tournament-card--empty p {
+  margin-top: 2px;
+  font-size: 9px;
+  line-height: 1.25;
+}
+
+.app.view-rank .tournament-card--empty .tournament-card__badge {
+  padding: 3px 8px;
+  font-size: 8px;
+  margin-bottom: 2px;
+}
+
+.app.view-rank .tournament-card h2 {
+  font-size: 13px;
+}
+
+.app.view-rank .grand-prize-card__head h3 {
+  font-size: 12px;
+  margin: 2px 0;
+  line-height: 1.15;
+}
+
+.app.view-rank .grand-prize-card__head p {
+  font-size: 9px;
+  line-height: 1.2;
+}
+
+.app.view-rank .grand-prize__badge {
+  font-size: 8px;
+  margin-bottom: 2px;
+}
+
+.app.view-rank .daily-prize__gain-box {
+  margin-top: 2px;
+  margin-bottom: 0;
+  padding: 4px 8px;
+  gap: 2px;
+}
+
+.app.view-rank .daily-prize__gain-label {
+  font-size: 8px;
+}
+
+.app.view-rank .daily-prize__gain-value {
+  font-size: 14px;
+}
+
+.app.view-rank .daily-prize__tickets {
+  margin-top: 4px;
+  gap: 4px;
+}
+
+.app.view-rank .daily-prize__tickets-head {
+  align-items: center;
   gap: 8px;
+}
+
+.app.view-rank .daily-prize__tickets-left {
+  gap: 4px;
+  min-height: 1rem;
+}
+
+.app.view-rank .daily-prize__tickets-label,
+.app.view-rank .daily-prize__ticket-count {
+  font-size: 11px;
+  line-height: 1;
+}
+
+.app.view-rank .daily-prize__ticket-icon {
+  font-size: 12px;
+}
+
+.app.view-rank .daily-prize__tickets-next {
+  font-size: 8px;
+  line-height: 1.15;
+}
+
+.app.view-rank .daily-prize__ticket-progress {
+  height: 5px;
+}
+
+.app.view-rank .daily-prize-card__boost-tip {
+  font-size: 9px;
+  margin: 0;
+  line-height: 1.25;
+}
+
+.app.view-rank .grand-prize-card__channel {
+  margin-top: 4px;
+  padding: 6px 8px;
+  font-size: 9px;
+  line-height: 1.2;
 }
 
 .app.view-rank .panel-head--rank h2 {
@@ -1364,60 +1538,12 @@ p {
   background: linear-gradient(90deg, #d89a24, #ffe08a);
 }
 
-.app.view-rank .grand-prize-card {
-  padding: 10px;
-}
-
-.app.view-rank .grand-prize-card__head h3 {
-  font-size: 15px;
-}
-
-.app.view-rank .daily-prize__gain-box {
-  margin-top: 8px;
-  padding: 8px 10px;
-}
-
-.app.view-rank .daily-prize__gain-value {
-  font-size: 18px;
-}
-
-.app.view-rank .daily-prize-card__boost-tip {
-  font-size: 11px;
-}
-
-.app.view-rank .tournament-card {
-  margin-bottom: 8px;
-  padding: 12px;
-}
-
-.app.view-rank .tournament-card h2 {
-  font-size: 16px;
-}
-
-.app.view-rank .rank-your-place {
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
-  margin-top: auto;
-  padding-top: 8px;
-  background: linear-gradient(180deg, transparent, var(--bg-deep) 24%);
-}
-
-.app.view-rank #rankPanel.panel.active {
-  flex: 1;
-  min-height: 0;
+.app.view-rank #rankPanel.panel.active.rank-panel--scroll {
   overflow-y: auto;
-  gap: 8px;
-  display: flex;
-  flex-direction: column;
 }
 
-.app.view-rank #globalLeaderboard {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  gap: 8px;
+.app.view-rank #globalLeaderboard.rank-leaderboard--daily {
+  gap: 4px;
 }
 
 .app.view-rank .rank--compact li {

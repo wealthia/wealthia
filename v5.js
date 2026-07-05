@@ -2220,26 +2220,56 @@ function renderRankPanel() {
   if (!panel) return;
 
   const dailyMode = Boolean(getDailyPrizeConfig());
-  const dailyView = buildDailyLeaderboardView();
-  const top3 = dailyMode
-    ? dailyView.top3
-    : (leaderboardTop3.length
-      ? leaderboardTop3
-      : [{
-        rank: 1,
-        name: "You",
-        cityValue: cityValue(),
-        isYou: true
-      }]);
 
-  const you = dailyMode ? dailyView.yourPlace : leaderboardYou;
+  if (dailyMode) {
+    const offlineBanner = !backendReady && !getTelegramInitData()
+      ? `<p class="rank-offline-note">Open in Telegram for live sync.</p>`
+      : "";
+
+    panel.innerHTML = `
+      ${offlineBanner}
+      ${renderCampaignRankCard()}
+      <div class="rank-daily-rules">
+        <button class="rank-rules-btn" type="button" id="rankRulesBtn">Rules</button>
+      </div>
+    `;
+
+    const channelButton = panel.querySelector(".grand-prize-card__channel");
+    if (channelButton) {
+      channelButton.addEventListener("click", () => {
+        openPartnerLink(channelButton.dataset.channel || "");
+      });
+    }
+
+    const rulesButton = document.getElementById("rankRulesBtn");
+    if (rulesButton) {
+      rulesButton.addEventListener("click", openRankRulesModal);
+    }
+
+    bindRankRulesModal();
+    setRankPanelLayoutMode(true);
+    return;
+  }
+
+  setRankPanelLayoutMode(false);
+
+  const top3 = leaderboardTop3.length
+    ? leaderboardTop3
+    : [{
+      rank: 1,
+      name: "You",
+      cityValue: cityValue(),
+      isYou: true
+    }];
+
+  const you = leaderboardYou;
   const youBlock = you
     ? `
       <div class="rank-your-place">
         <span class="rank-your-place__label">Your place · ${ordinalRank(you.rank)}</span>
       </div>
       <ol class="rank rank--you-only">
-        ${renderRankRow(you, dailyMode ? "daily" : "global")}
+        ${renderRankRow(you, "global")}
       </ol>
     `
     : "";
@@ -2250,38 +2280,33 @@ function renderRankPanel() {
 
   panel.innerHTML = `
     ${offlineBanner}
-    ${renderCampaignRankCard()}
-    <div class="panel-head panel-head--rank ${dailyMode ? "panel-head--rank-lottery" : ""}">
+    <div class="panel-head panel-head--rank">
       <div>
-        <h2>${dailyMode ? "Top Ticket Holders" : "Global Leaderboard"}</h2>
-        <p>${dailyMode ? "Players with the most lottery tickets today" : "Top empire builders by city value"}</p>
+        <h2>Global Leaderboard</h2>
+        <p>Top empire builders by city value</p>
       </div>
-      ${dailyMode ? `<button class="rank-rules-btn" type="button" id="rankRulesBtn">Rules</button>` : ""}
     </div>
-    ${dailyMode ? renderDailyWinnerBannerHtml({ listTop: true }) : ""}
     <ol class="rank rank--compact">
-      ${top3.map((row) => renderRankRow(
-        row,
-        dailyMode ? "daily" : "global",
-        { isYourPlaceRow: Boolean(row.isYourPlaceRow) }
-      )).join("")}
+      ${top3.map((row) => renderRankRow(row, "global", {
+        isYourPlaceRow: Boolean(row.isYourPlaceRow)
+      })).join("")}
     </ol>
     ${youBlock}
   `;
 
-  const channelButton = panel.querySelector(".grand-prize-card__channel");
-  if (channelButton) {
-    channelButton.addEventListener("click", () => {
-      openPartnerLink(channelButton.dataset.channel || "");
-    });
-  }
-
-  const rulesButton = document.getElementById("rankRulesBtn");
-  if (rulesButton) {
-    rulesButton.addEventListener("click", openRankRulesModal);
-  }
-
   bindRankRulesModal();
+}
+
+function setRankPanelLayoutMode(dailyLayout) {
+  const rankPanel = document.getElementById("rankPanel");
+  const leaderboard = els.globalLeaderboard;
+  if (rankPanel) {
+    rankPanel.classList.toggle("rank-panel--daily", dailyLayout);
+    rankPanel.classList.toggle("rank-panel--scroll", !dailyLayout);
+  }
+  if (leaderboard) {
+    leaderboard.classList.toggle("rank-leaderboard--daily", dailyLayout);
+  }
 }
 
 function updateCityVisuals() {
