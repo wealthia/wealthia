@@ -7,6 +7,7 @@ const {
   createSessionToken,
   requireVerifiedTelegramPlayer,
   resolveTelegramUser,
+  verifyTelegramInitData,
   verifyToken
 } = require("./auth");
 const {
@@ -2457,13 +2458,26 @@ app.get("/api/stars/products", (_req, res) => {
 
 app.post("/api/stars/invoice", requirePlayer, async (req, res) => {
   try {
-    const userId = String(req.playerId || "");
+    const tokenUserId = String(req.playerId || "");
     const productId = String(req.body.productId || "").trim();
     const product = STAR_PRODUCTS[productId];
+    let payloadUserId = tokenUserId;
 
-    if (!userId || !product) {
+    if (!tokenUserId || !product) {
       res.status(400).json({ ok: false, error: "BAD_PRODUCT" });
       return;
+    }
+
+    const initData = String(req.body.initData || "");
+    if (initData) {
+      const telegramUser = verifyTelegramInitData(initData, TELEGRAM_BOT_TOKEN);
+      if (telegramUser) {
+        if (String(telegramUser.id) !== tokenUserId) {
+          res.status(403).json({ ok: false, error: "TELEGRAM_USER_MISMATCH" });
+          return;
+        }
+        payloadUserId = String(telegramUser.id);
+      }
     }
 
     if (!TELEGRAM_BOT_TOKEN) {
@@ -2481,7 +2495,7 @@ app.post("/api/stars/invoice", requirePlayer, async (req, res) => {
       telegramStars.buildStarsInvoiceBody({
         title: product.title,
         description: product.description,
-        payload: starPayload(userId, productId),
+        payload: starPayload(payloadUserId, productId),
         stars: product.stars
       })
     );
@@ -3789,7 +3803,7 @@ async function sendPushMessage(telegramId, text) {
   if (!TELEGRAM_BOT_TOKEN) return false;
 
   try {
-    const webAppUrl = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2100";
+    const webAppUrl = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2101";
     await telegramApi("sendMessage", {
       chat_id: telegramId,
       text,
