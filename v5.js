@@ -1471,56 +1471,53 @@ async function runPremiumSpinAfterPayment() {
   }
 }
 
-async function openPremiumSpinInvoice(spinButton, tg) {
+async function openPremiumSpinInvoice(spinButton) {
   setPremiumSpinButton(spinButton, true, "Opening payment...");
 
-  const { ok, result, status } = await requestStarsInvoice("premium_spin");
-
-  if (!ok || !result || !result.invoiceLink) {
-    showToast(starsInvoiceErrorMessage(result, status));
-    resetPremiumSpinButton(spinButton);
-    return;
-  }
-
-  resetPremiumSpinButton(spinButton);
-
-  openStarsPaymentSheet(tg, result.invoiceLink, async (status) => {
-    if (status !== "paid") {
-      if (status === "failed") showToast("Payment failed.");
-      if (status === "cancelled") showToast("Payment cancelled.");
-      resetPremiumSpinButton(spinButton);
-      return;
+  try {
+    if (!(await ensureBackendForPayment())) {
+      throw new Error("Payment server not ready. Wait a moment and try again.");
     }
 
-    setPremiumSpinButton(spinButton, true, "Confirming payment...");
-    const ready = await waitForPremiumSpinPayment(60);
-    if (!ready) {
+    const { link } = await fetchStarsInvoiceLink("premium_spin");
+    resetPremiumSpinButton(spinButton);
+
+    openTelegramStarsInvoice(link, async (status) => {
+      if (status !== "paid") {
+        if (status === "failed") showToast("Payment failed.");
+        if (status === "cancelled") showToast("Payment cancelled.");
+        resetPremiumSpinButton(spinButton);
+        return;
+      }
+
+      setPremiumSpinButton(spinButton, true, "Confirming payment...");
+      const ready = await waitForPremiumSpinPayment(60);
+      if (!ready) {
+        premiumSpinAwaitingRetry = true;
+        premiumSpinPaid = true;
+        showToast("Payment received. Tap SPIN again in a few seconds.");
+        if (spinButton) {
+          spinButton.textContent = "SPIN (PAID)";
+          spinButton.disabled = false;
+        }
+        return;
+      }
+
       premiumSpinAwaitingRetry = true;
       premiumSpinPaid = true;
-      showToast("Payment received. Tap SPIN again in a few seconds.");
-      if (spinButton) {
-        spinButton.textContent = "SPIN (PAID)";
-        spinButton.disabled = false;
-      }
-      return;
-    }
-
-    premiumSpinAwaitingRetry = true;
-    premiumSpinPaid = true;
-    await runPremiumSpinAfterPayment();
-  });
+      await runPremiumSpinAfterPayment();
+    });
+  } catch (error) {
+    console.error("PREMIUM_SPIN_INVOICE_ERROR:", error);
+    showToast(error.message || "Could not open premium spin payment.");
+    resetPremiumSpinButton(spinButton);
+  }
 }
 
 async function startPremiumSpinPurchase() {
   if (premiumSpinBusy || premiumSpinWaiting) return;
 
-  if (!(await ensureBackendForPayment())) {
-    showToast("Server not connected. Wait 10 seconds and try again.");
-    return;
-  }
-
-  const tg = window.Telegram && window.Telegram.WebApp;
-  if (!tg || typeof tg.openInvoice !== "function") {
+  if (!getTelegramWebApp() || typeof getTelegramWebApp().openInvoice !== "function") {
     showToast("Open in Telegram to pay with Stars.");
     return;
   }
@@ -1534,12 +1531,16 @@ async function startPremiumSpinPurchase() {
 
   premiumSpinAwaitingRetry = false;
   premiumSpinPaid = false;
+  paymentInProgress = true;
 
   try {
-    await openPremiumSpinInvoice(spinButton, tg);
-  } catch {
-    showToast("Premium spin failed.");
+    await openPremiumSpinInvoice(spinButton);
+  } catch (error) {
+    console.error("PREMIUM_SPIN_PURCHASE_ERROR:", error);
+    showToast(error.message || "Premium spin payment failed.");
     resetPremiumSpinButton(spinButton);
+  } finally {
+    paymentInProgress = false;
   }
 }
 
@@ -3222,17 +3223,21 @@ async function postInvoiceRequest(productId, options = {}) {
 
     return { ok: response.ok, status: response.status, result };
   } catch (error) {
+    console.error("INVOICE_REQUEST_FAILED:", normalizedProductId, error);
     if (error && error.name === "AbortError") {
       return {
         ok: false,
         status: 0,
-        result: { error: "TIMEOUT", message: "Server is waking up. Wait a few seconds and try again." }
+        result: { error: "TIMEOUT", message: "Payment server is waking up. Wait a few seconds and try again." }
       };
     }
     return {
       ok: false,
       status: 0,
-      result: { error: "CONNECTION_ERROR", message: CONNECTION_ERROR_TOAST }
+      result: {
+        error: "NETWORK_ERROR",
+        message: "Could not reach payment server. Wait a moment and try again."
+      }
     };
   } finally {
     window.clearTimeout(timeout);
@@ -3265,8 +3270,8 @@ function starsInvoiceErrorMessage(result, status) {
   if (result?.error === "INVOICE_CREATE_FAILED" || result?.error === "INVALID_INVOICE_LINK" || result?.error === "INVOICE_ERROR") {
     return result?.message || "Could not create Stars payment. Try again.";
   }
-  if (result?.error === "TIMEOUT" || result?.error === "CONNECTION_ERROR" || status === 0) {
-    return result?.message || "Server is waking up. Wait 10 seconds and try again.";
+  if (result?.error === "TIMEOUT" || result?.error === "NETWORK_ERROR" || status === 0) {
+    return result?.message || "Payment server is waking up. Wait 10 seconds and try again.";
   }
   if (result?.message) return String(result.message);
   if (result?.error) return String(result.error);
@@ -3331,33 +3336,50 @@ function releasePaymentButton(button, options = {}) {
   button.classList.remove(options.busyClass || "payment-btn--busy");
 }
 
-function openStarsPaymentSheet(tg, invoiceLink, onStatus) {
+function getTelegramWebApp() {
+  const WebApp = window.Telegram && window.Telegram.WebApp;
+  if (WebApp && typeof WebApp.ready === "function") {
+    WebApp.ready();
+  }
+  return WebApp || null;
+}
+
+function openTelegramStarsInvoice(invoiceLink, onStatus) {
+  const WebApp = getTelegramWebApp();
   const link = String(invoiceLink || "").trim();
+
   if (!link.startsWith("https://")) {
-    showToast("Invalid payment link. Please try again.");
-    if (onStatus) onStatus("failed");
-    return false;
+    console.error("INVALID_INVOICE_LINK:", link);
+    throw new Error("Invalid payment link from server.");
   }
 
-  if (tg && typeof tg.openInvoice === "function") {
-    tg.openInvoice(link, onStatus || (() => {}));
-    return true;
+  if (!WebApp || typeof WebApp.openInvoice !== "function") {
+    throw new Error("Open in Telegram to pay with Stars.");
   }
 
-  if (tg && typeof tg.openTelegramLink === "function" && link.includes("t.me")) {
-    tg.openTelegramLink(link);
-    showToast("Complete payment in Telegram, then return to the game.");
-    return true;
+  WebApp.openInvoice(link, typeof onStatus === "function" ? onStatus : () => {});
+  return true;
+}
+
+async function fetchStarsInvoiceLink(productId) {
+  const response = await requestStarsInvoice(productId);
+  const link = response.result?.invoiceLink;
+
+  if (!response.ok || !link || !String(link).startsWith("https://")) {
+    const message = starsInvoiceErrorMessage(response.result, response.status);
+    const error = new Error(message);
+    error.paymentResponse = response;
+    throw error;
   }
 
-  if (tg && typeof tg.openLink === "function") {
-    tg.openLink(link);
-    return true;
-  }
+  return {
+    link: String(link),
+    result: response.result
+  };
+}
 
-  showToast("Update Telegram to pay with Stars.");
-  if (onStatus) onStatus("failed");
-  return false;
+function openStarsPaymentSheet(tg, invoiceLink, onStatus) {
+  return openTelegramStarsInvoice(invoiceLink, onStatus);
 }
 
 async function requestStarsInvoice(productId) {
@@ -4021,9 +4043,7 @@ function bindCoinStoreModal() {
 }
 
 async function buyCoinPack(productId, coinAmount, button) {
-  const tg = window.Telegram && window.Telegram.WebApp;
-
-  if (!tg) {
+  if (!getTelegramWebApp()) {
     showToast("Open in Telegram to pay with Stars.");
     return;
   }
@@ -4032,33 +4052,23 @@ async function buyCoinPack(productId, coinAmount, button) {
     return;
   }
 
-  tg.ready();
-
-  if (!(await ensureBackendForPayment())) {
-    showToast("Server not connected. Wait 10 seconds and try again.");
-    releasePaymentButton(button, { busyClass: "coin-store-pack--busy payment-btn--busy" });
-    return;
-  }
-
+  paymentInProgress = true;
   const beforeCoins = Number(state.coins || 0);
   const expectedAdd = Math.max(0, Number(coinAmount || 0));
 
   const releaseButton = () => {
+    paymentInProgress = false;
     releasePaymentButton(button, { busyClass: "coin-store-pack--busy payment-btn--busy" });
   };
 
   try {
-    const { ok, result, status } = await requestStarsInvoice(productId);
-
-    if (!ok || !result?.invoiceLink) {
-      showToast(starsInvoiceErrorMessage(result, status));
-      releaseButton();
-      return;
+    if (!(await ensureBackendForPayment())) {
+      throw new Error("Payment server not ready. Wait a moment and try again.");
     }
 
-    await warmBackendForPayment(2);
+    const { link } = await fetchStarsInvoiceLink(productId);
 
-    const opened = openStarsPaymentSheet(tg, result.invoiceLink, async (paymentStatus) => {
+    openTelegramStarsInvoice(link, async (paymentStatus) => {
       if (paymentStatus === "paid") {
         showToast(PAYMENT_VERIFYING_TOAST);
         const fulfilled = await waitForCoinFulfillment(beforeCoins, expectedAdd);
@@ -4069,7 +4079,8 @@ async function buyCoinPack(productId, coinAmount, button) {
         if (fulfilled) {
           closeCoinStoreModal();
           showToast(STAR_SUCCESS_LABELS[productId] || `+${format(expectedAdd)} Coins added!`);
-          if (tg.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === "function") {
+          const tg = getTelegramWebApp();
+          if (tg?.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === "function") {
             tg.HapticFeedback.notificationOccurred("success");
           }
         } else {
@@ -4081,7 +4092,7 @@ async function buyCoinPack(productId, coinAmount, button) {
       releaseButton();
 
       if (paymentStatus === "failed") {
-        showToast("Payment failed. Wait a few seconds and try again.");
+        showToast("Payment failed.");
         return;
       }
 
@@ -4089,22 +4100,15 @@ async function buyCoinPack(productId, coinAmount, button) {
         showToast("Payment cancelled.");
       }
     });
-
-    if (!opened) {
-      showToast("Could not open Stars payment.");
-      releaseButton();
-    }
   } catch (error) {
     console.error("BUY_COIN_PACK_ERROR:", error);
-    showToast("Could not start payment. Please try again.");
+    showToast(error.message || "Could not start Stars payment.");
     releaseButton();
   }
 }
 
 async function buyTicketPack(productId, packTickets, button) {
-  const tg = window.Telegram && window.Telegram.WebApp;
-
-  if (!tg) {
+  if (!getTelegramWebApp()) {
     showToast("Open in Telegram to pay with Stars.");
     return;
   }
@@ -4113,16 +4117,7 @@ async function buyTicketPack(productId, packTickets, button) {
     return;
   }
 
-  tg.ready();
   paymentInProgress = true;
-
-  if (!(await ensureBackendForPayment())) {
-    paymentInProgress = false;
-    showToast("Server not connected. Wait 15 seconds and try again.");
-    releasePaymentButton(button, { busyClass: "ticket-store__pack--busy payment-btn--busy" });
-    return;
-  }
-
   const beforeTickets = ticketCount();
 
   const releaseButton = () => {
@@ -4131,18 +4126,13 @@ async function buyTicketPack(productId, packTickets, button) {
   };
 
   try {
-    showToast("Opening Stars payment...");
-    const { ok, result, status } = await requestStarsInvoice(productId);
-
-    if (!ok || !result?.invoiceLink) {
-      showToast(starsInvoiceErrorMessage(result, status));
-      releaseButton();
-      return;
+    if (!(await ensureBackendForPayment())) {
+      throw new Error("Payment server not ready. Wait a moment and try again.");
     }
 
-    await warmBackendForPayment(2);
+    const { link } = await fetchStarsInvoiceLink(productId);
 
-    const opened = openStarsPaymentSheet(tg, result.invoiceLink, async (paymentStatus) => {
+    openTelegramStarsInvoice(link, async (paymentStatus) => {
       if (paymentStatus === "paid") {
         showToast(PAYMENT_VERIFYING_TOAST);
         const fulfilled = await waitForTicketFulfillment(beforeTickets, packTickets);
@@ -4153,7 +4143,8 @@ async function buyTicketPack(productId, packTickets, button) {
           renderRankPanel();
           renderCampaignBanner();
           showToast(STAR_SUCCESS_LABELS[productId] || `+${packTickets} Tickets added!`);
-          if (tg.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === "function") {
+          const tg = getTelegramWebApp();
+          if (tg?.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === "function") {
             tg.HapticFeedback.notificationOccurred("success");
           }
         } else {
@@ -4168,7 +4159,7 @@ async function buyTicketPack(productId, packTickets, button) {
       releaseButton();
 
       if (paymentStatus === "failed") {
-        showToast("Payment failed. Wait a few seconds and try again.");
+        showToast("Payment failed.");
         return;
       }
 
@@ -4176,23 +4167,15 @@ async function buyTicketPack(productId, packTickets, button) {
         showToast("Payment cancelled.");
       }
     });
-
-    if (!opened) {
-      showToast("Could not open Stars payment.");
-      releaseButton();
-    }
   } catch (error) {
     console.error("BUY_TICKET_PACK_ERROR:", error);
-    showToast("Could not start payment. Please try again.");
-    paymentInProgress = false;
+    showToast(error.message || "Could not start Stars payment.");
     releaseButton();
   }
 }
 
 async function buyStarsProduct(productId, button) {
-  const tg = window.Telegram && window.Telegram.WebApp;
-
-  if (!tg || typeof tg.openInvoice !== "function") {
+  if (!getTelegramWebApp() || typeof getTelegramWebApp().openInvoice !== "function") {
     showToast("Open in Telegram to pay with Stars.");
     return;
   }
@@ -4201,26 +4184,21 @@ async function buyStarsProduct(productId, button) {
     return;
   }
 
+  paymentInProgress = true;
+
   const releaseButton = () => {
+    paymentInProgress = false;
     releasePaymentButton(button, { busyClass: "earn-boost--busy payment-btn--busy" });
   };
 
   try {
     if (!(await ensureBackendForPayment())) {
-      showToast("Server not connected. Wait 10 seconds and try again.");
-      releaseButton();
-      return;
+      throw new Error("Payment server not ready. Wait a moment and try again.");
     }
 
-    const { ok, result, status } = await requestStarsInvoice(productId);
+    const { link } = await fetchStarsInvoiceLink(productId);
 
-    if (!ok || !result || !result.invoiceLink) {
-      showToast(starsInvoiceErrorMessage(result, status));
-      releaseButton();
-      return;
-    }
-
-    const opened = openStarsPaymentSheet(tg, result.invoiceLink, async (paymentStatus) => {
+    openTelegramStarsInvoice(link, async (paymentStatus) => {
       if (paymentStatus === "paid") {
         showToast(PAYMENT_VERIFYING_TOAST);
         const fulfilled = await waitForStarFulfillment(productId);
@@ -4228,7 +4206,8 @@ async function buyStarsProduct(productId, button) {
 
         if (fulfilled) {
           showToast(STAR_SUCCESS_LABELS[productId] || "Premium boost activated!");
-          if (tg.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === "function") {
+          const tg = getTelegramWebApp();
+          if (tg?.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === "function") {
             tg.HapticFeedback.notificationOccurred("success");
           }
         } else {
@@ -4240,7 +4219,7 @@ async function buyStarsProduct(productId, button) {
       releaseButton();
 
       if (paymentStatus === "failed") {
-        showToast("Payment failed. Wait a few seconds and try again.");
+        showToast("Payment failed.");
         return;
       }
 
@@ -4248,14 +4227,9 @@ async function buyStarsProduct(productId, button) {
         showToast("Payment cancelled.");
       }
     });
-
-    if (!opened) {
-      showToast("Could not open Stars payment.");
-      releaseButton();
-    }
   } catch (error) {
     console.error("BUY_STARS_PRODUCT_ERROR:", error);
-    showToast("Could not start payment. Please try again.");
+    showToast(error.message || "Could not start Stars payment.");
     releaseButton();
   }
 }

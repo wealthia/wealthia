@@ -708,6 +708,22 @@ function starPayload(userId, productId) {
   return `w|${userId}|${productId}`;
 }
 
+function starPriceLabel(product, productId = "") {
+  if (!product) return "Wealthia";
+  const tickets = Number(product.ticketCount || 0);
+  if (tickets > 0) {
+    return `${tickets}x Ticket`;
+  }
+  const coins = Number(product.coinAmount || 0);
+  if (coins > 0) {
+    return `${coins.toLocaleString("en-US")} Coins`;
+  }
+  if (productId === "premium_spin") {
+    return "Premium Spin";
+  }
+  return String(product.title || "Wealthia").trim();
+}
+
 function parseStarPayload(payload) {
   const parts = String(payload || "").split("|");
   if (parts.length !== 3 || parts[0] !== "w") return null;
@@ -2804,7 +2820,8 @@ app.post("/api/stars/invoice", requirePlayerOrTelegram, paymentSecurity.starsInv
         title: product.title,
         description: product.description,
         payload: starPayload(payloadUserId, productId),
-        stars: product.stars
+        stars: product.stars,
+        priceLabel: starPriceLabel(product, productId)
       })
     );
 
@@ -2834,8 +2851,9 @@ app.post("/api/stars/invoice", requirePlayerOrTelegram, paymentSecurity.starsInv
       productionMode: true,
       product: {
         id: productId,
-        stars: product.stars,
-        title: product.title
+        stars: Number(product.stars),
+        title: product.title,
+        priceLabel: starPriceLabel(product, productId)
       }
     });
   } catch (error) {
@@ -4836,7 +4854,7 @@ async function sendPushMessage(telegramId, text) {
   if (!TELEGRAM_BOT_TOKEN) return false;
 
   try {
-    const webAppUrl = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2107";
+    const webAppUrl = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2108";
     await telegramApi("sendMessage", {
       chat_id: telegramId,
       text,
