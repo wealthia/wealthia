@@ -248,13 +248,13 @@ async function notifyOwnerStarsSale(details) {
   if (!OWNER_TELEGRAM_ID || !TELEGRAM_BOT_TOKEN) return;
 
   const lines = [
-    "💰 Wealthia — Stars satışı!",
+    "💰 Wealthia — Stars sale!",
     "",
-    `Oyunçu: ${details.playerName}`,
-    `Məhsul: ${details.productTitle}`,
-    `Ödənilib: ${details.stars} ⭐`,
+    `Player: ${details.playerName}`,
+    `Product: ${details.productTitle}`,
+    `Paid: ${details.stars} ⭐`,
     "",
-    "Gəlir gəlir — əla! 🎉"
+    "Revenue incoming — nice! 🎉"
   ];
 
   try {
