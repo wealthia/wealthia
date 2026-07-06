@@ -4,6 +4,7 @@ const CONFIG = window.WEALTHIA_CONFIG || {};
 let backendUserId = "web_demo";
 let backendSessionToken = "";
 let backendReady = false;
+let paymentInProgress = false;
 let leaderboardTop3 = [];
 let leaderboardYou = null;
 let dailyLeaderboardTop3 = [];
@@ -3039,7 +3040,12 @@ function getReferrerId() {
   return String(startParam);
 }
 
+const API_FETCH_TIMEOUT_MS = 25000;
+
 async function apiPost(path, body = {}) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), API_FETCH_TIMEOUT_MS);
+
   try {
     const headers = { "Content-Type": "application/json" };
     if (backendSessionToken) {
@@ -3049,7 +3055,8 @@ async function apiPost(path, body = {}) {
     const response = await fetch(`${API_URL}${path}`, {
       method: "POST",
       headers,
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: controller.signal
     });
 
     let result = null;
@@ -3059,17 +3066,26 @@ async function apiPost(path, body = {}) {
       try {
         result = JSON.parse(raw);
       } catch {
-        result = { error: "CONNECTION_ERROR", message: CONNECTION_ERROR_TOAST };
+        result = { error: "BAD_RESPONSE", message: "Server returned an invalid response." };
       }
     }
 
     return { ok: response.ok, status: response.status, result };
-  } catch {
+  } catch (error) {
+    if (error && error.name === "AbortError") {
+      return {
+        ok: false,
+        status: 0,
+        result: { error: "TIMEOUT", message: "Server is waking up. Wait a few seconds and try again." }
+      };
+    }
     return {
       ok: false,
       status: 0,
       result: { error: "CONNECTION_ERROR", message: CONNECTION_ERROR_TOAST }
     };
+  } finally {
+    window.clearTimeout(timeout);
   }
 }
 
@@ -3138,7 +3154,7 @@ async function sleep(ms) {
 
 async function wakeBackend() {
   try {
-    await fetch(`${API_URL}/health`, { method: "GET", cache: "no-store" });
+    await fetch(`${API_URL}/ping`, { method: "GET", cache: "no-store" });
   } catch {
     // Render cold start — session retry will follow.
   }
@@ -3147,7 +3163,7 @@ async function wakeBackend() {
 async function warmBackendForPayment(attempts = 4) {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      const health = await fetch(`${API_URL}/health`, { method: "GET", cache: "no-store" });
+      const health = await fetch(`${API_URL}/ping`, { method: "GET", cache: "no-store" });
       if (!health.ok) {
         await sleep(700 * (attempt + 1));
         continue;
@@ -3188,29 +3204,78 @@ function starsInvoiceErrorMessage(result, status) {
   if (result?.error === "INVOICE_CREATE_FAILED" || result?.error === "INVALID_INVOICE_LINK") {
     return result?.message || "Could not create Stars payment. Try again.";
   }
-  if (result?.error === "CONNECTION_ERROR" || status === 0) {
-    return "Server is waking up. Wait 10 seconds and try again.";
+  if (result?.error === "TIMEOUT" || result?.error === "CONNECTION_ERROR" || status === 0) {
+    return result?.message || "Server is waking up. Wait 10 seconds and try again.";
   }
   if (result?.message) return String(result.message);
   if (result?.error) return String(result.error);
   return "Could not open Stars payment.";
 }
 
-async function ensureBackendForPayment() {
-  await warmBackendForPayment(3);
+async function apiPostInvoice(productId) {
+  const normalizedProductId = String(productId || "").trim();
+  const initData = getTelegramInitData();
 
-  if (backendReady && backendSessionToken) {
-    await warmBackendForPayment(2);
+  if (!initData) {
+    return apiPost("/api/stars/invoice", { productId: normalizedProductId });
+  }
+
+  let response = await apiPostSecure("/api/stars/invoice", { productId: normalizedProductId });
+
+  if (response.status === 401 || response.result?.error === "SESSION_EXPIRED") {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), API_FETCH_TIMEOUT_MS);
+
+    try {
+      const retry = await fetch(`${API_URL}/api/stars/invoice`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId: normalizedProductId, initData }),
+        signal: controller.signal
+      });
+
+      const raw = await retry.text();
+      let result = null;
+      if (raw) {
+        try {
+          result = JSON.parse(raw);
+        } catch {
+          result = { error: "BAD_RESPONSE" };
+        }
+      }
+
+      response = { ok: retry.ok, status: retry.status, result };
+    } catch (error) {
+      if (error && error.name === "AbortError") {
+        response = { ok: false, status: 0, result: { error: "TIMEOUT" } };
+      } else {
+        response = { ok: false, status: 0, result: { error: "CONNECTION_ERROR", message: CONNECTION_ERROR_TOAST } };
+      }
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+
+  return response;
+}
+
+async function ensureBackendForPayment() {
+  await warmBackendForPayment(5);
+
+  if (isTelegramWebApp()) {
+    await waitForTelegramInitData(8000);
+  }
+
+  if (getTelegramInitData()) {
     return true;
   }
 
-  if (isTelegramWebApp()) {
-    await waitForTelegramInitData(5000);
+  if (backendReady && backendSessionToken) {
+    return true;
   }
 
-  await connectBackend(3, { silent: true });
-  await warmBackendForPayment(2);
-  return Boolean(backendReady && backendSessionToken);
+  await connectBackend(4, { silent: true });
+  return Boolean(getTelegramInitData() || (backendReady && backendSessionToken));
 }
 
 function lockPaymentButton(button, options = {}) {
@@ -3269,38 +3334,21 @@ async function requestStarsInvoice(productId) {
 
   await waitForTelegramInitData(5000);
 
-  const createInvoice = async () => {
-    const initData = getTelegramInitData();
-    if (initData) {
-      return apiPost("/api/stars/invoice", { productId: normalizedProductId, initData });
-    }
-    if (backendSessionToken) {
-      return apiPost("/api/stars/invoice", { productId: normalizedProductId });
-    }
-    return {
-      ok: false,
-      status: 403,
-      result: {
-        error: "SESSION_EXPIRED",
-        message: "Session expired. Close and reopen the game."
-      }
-    };
-  };
+  const createInvoice = () => apiPostInvoice(normalizedProductId);
 
-  await warmBackendForPayment();
+  await warmBackendForPayment(5);
 
   let response = await createInvoice();
 
   if (response.status === 401 || response.result?.error === "SESSION_EXPIRED") {
-    backendReady = false;
     backendSessionToken = "";
-    if (await connectBackend(3, { silent: true })) {
-      response = await createInvoice();
-    }
+    await connectBackend(3, { silent: true });
+    response = await createInvoice();
   }
 
-  if (!response.ok && (response.status === 0 || response.status >= 500)) {
+  for (let retry = 0; retry < 3 && !response.ok && (response.status === 0 || response.status >= 500); retry += 1) {
     await warmBackendForPayment(5);
+    await sleep(1500 * (retry + 1));
     response = await createInvoice();
   }
 
@@ -3472,7 +3520,7 @@ async function loadLeaderboard() {
   if (!ok || !result) {
     if (status === 401) {
       backendSessionToken = "";
-      await connectBackend(1);
+      await connectBackend(1, { silent: true });
     }
     renderRankPanel();
     return;
@@ -4030,8 +4078,10 @@ async function buyTicketPack(productId, packTickets, button) {
   }
 
   tg.ready();
+  paymentInProgress = true;
 
   if (!(await ensureBackendForPayment())) {
+    paymentInProgress = false;
     showToast("Server not connected. Wait 10 seconds and try again.");
     releasePaymentButton(button, { busyClass: "ticket-store__pack--busy payment-btn--busy" });
     return;
@@ -4040,6 +4090,7 @@ async function buyTicketPack(productId, packTickets, button) {
   const beforeTickets = ticketCount();
 
   const releaseButton = () => {
+    paymentInProgress = false;
     releasePaymentButton(button, { busyClass: "ticket-store__pack--busy payment-btn--busy" });
   };
 
@@ -4096,6 +4147,7 @@ async function buyTicketPack(productId, packTickets, button) {
   } catch (error) {
     console.error("BUY_TICKET_PACK_ERROR:", error);
     showToast("Could not start payment. Please try again.");
+    paymentInProgress = false;
     releaseButton();
   }
 }
@@ -4212,8 +4264,10 @@ async function fetchUserData() {
 }
 
 async function refreshBackendState() {
+  if (paymentInProgress) return;
+
   if (!backendReady) {
-    await connectBackend(1);
+    await connectBackend(1, { silent: true });
     return;
   }
 
@@ -4226,7 +4280,7 @@ async function refreshBackendState() {
   if (!ok || !result) {
     if (status === 401 || status === 0) {
       backendSessionToken = "";
-      await connectBackend(1);
+      await connectBackend(1, { silent: true });
     }
     return;
   }
