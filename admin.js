@@ -39,6 +39,8 @@ const els = {
   giveRewardForm: document.getElementById("giveRewardForm"),
   profileSearchForm: document.getElementById("profileSearchForm"),
   profileSearchInput: document.getElementById("profileSearchInput"),
+  profileSearchButton: document.getElementById("profileSearchButton"),
+  profileSearchStatus: document.getElementById("profileSearchStatus"),
   userProfileCard: document.getElementById("userProfileCard"),
   profileDisplayName: document.getElementById("profileDisplayName"),
   profileUserMeta: document.getElementById("profileUserMeta"),
@@ -691,11 +693,36 @@ async function loadDashboard() {
   renderActiveTournament(result.tournaments.active);
 }
 
+function setProfileSearchStatus(message, tone = "info") {
+  if (!els.profileSearchStatus) return;
+
+  if (!message) {
+    els.profileSearchStatus.hidden = true;
+    els.profileSearchStatus.textContent = "";
+    els.profileSearchStatus.className = "profile-search-status empty";
+    return;
+  }
+
+  els.profileSearchStatus.hidden = false;
+  els.profileSearchStatus.textContent = message;
+  els.profileSearchStatus.className = `profile-search-status profile-search-status--${tone}`;
+}
+
+function profileErrorMessage(result) {
+  if (result.error === "USER_NOT_FOUND") return "User not found. Try Telegram ID or @username.";
+  if (result.error === "MIGRATION_REQUIRED") {
+    return result.detail || "Supabase migration required (user-ban + promo-codes).";
+  }
+  if (result.error === "UNAUTHORIZED") return "Session expired. Sign in again.";
+  return result.error || result.detail || "Search failed.";
+}
+
 function renderUserProfileCard(profile) {
   if (!els.userProfileCard || !profile) return;
 
   activeProfile = profile;
   els.userProfileCard.hidden = false;
+  setProfileSearchStatus("");
 
   if (els.profileDisplayName) {
     els.profileDisplayName.textContent = profile.displayName || profile.username || profile.userId;
@@ -720,26 +747,67 @@ function renderUserProfileCard(profile) {
   if (els.profileUnbanButton) els.profileUnbanButton.hidden = !banned;
 }
 
-async function searchUserProfile(event) {
-  event.preventDefault();
-
-  const query = els.profileSearchInput ? els.profileSearchInput.value.trim() : "";
-  if (!query) {
+async function fetchUserProfileByQuery(query) {
+  const trimmed = String(query || "").trim();
+  if (!trimmed) {
+    setProfileSearchStatus("Enter Telegram ID or username.", "error");
     showToast("Enter Telegram ID or username.");
     return;
   }
 
-  const params = new URLSearchParams({ query });
-  const { ok, result } = await api(`/api/admin/user-profile?${params.toString()}`);
-
-  if (!ok) {
-    showToast(result.error === "USER_NOT_FOUND" ? "User not found." : (result.error || "Search failed."));
-    if (els.userProfileCard) els.userProfileCard.hidden = true;
-    activeProfile = null;
-    return;
+  if (els.profileSearchInput) {
+    els.profileSearchInput.value = trimmed;
   }
 
-  renderUserProfileCard(result.profile);
+  if (els.profileSearchButton) {
+    els.profileSearchButton.disabled = true;
+    els.profileSearchButton.textContent = "Searching...";
+  }
+  setProfileSearchStatus("Searching...", "info");
+  if (els.userProfileCard) els.userProfileCard.hidden = true;
+
+  try {
+    const params = new URLSearchParams({ query: trimmed });
+    const { ok, status, result } = await api(`/api/admin/user-profile?${params.toString()}`);
+
+    if (status === 401) {
+      showLogin("Session expired.");
+      return;
+    }
+
+    if (!ok) {
+      const message = profileErrorMessage(result);
+      setProfileSearchStatus(message, "error");
+      showToast(message);
+      activeProfile = null;
+      return;
+    }
+
+    renderUserProfileCard(result.profile);
+    showToast("Profile loaded.");
+  } catch (error) {
+    console.error("PROFILE_SEARCH_ERROR:", error);
+    const message = "Search failed unexpectedly.";
+    setProfileSearchStatus(message, "error");
+    showToast(message);
+    activeProfile = null;
+  } finally {
+    if (els.profileSearchButton) {
+      els.profileSearchButton.disabled = false;
+      els.profileSearchButton.textContent = "Search";
+    }
+  }
+}
+
+async function searchUserProfile(event) {
+  event.preventDefault();
+  const query = els.profileSearchInput ? els.profileSearchInput.value.trim() : "";
+  await fetchUserProfileByQuery(query);
+}
+
+async function openUserProfile(userId) {
+  if (!userId) return;
+  await fetchUserProfileByQuery(String(userId));
 }
 
 async function updateUserProfile() {
@@ -895,8 +963,10 @@ function renderPlayers(rows) {
   els.playersTable.innerHTML = rows.map((row) => `
     <tr>
       <td>
-        <strong>${row.name}</strong><br />
-        <small>${row.userId}</small>
+        <button class="table-link" type="button" data-view-profile="${row.userId}">
+          <strong>${row.name}</strong><br />
+          <small>${row.userId}</small>
+        </button>
       </td>
       <td>${formatNumber(row.coins)}</td>
       <td>${formatNumber(row.taps)}</td>
@@ -912,10 +982,16 @@ function renderPlayers(rows) {
 async function loadPlayers() {
   const search = els.playerSearch ? els.playerSearch.value.trim() : "";
   const query = new URLSearchParams({ limit: "100", search });
-  const { ok, result } = await api(`/api/admin/players?${query.toString()}`);
+  const { ok, status, result } = await api(`/api/admin/players?${query.toString()}`);
+
+  if (status === 401) {
+    showLogin("Session expired.");
+    return;
+  }
 
   if (!ok) {
-    showLogin("Session expired.");
+    showToast(result.error || "Could not load players.");
+    renderPlayers([]);
     return;
   }
 
@@ -1237,6 +1313,12 @@ if (els.playerSearch) {
 
 if (els.playersTable) {
   els.playersTable.addEventListener("click", (event) => {
+    const profileButton = event.target.closest("[data-view-profile]");
+    if (profileButton) {
+      openUserProfile(profileButton.dataset.viewProfile).catch(() => showToast("Could not open profile."));
+      return;
+    }
+
     const button = event.target.closest("[data-grant]");
     if (!button) return;
     grantCoins(button.dataset.grant);

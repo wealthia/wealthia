@@ -13,7 +13,7 @@
     #adminApp { display: none; }
     [hidden] { display: none !important; }
   </style>
-  <link rel="stylesheet" href="./admin.css?v=8" />
+  <link rel="stylesheet" href="./admin.css?v=9" />
 </head>
 <body>
   <div class="login" id="loginScreen">
@@ -233,10 +233,11 @@
       <section class="view" id="playersView">
         <article class="card form-card profile-search-card">
           <h2>User Profile Search</h2>
-          <form id="profileSearchForm" class="profile-search-form">
+          <form id="profileSearchForm" class="profile-search-form" action="#" method="get">
             <input type="search" id="profileSearchInput" placeholder="Telegram ID or @username" required />
-            <button type="submit">Search</button>
+            <button type="submit" id="profileSearchButton">Search</button>
           </form>
+          <p class="profile-search-status empty" id="profileSearchStatus" hidden></p>
           <div class="user-profile-card" id="userProfileCard" hidden>
             <div class="user-profile-card__head">
               <div>
@@ -444,6 +445,6 @@
   <div class="toast" id="toast"></div>
 
   <script src="./config.js?v=1"></script>
-  <script src="./admin.js?v=9"></script>
+  <script src="./admin.js?v=10"></script>
 </body>
 </html>
