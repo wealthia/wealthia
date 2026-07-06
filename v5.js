@@ -494,27 +494,9 @@ function ticketProgress() {
   };
 }
 
-function renderTicketProgressHtml(options = {}) {
-  const compact = Boolean(options.compact);
+function renderTicketProgressHtml() {
   const progress = ticketProgress();
   const tickets = ticketCount();
-
-  if (compact) {
-    return `
-      <div class="daily-prize__tickets daily-prize__tickets--compact">
-        <div class="daily-prize__tickets-head">
-          <div class="daily-prize__tickets-left">
-            <span class="daily-prize__ticket-icon" aria-hidden="true">&#127915;</span>
-            <span class="daily-prize__ticket-count">${tickets}</span>
-          </div>
-          <span class="daily-prize__tickets-next">${format(progress.current)} / ${format(progress.target)} pts</span>
-        </div>
-        <div class="daily-prize__ticket-progress" role="progressbar" aria-valuenow="${progress.percent}" aria-valuemin="0" aria-valuemax="100">
-          <span style="width:${progress.percent}%"></span>
-        </div>
-      </div>
-    `;
-  }
 
   return `
     <div class="daily-prize__tickets">
@@ -530,70 +512,6 @@ function renderTicketProgressHtml(options = {}) {
         <span style="width:${progress.percent}%"></span>
       </div>
     </div>
-  `;
-}
-
-function renderDailyPrizeCardHtml(options = {}) {
-  const prize = getDailyPrizeConfig();
-  if (!prize) return "";
-
-  const variant = options.variant || "default";
-  const compact = variant === "main" || variant === "rank";
-  const symbol = prize.currency === "USD" ? "$" : "";
-  const score = todayGainScore();
-  const referrals = dailyReferralCount || Number(state.referrals?.count || 0);
-  const required = prize.minReferrals || dailyReferralsRequired || 3;
-  const eligible = dailyPrizeEligible || Boolean(state.referrals?.eligible);
-  const timeLeft = dailyPrizeTimeLeft(dailyContestResetsAt || state.dailyContest?.resetsAt);
-
-  if (compact) {
-    const progress = ticketProgress();
-    return `
-      <article class="grand-prize-card daily-prize-card daily-prize-card--compact daily-prize-card--${variant} ${eligible ? "" : "daily-prize-card--locked"}">
-        <div class="daily-prize-compact__head">
-          <span class="grand-prize__badge">⚡ ${prize.title}</span>
-          <div class="daily-prize-compact__meta">
-            <strong>${symbol}${format(prize.prize)} · ${required} friends</strong>
-            <small>${timeLeft} left · ${referrals}/${required} friends</small>
-          </div>
-        </div>
-        <div class="daily-prize-compact__score-bar">
-          <div class="daily-prize-compact__points">
-            <span class="daily-prize-compact__points-label">POINTS</span>
-            <strong>+${format(score)}</strong>
-          </div>
-          <div class="daily-prize-compact__progress">
-            <div class="daily-prize-compact__tickets">
-              <span class="daily-prize__ticket-icon" aria-hidden="true">&#127915;</span>
-              <span class="daily-prize__ticket-count">${ticketCount()}</span>
-            </div>
-            <div class="daily-prize__ticket-progress" role="progressbar" aria-valuenow="${progress.percent}" aria-valuemin="0" aria-valuemax="100">
-              <span style="width:${progress.percent}%"></span>
-            </div>
-            <small class="daily-prize-compact__progress-label">${format(progress.current)} / ${format(progress.target)}</small>
-          </div>
-        </div>
-      </article>
-    `;
-  }
-
-  return `
-    <article class="grand-prize-card daily-prize-card ${eligible ? "" : "daily-prize-card--locked"}">
-      <div class="grand-prize-card__head">
-        <span class="grand-prize__badge">⚡ ${prize.title}</span>
-        <h3>${symbol}${format(prize.prize)} · 3 friends required</h3>
-        <p>${timeLeft} left · Friends: ${referrals}/${required}${eligible ? " · Qualified" : " · Not qualified yet"}</p>
-      </div>
-      <div class="daily-prize__gain-box">
-        <span class="daily-prize__gain-label">Your today's score</span>
-        <strong class="daily-prize__gain-value">+${format(score)}</strong>
-      </div>
-      ${renderTicketProgressHtml()}
-      ${eligible
-    ? `<p class="daily-prize-card__boost-tip">Only players with 3+ invited friends can win. Use ⭐ boosts to climb.</p>`
-    : `<p class="daily-prize-card__boost-tip">Invite 3 friends from the Friends tab to join today's Daily $10 Race.</p>`}
-      ${prize.channelUrl ? `<button class="grand-prize-card__channel" type="button" data-channel="${prize.channelUrl}">Winner will be announced on the Telegram channel</button>` : ""}
-    </article>
   `;
 }
 
@@ -767,6 +685,37 @@ async function shareInviteLink() {
   }
 }
 
+function renderDailyPrizeCardHtml() {
+  const prize = getDailyPrizeConfig();
+  if (!prize) return "";
+
+  const symbol = prize.currency === "USD" ? "$" : "";
+  const score = todayGainScore();
+  const referrals = dailyReferralCount || Number(state.referrals?.count || 0);
+  const required = prize.minReferrals || dailyReferralsRequired || 3;
+  const eligible = dailyPrizeEligible || Boolean(state.referrals?.eligible);
+  const timeLeft = dailyPrizeTimeLeft(dailyContestResetsAt || state.dailyContest?.resetsAt);
+
+  return `
+    <article class="grand-prize-card daily-prize-card ${eligible ? "" : "daily-prize-card--locked"}">
+      <div class="grand-prize-card__head">
+        <span class="grand-prize__badge">⚡ ${prize.title}</span>
+        <h3>${symbol}${format(prize.prize)} · 3 friends required</h3>
+        <p>${timeLeft} left · Friends: ${referrals}/${required}${eligible ? " · Qualified" : " · Not qualified yet"}</p>
+      </div>
+      <div class="daily-prize__gain-box">
+        <span class="daily-prize__gain-label">Your today's score</span>
+        <strong class="daily-prize__gain-value">+${format(score)}</strong>
+      </div>
+      ${renderTicketProgressHtml()}
+      ${eligible
+    ? `<p class="daily-prize-card__boost-tip">Only players with 3+ invited friends can win. Use ⭐ boosts to climb.</p>`
+    : `<p class="daily-prize-card__boost-tip">Invite 3 friends from the Friends tab to join today's Daily $10 Race.</p>`}
+      ${prize.channelUrl ? `<button class="grand-prize-card__channel" type="button" data-channel="${prize.channelUrl}">Winner will be announced on the Telegram channel</button>` : ""}
+    </article>
+  `;
+}
+
 function bindDailyPrizeCardActions(mount) {
   if (!mount) return;
 
@@ -786,7 +735,7 @@ function renderDailyPrizeBanner() {
     return;
   }
 
-  mount.innerHTML = renderDailyPrizeCardHtml({ variant: "main" });
+  mount.innerHTML = renderDailyPrizeCardHtml();
   bindDailyPrizeCardActions(mount);
 }
 
@@ -796,7 +745,7 @@ function renderCampaignRankCard() {
 }
 
 function renderDailyPrizeRankCard() {
-  return renderDailyPrizeCardHtml({ variant: "rank" });
+  return renderDailyPrizeCardHtml();
 }
 
 function renderGrandPrizeBanner() {
@@ -2522,7 +2471,7 @@ function renderRankPanel() {
   panel.innerHTML = `
     ${offlineBanner}
     <div class="rank-stack">
-      ${dailyMode ? renderDailyPrizeCardHtml({ variant: "rank" }) : ""}
+      ${dailyMode ? renderDailyPrizeCardHtml() : ""}
       ${renderPodiumHtml(top3, dailyMode)}
       ${renderYourRankRowHtml(youRow, dailyMode)}
       ${dailyMode ? renderTicketStoreHtml() : ""}
@@ -3090,12 +3039,7 @@ function getReferrerId() {
   return String(startParam);
 }
 
-const API_FETCH_TIMEOUT_MS = 22000;
-
 async function apiPost(path, body = {}) {
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), API_FETCH_TIMEOUT_MS);
-
   try {
     const headers = { "Content-Type": "application/json" };
     if (backendSessionToken) {
@@ -3105,8 +3049,7 @@ async function apiPost(path, body = {}) {
     const response = await fetch(`${API_URL}${path}`, {
       method: "POST",
       headers,
-      body: JSON.stringify(body),
-      signal: controller.signal
+      body: JSON.stringify(body)
     });
 
     let result = null;
@@ -3121,21 +3064,12 @@ async function apiPost(path, body = {}) {
     }
 
     return { ok: response.ok, status: response.status, result };
-  } catch (error) {
-    if (error && error.name === "AbortError") {
-      return {
-        ok: false,
-        status: 0,
-        result: { error: "TIMEOUT", message: "Server is waking up. Wait a few seconds and retry." }
-      };
-    }
+  } catch {
     return {
       ok: false,
       status: 0,
       result: { error: "CONNECTION_ERROR", message: CONNECTION_ERROR_TOAST }
     };
-  } finally {
-    window.clearTimeout(timeout);
   }
 }
 
@@ -3163,7 +3097,7 @@ async function applyBackendUser(user, message) {
   ensureTodayGainBaseline();
   saveState();
   render();
-  void loadLeaderboard();
+  await loadLeaderboard();
 
   if (message) showToast(message);
   if (user.game) {
@@ -3204,7 +3138,7 @@ async function sleep(ms) {
 
 async function wakeBackend() {
   try {
-    await fetch(`${API_URL}/ping`, { method: "GET", cache: "no-store" });
+    await fetch(`${API_URL}/health`, { method: "GET", cache: "no-store" });
   } catch {
     // Render cold start — session retry will follow.
   }
@@ -3213,7 +3147,7 @@ async function wakeBackend() {
 async function warmBackendForPayment(attempts = 4) {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      const health = await fetch(`${API_URL}/ping`, { method: "GET", cache: "no-store" });
+      const health = await fetch(`${API_URL}/health`, { method: "GET", cache: "no-store" });
       if (!health.ok) {
         await sleep(700 * (attempt + 1));
         continue;
@@ -3254,8 +3188,8 @@ function starsInvoiceErrorMessage(result, status) {
   if (result?.error === "INVOICE_CREATE_FAILED" || result?.error === "INVALID_INVOICE_LINK") {
     return result?.message || "Could not create Stars payment. Try again.";
   }
-  if (result?.error === "TIMEOUT" || result?.error === "CONNECTION_ERROR" || status === 0) {
-    return result?.message || "Server is waking up. Wait 10 seconds and try again.";
+  if (result?.error === "CONNECTION_ERROR" || status === 0) {
+    return "Server is waking up. Wait 10 seconds and try again.";
   }
   if (result?.message) return String(result.message);
   if (result?.error) return String(result.error);
@@ -3335,7 +3269,23 @@ async function requestStarsInvoice(productId) {
 
   await waitForTelegramInitData(5000);
 
-  const createInvoice = async () => apiPostSecure("/api/stars/invoice", { productId: normalizedProductId });
+  const createInvoice = async () => {
+    const initData = getTelegramInitData();
+    if (initData) {
+      return apiPost("/api/stars/invoice", { productId: normalizedProductId, initData });
+    }
+    if (backendSessionToken) {
+      return apiPost("/api/stars/invoice", { productId: normalizedProductId });
+    }
+    return {
+      ok: false,
+      status: 403,
+      result: {
+        error: "SESSION_EXPIRED",
+        message: "Session expired. Close and reopen the game."
+      }
+    };
+  };
 
   await warmBackendForPayment();
 
@@ -3408,7 +3358,7 @@ async function connectBackend(retries = 6, options = {}) {
         silent ? "" : attempt > 0 ? "Backend reconnected." : "Backend connected."
       );
       if (!silent && attempt === 0) markMessageShown("backend-connected");
-      void loadTournament();
+      await loadTournament();
       renderSyncBar();
       return true;
     }
@@ -4267,16 +4217,11 @@ async function refreshBackendState() {
     return;
   }
 
-  const syncPath = backendSessionToken ? "/api/sync" : "/api/session";
-  const syncBody = backendSessionToken
-    ? {}
-    : {
-      initData: getTelegramInitData(),
-      telegramUser: getTelegramUser(),
-      referrerId: getReferrerId()
-    };
-
-  const { ok, result, status } = await apiPost(syncPath, syncBody);
+  const { ok, result, status } = await apiPost("/api/session", {
+    initData: getTelegramInitData(),
+    telegramUser: getTelegramUser(),
+    referrerId: getReferrerId()
+  });
 
   if (!ok || !result) {
     if (status === 401 || status === 0) {
@@ -4307,8 +4252,8 @@ async function refreshBackendState() {
   syncFromBackend(result);
   saveState();
   render();
-  void loadLeaderboard();
-  void loadTournament();
+  await loadLeaderboard();
+  await loadTournament();
 }
 
 function initTelegramWebApp() {
@@ -4418,7 +4363,6 @@ document.querySelectorAll(".tab").forEach((tab) => {
     renderFriendsPanel();
 
     if (tab.dataset.tab === "rankPanel") {
-      void warmBackendForPayment(2);
       loadLeaderboard();
       loadTournament();
     }

@@ -95,12 +95,6 @@ const TAP_VIOLATION_ALERT_THRESHOLD = 25;
 const IP_RATE_WINDOW_MS = 60 * 1000;
 const IP_MAX_HITS = 240;
 const ipRateBuckets = new Map();
-const CHANNEL_MEMBER_CACHE_MS = 5 * 60 * 1000;
-const LEADERBOARD_CACHE_MS = 15 * 1000;
-const REFERRAL_COUNT_CACHE_MS = 60 * 1000;
-const channelMemberCache = new Map();
-const leaderboardCache = new Map();
-const referralCountCache = new Map();
 
 const EARN_TASKS = {
   sponsor: { reward: 750, field: "sponsor_done" },
@@ -357,24 +351,7 @@ function isChannelConfigurationError(errorText) {
   );
 }
 
-function finishChannelMembershipCheck(telegramId, result) {
-  if (telegramId) {
-    const ttl = result.isMember ? CHANNEL_MEMBER_CACHE_MS : 30 * 1000;
-    channelMemberCache.set(String(telegramId), {
-      result: { ...result },
-      expiresAt: Date.now() + ttl
-    });
-  }
-  return result;
-}
-
 async function checkOfficialChannelMembership(telegramId) {
-  const cacheKey = String(telegramId || "");
-  const cached = channelMemberCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) {
-    return { ...cached.result };
-  }
-
   const result = {
     isMember: false,
     error: "",
@@ -385,7 +362,7 @@ async function checkOfficialChannelMembership(telegramId) {
     result.error = "BOT_OR_USER_MISSING";
     result.skipped = true;
     result.isMember = true;
-    return finishChannelMembershipCheck(telegramId, result);
+    return result;
   }
 
   const chatId = await getOfficialChannelChatId();
@@ -393,7 +370,7 @@ async function checkOfficialChannelMembership(telegramId) {
     result.error = "CHANNEL_NOT_RESOLVED";
     result.skipped = true;
     result.isMember = true;
-    return finishChannelMembershipCheck(telegramId, result);
+    return result;
   }
 
   const lookup = await telegramApiSafe("getChatMember", {
@@ -405,22 +382,22 @@ async function checkOfficialChannelMembership(telegramId) {
     result.error = lookup.error || "CHANNEL_LOOKUP_FAILED";
 
     if (isChannelMembershipLookupError(result.error)) {
-      return finishChannelMembershipCheck(telegramId, result);
+      return result;
     }
 
     if (isChannelConfigurationError(result.error)) {
       result.skipped = true;
       result.isMember = true;
-      return finishChannelMembershipCheck(telegramId, result);
+      return result;
     }
 
     result.skipped = true;
     result.isMember = true;
-    return finishChannelMembershipCheck(telegramId, result);
+    return result;
   }
 
   result.isMember = CHANNEL_MEMBER_STATUSES.has(String(lookup.result?.status || ""));
-  return finishChannelMembershipCheck(telegramId, result);
+  return result;
 }
 
 async function hasPendingChannelReferral(userId) {
@@ -1201,31 +1178,6 @@ function requirePlayer(req, res, next) {
   next();
 }
 
-function requirePlayerOrTelegram(req, res, next) {
-  const userId = verifyToken(bearerTokenFromRequest(req));
-  if (userId) {
-    req.playerId = userId;
-    next();
-    return;
-  }
-
-  const initData = String(req.body?.initData || "");
-  if (initData && TELEGRAM_BOT_TOKEN) {
-    const telegramUser = verifyTelegramInitData(initData, TELEGRAM_BOT_TOKEN);
-    if (telegramUser?.id) {
-      req.playerId = String(telegramUser.id);
-      req.telegramUser = telegramUser;
-      next();
-      return;
-    }
-  }
-
-  res.status(401).json({
-    error: "SESSION_EXPIRED",
-    message: "Session expired. Close and reopen the game."
-  });
-}
-
 async function getPlayerTelegramId(userId) {
   const { data, error } = await supabase
     .from("users")
@@ -1590,31 +1542,6 @@ function passiveDbPatch(row, contest) {
     daily_contest_score: contest.daily_contest_score,
     updated_at: new Date().toISOString()
   };
-}
-
-function hasMaterialGameChanges(before, after, contest) {
-  if (number(before.coins) !== number(after.coins)) return true;
-  if (number(before.energy) !== number(after.energy)) return true;
-  if (String(before.daily_tasks_date || "") !== String(after.daily_tasks_date || "")) return true;
-  if (String(before.contest_date || "") !== String(contest.contest_date || "")) return true;
-  if (number(before.daily_contest_score) !== number(contest.daily_contest_score)) return true;
-  if (number(before.contest_baseline_city) !== number(contest.contest_baseline_city)) return true;
-  return false;
-}
-
-async function cachedReferralCount(userId) {
-  const cacheKey = String(userId || "");
-  const cached = referralCountCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.count;
-  }
-
-  const count = await getReferralCount(userId);
-  referralCountCache.set(cacheKey, {
-    count,
-    expiresAt: Date.now() + REFERRAL_COUNT_CACHE_MS
-  });
-  return count;
 }
 
 function attachPassiveMeta(target, source) {
@@ -2139,20 +2066,6 @@ async function ensureUserProfile(telegramUser) {
     let row = refreshDailyTasks(applyPassive(existing));
     const contest = syncDailyContest(row);
 
-    if (!hasMaterialGameChanges(existing, row, contest)) {
-      const merged = {
-        ...existing,
-        ...row,
-        contest_date: contest.contest_date,
-        contest_baseline_city: contest.contest_baseline_city,
-        daily_contest_score: contest.daily_contest_score
-      };
-      return {
-        row: attachPassiveMeta(merged, row),
-        isNew: false
-      };
-    }
-
     const { data: saved, error } = await supabase
       .from("game_states")
       .update(passiveDbPatch(row, contest))
@@ -2240,17 +2153,6 @@ async function loadGame(userId) {
 
   let row = refreshDailyTasks(applyPassive(data));
   const contest = syncDailyContest(row);
-
-  if (!hasMaterialGameChanges(data, row, contest)) {
-    const merged = {
-      ...data,
-      ...row,
-      contest_date: contest.contest_date,
-      contest_baseline_city: contest.contest_baseline_city,
-      daily_contest_score: contest.daily_contest_score
-    };
-    return attachPassiveMeta(merged, row);
-  }
 
   const { data: saved, error: saveError } = await supabase
     .from("game_states")
@@ -2413,7 +2315,7 @@ app.post("/api/session", async (req, res) => {
     const session = createSessionToken(telegramUser.id);
     let referralCount = 0;
     try {
-      referralCount = await cachedReferralCount(telegramUser.id);
+      referralCount = await getReferralCount(telegramUser.id);
     } catch (countError) {
       console.warn("REFERRAL_COUNT_FAILED:", countError.message);
     }
@@ -2444,40 +2346,6 @@ app.post("/api/session", async (req, res) => {
     });
   }
 });
-
-app.post("/api/sync", requirePlayer, async (req, res) => {
-  try {
-    const userId = req.playerId;
-    const row = await loadGame(userId);
-    let referralCount = 0;
-
-    try {
-      referralCount = await cachedReferralCount(userId);
-    } catch (countError) {
-      console.warn("SYNC_REFERRAL_COUNT_FAILED:", countError.message);
-    }
-
-    const session = createSessionToken(userId);
-
-    res.json({
-      ...toClientUser(row, {
-        referralCount,
-        offlineEarnings: number(row.__offlineEarnings || 0),
-        offlineCashAdded: number(row.__offlineCashAdded || 0),
-        autoUpgrades: row.__autoUpgrades || []
-      }),
-      token: session.token,
-      expiresAt: session.expiresAt
-    });
-  } catch (error) {
-    console.error("SYNC_ERROR:", error.message);
-    res.status(503).json({
-      error: "CONNECTION_ERROR",
-      message: CONNECTION_ERROR_MESSAGE
-    });
-  }
-});
-
 app.post("/api/gold-rush/start", requirePlayer, async (req, res) => {
   try {
     const userId = req.playerId;
@@ -2873,7 +2741,7 @@ app.get("/api/stars/products", (_req, res) => {
   res.json({ ok: true, products });
 });
 
-app.post("/api/stars/invoice", requirePlayerOrTelegram, paymentSecurity.starsInvoiceRateLimit, async (req, res) => {
+app.post("/api/stars/invoice", requirePlayer, paymentSecurity.starsInvoiceRateLimit, async (req, res) => {
   try {
     const tokenUserId = String(req.playerId || "");
     const productId = String(req.body.productId || "").trim();
@@ -3395,13 +3263,6 @@ app.post("/api/reset", requirePlayer, async (req, res) => {
 app.post("/api/leaderboard", requirePlayer, async (req, res) => {
   try {
     const userId = req.playerId;
-    const cacheKey = String(userId || "");
-    const cached = leaderboardCache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) {
-      res.json(cached.payload);
-      return;
-    }
-
     const today = todayKey();
 
     const { data: topData, error } = await supabase
@@ -3551,7 +3412,7 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
     const lastWinner = await getLatestDailyWinner();
     const yourDailyScore = yourDailyGame ? number(yourDailyGame.daily_contest_score) : 0;
 
-    const payload = {
+    res.json({
       top3,
       you,
       daily: {
@@ -3569,14 +3430,7 @@ app.post("/api/leaderboard", requirePlayer, async (req, res) => {
         ticketProgress: economy.scoreProgressToNextTicket(yourDailyScore),
         lastWinner
       }
-    };
-
-    leaderboardCache.set(cacheKey, {
-      expiresAt: Date.now() + LEADERBOARD_CACHE_MS,
-      payload
     });
-
-    res.json(payload);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

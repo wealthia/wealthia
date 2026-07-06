@@ -13,7 +13,6 @@ function buildStarsInvoiceBody({ title, description, payload, stars }) {
     title: safeTitle,
     description: safeDescription,
     payload: productionPayload.slice(0, 128),
-    provider_token: "",
     currency: "XTR",
     prices: [{ label: safeTitle, amount: starAmount }]
   };
