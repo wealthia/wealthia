@@ -691,7 +691,7 @@ function renderDailyPrizeCardHtml(options = {}) {
   if (!prize) return "";
 
   const variant = options.variant || "default";
-  const compact = variant === "main" || variant === "rank";
+  const fitClass = variant === "main" || variant === "rank" ? ` daily-prize-card--fit daily-prize-card--fit-${variant}` : "";
   const symbol = prize.currency === "USD" ? "$" : "";
   const score = todayGainScore();
   const referrals = dailyReferralCount || Number(state.referrals?.count || 0);
@@ -699,39 +699,8 @@ function renderDailyPrizeCardHtml(options = {}) {
   const eligible = dailyPrizeEligible || Boolean(state.referrals?.eligible);
   const timeLeft = dailyPrizeTimeLeft(dailyContestResetsAt || state.dailyContest?.resetsAt);
 
-  if (compact) {
-    const progress = ticketProgress();
-    return `
-      <article class="grand-prize-card daily-prize-card daily-prize-card--compact daily-prize-card--${variant} ${eligible ? "" : "daily-prize-card--locked"}">
-        <div class="daily-prize-compact__head">
-          <span class="grand-prize__badge">⚡ ${prize.title}</span>
-          <div class="daily-prize-compact__meta">
-            <strong>${symbol}${format(prize.prize)} · ${required} friends</strong>
-            <small>${timeLeft} left · ${referrals}/${required} friends</small>
-          </div>
-        </div>
-        <div class="daily-prize-compact__score-bar">
-          <div class="daily-prize-compact__points">
-            <span class="daily-prize-compact__points-label">POINTS</span>
-            <strong>+${format(score)}</strong>
-          </div>
-          <div class="daily-prize-compact__progress">
-            <div class="daily-prize-compact__tickets">
-              <span class="daily-prize__ticket-icon" aria-hidden="true">&#127915;</span>
-              <span class="daily-prize__ticket-count">${ticketCount()}</span>
-            </div>
-            <div class="daily-prize__ticket-progress" role="progressbar" aria-valuenow="${progress.percent}" aria-valuemin="0" aria-valuemax="100">
-              <span style="width:${progress.percent}%"></span>
-            </div>
-            <small class="daily-prize-compact__progress-label">${format(progress.current)} / ${format(progress.target)}</small>
-          </div>
-        </div>
-      </article>
-    `;
-  }
-
   return `
-    <article class="grand-prize-card daily-prize-card ${eligible ? "" : "daily-prize-card--locked"}">
+    <article class="grand-prize-card daily-prize-card${fitClass} ${eligible ? "" : "daily-prize-card--locked"}">
       <div class="grand-prize-card__head">
         <span class="grand-prize__badge">⚡ ${prize.title}</span>
         <h3>${symbol}${format(prize.prize)} · 3 friends required</h3>
@@ -3234,7 +3203,7 @@ function starsInvoiceErrorMessage(result, status) {
   if (result?.error === "INVOICE_RATE_LIMITED") {
     return "Please wait a moment before starting another payment.";
   }
-  if (result?.error === "INVOICE_CREATE_FAILED" || result?.error === "INVALID_INVOICE_LINK") {
+  if (result?.error === "INVOICE_CREATE_FAILED" || result?.error === "INVALID_INVOICE_LINK" || result?.error === "INVOICE_ERROR") {
     return result?.message || "Could not create Stars payment. Try again.";
   }
   if (result?.error === "TIMEOUT" || result?.error === "CONNECTION_ERROR" || status === 0) {
