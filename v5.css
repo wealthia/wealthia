@@ -340,7 +340,7 @@ p {
   align-items: center;
   justify-content: center;
   width: 100%;
-  font-size: 9px;
+  font-size: 14px;
   margin: 0;
   line-height: 1;
 }
@@ -348,9 +348,9 @@ p {
 .app.view-main .stat__label {
   display: block;
   width: 100%;
-  font-size: 5px;
+  font-size: 9px;
   letter-spacing: 0.04em;
-  line-height: 1.05;
+  line-height: 1.15;
   text-align: center;
   color: var(--muted);
   text-transform: uppercase;
@@ -361,11 +361,24 @@ p {
 .app.view-main .stat strong.stat__value {
   display: block;
   width: 100%;
-  font-size: 9px;
+  font-size: 15px;
   margin: 0;
   line-height: 1.1;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.app.view-main .stat--energy .stat__value {
+  color: var(--cyan);
+}
+
+.app.view-main .stat--city .stat__value {
+  color: var(--gold-light);
+}
+
+.app.view-main .stat--empire .stat__value {
+  color: #fff4d0;
 }
 
 .app.view-main .stat__energy-values {
@@ -379,16 +392,16 @@ p {
 }
 
 .app.view-main .stat__energy-values .stat__value {
-  font-size: 9px;
+  font-size: 15px;
   line-height: 1.1;
 }
 
 .app.view-main .stat__energy-max {
   display: block;
   width: 100%;
-  font-size: 6px;
+  font-size: 9px;
   font-weight: 600;
-  line-height: 1;
+  line-height: 1.1;
   color: var(--muted);
   text-align: center;
   font-variant-numeric: tabular-nums;
@@ -481,6 +494,107 @@ p {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+}
+
+.daily-prize-card--compact {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px !important;
+}
+
+.daily-prize-compact__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.daily-prize-compact__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  min-width: 0;
+}
+
+.daily-prize-compact__meta strong {
+  font-size: 11px;
+  line-height: 1.15;
+  color: var(--gold-light, #f5c451);
+}
+
+.daily-prize-compact__meta small {
+  font-size: 9px;
+  line-height: 1.2;
+  color: var(--muted);
+}
+
+.daily-prize-compact__score-bar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(245, 196, 81, 0.16), rgba(245, 196, 81, 0.06));
+  border: 1px solid rgba(245, 196, 81, 0.22);
+}
+
+.daily-prize-compact__points {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 58px;
+  text-align: center;
+}
+
+.daily-prize-compact__points-label {
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.daily-prize-compact__points strong {
+  font-size: 14px;
+  line-height: 1.1;
+  color: var(--gold-light, #f5c451);
+}
+
+.daily-prize-compact__progress {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.daily-prize-compact__tickets {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.daily-prize-compact__progress-label {
+  font-size: 8px;
+  line-height: 1.1;
+  text-align: center;
+  color: var(--muted);
+}
+
+.daily-prize-card--main .grand-prize__badge,
+.daily-prize-card--rank .grand-prize__badge {
+  font-size: 8px;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.daily-prize-card--main .daily-prize__ticket-progress,
+.daily-prize-card--rank .daily-prize__ticket-progress {
+  height: 4px;
 }
 
 .app.view-main .energy-section .grand-prize-card {
@@ -1429,9 +1543,7 @@ p {
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
 }
 
 .app.view-rank .rank-stack {
@@ -1439,16 +1551,33 @@ p {
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  gap: 8px;
-  overflow: visible;
+  gap: 5px;
+  overflow: hidden;
+}
+
+.app.view-rank .rank-stack .grand-prize-card.daily-prize-card--compact {
+  padding: 5px 8px;
+  gap: 4px;
+}
+
+.app.view-rank .rank-stack .daily-prize-compact__meta strong {
+  font-size: 10px;
+}
+
+.app.view-rank .rank-stack .daily-prize-compact__meta small {
+  font-size: 9px;
+}
+
+.app.view-rank .rank-stack .daily-prize-compact__points strong {
+  font-size: 12px;
 }
 
 .app.view-rank .rank-stack .grand-prize-card.daily-prize-card {
   flex: 0 0 auto;
   margin: 0;
-  padding: 12px 14px;
-  gap: 10px;
-  overflow: visible;
+  padding: 6px 10px;
+  gap: 6px;
+  overflow: hidden;
 }
 
 .app.view-rank .rank-stack .daily-prize-card .grand-prize-card__head,
@@ -1715,7 +1844,7 @@ p {
   font-size: 13px;
 }
 
-/* Rank tab daily prize uses default .grand-prize-card / .daily-prize__* styles (full layout) */
+/* Rank tab daily prize — compact layout (no scroll) */
 
 .app.view-rank .tabs {
   margin-top: 4px;
@@ -4345,16 +4474,20 @@ body.channel-gate-active .app {
   }
 
   .app.view-main .stat__icon {
+    font-size: 12px;
+  }
+
+  .app.view-main .stat__label {
     font-size: 8px;
   }
 
   .app.view-main .stat__value,
   .app.view-main .stat__energy-values .stat__value {
-    font-size: 8px;
+    font-size: 13px;
   }
 
   .app.view-main .stat__energy-max {
-    font-size: 5px;
+    font-size: 8px;
   }
 
   .app.view-main .city {
@@ -4633,31 +4766,37 @@ body.channel-gate-active .app {
 .app.view-main .game-shell {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+.app.view-main .stats,
+.app.view-main .city {
+  flex-shrink: 0;
 }
 
 .app.view-main .energy-section {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  justify-content: flex-end;
+  overflow: visible;
+  margin-top: auto;
 }
 
 .app.view-main #grandPrizeMount,
 .app.view-main #goldRushMount {
   flex: 0 1 auto;
   min-height: 0;
-  max-height: min(26vh, 148px);
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  max-height: min(22vh, 132px);
+  overflow: hidden;
 }
 
 .app.view-main .play-stack {
   flex: 0 0 auto;
   flex-shrink: 0;
-  margin-top: auto;
+  margin-top: 0;
   padding-bottom: 2px;
 }
 
