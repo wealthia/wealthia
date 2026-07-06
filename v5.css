@@ -444,7 +444,7 @@ p {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 12px;
   overflow: visible;
 }
 
@@ -456,7 +456,7 @@ p {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 16px;
   width: 100%;
   flex-shrink: 0;
 }
@@ -484,109 +484,8 @@ p {
 }
 
 .app.view-main .energy-section .grand-prize-card {
-  padding: 6px 8px;
+  padding: 8px 10px;
   margin: 0;
-}
-
-.daily-prize-card--compact {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 6px 8px !important;
-}
-
-.daily-prize-compact__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.daily-prize-compact__meta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 1px;
-  min-width: 0;
-}
-
-.daily-prize-compact__meta strong {
-  font-size: 11px;
-  line-height: 1.15;
-  color: var(--gold-light, #f5c451);
-}
-
-.daily-prize-compact__meta small {
-  font-size: 9px;
-  line-height: 1.2;
-  color: var(--muted);
-}
-
-.daily-prize-compact__score-bar {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, rgba(245, 196, 81, 0.16), rgba(245, 196, 81, 0.06));
-  border: 1px solid rgba(245, 196, 81, 0.22);
-}
-
-.daily-prize-compact__points {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-width: 58px;
-  text-align: center;
-}
-
-.daily-prize-compact__points-label {
-  font-size: 8px;
-  letter-spacing: 0.08em;
-  color: var(--muted);
-}
-
-.daily-prize-compact__points strong {
-  font-size: 14px;
-  line-height: 1.1;
-  color: var(--gold-light, #f5c451);
-}
-
-.daily-prize-compact__progress {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.daily-prize-compact__tickets {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  font-size: 11px;
-  line-height: 1;
-}
-
-.daily-prize-compact__progress-label {
-  font-size: 8px;
-  line-height: 1.1;
-  text-align: center;
-  color: var(--muted);
-}
-
-.daily-prize-card--main .grand-prize__badge,
-.daily-prize-card--rank .grand-prize__badge {
-  font-size: 8px;
-  margin: 0;
-  white-space: nowrap;
-}
-
-.daily-prize-card--main .daily-prize__ticket-progress,
-.daily-prize-card--rank .daily-prize__ticket-progress {
-  height: 4px;
 }
 
 .app.view-main .energy-section .grand-prize-card__head h3 {
@@ -1540,23 +1439,6 @@ p {
   min-height: 0;
   gap: 5px;
   overflow: hidden;
-}
-
-.app.view-rank .rank-stack .grand-prize-card.daily-prize-card--compact {
-  padding: 5px 8px;
-  gap: 4px;
-}
-
-.app.view-rank .rank-stack .daily-prize-compact__meta strong {
-  font-size: 10px;
-}
-
-.app.view-rank .rank-stack .daily-prize-compact__meta small {
-  font-size: 9px;
-}
-
-.app.view-rank .rank-stack .daily-prize-compact__points strong {
-  font-size: 12px;
 }
 
 .app.view-rank .rank-stack .grand-prize-card.daily-prize-card {
@@ -4825,4 +4707,93 @@ body.channel-gate-active .app {
 .tournament-join {
   width: 100%;
   margin-top: 16px;
+}
+
+/* Main tab — keep TAP + Energy Reserve above bottom navbar (CSS only) */
+.app.view-main {
+  height: 100dvh;
+  max-height: 100dvh;
+  padding-bottom: 0;
+}
+
+.app.view-main .app-scroll {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 0;
+  max-height: 100%;
+}
+
+.app.view-main .game-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app.view-main .energy-section {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  justify-content: flex-end;
+}
+
+.app.view-main #grandPrizeMount,
+.app.view-main #goldRushMount {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: min(26vh, 148px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.app.view-main .play-stack {
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  margin-top: auto;
+  padding-bottom: 2px;
+}
+
+.app.view-main .tabs {
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+@media (max-height: 720px) {
+  .app.view-main .energy-section {
+    gap: 8px;
+  }
+
+  .app.view-main .play-stack {
+    gap: 10px;
+  }
+
+  .app.view-main #grandPrizeMount {
+    max-height: min(22vh, 120px);
+  }
+
+  .app.view-main .tap-button-wrap {
+    width: 64px;
+    height: 64px;
+  }
+
+  .app.view-main .tap-button {
+    width: 60px;
+    height: 60px;
+  }
+}
+
+@media (max-height: 640px) {
+  .app.view-main #grandPrizeMount {
+    max-height: min(18vh, 100px);
+  }
+
+  .app.view-main .play-stack {
+    gap: 8px;
+  }
+
+  .app.view-main .tap-area {
+    padding: 6px 12px;
+  }
 }
