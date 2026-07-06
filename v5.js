@@ -3043,6 +3043,7 @@ function getReferrerId() {
 }
 
 const API_FETCH_TIMEOUT_MS = 25000;
+const INVOICE_FETCH_TIMEOUT_MS = 45000;
 
 async function apiPost(path, body = {}) {
   const controller = new AbortController();
@@ -3162,70 +3163,49 @@ async function wakeBackend() {
   }
 }
 
-async function warmBackendForPayment(attempts = 4) {
+async function warmBackendForPayment(attempts = 8) {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      const health = await fetch(`${API_URL}/ping`, { method: "GET", cache: "no-store" });
-      if (!health.ok) {
-        await sleep(700 * (attempt + 1));
+      const ping = await fetch(`${API_URL}/ping`, { method: "GET", cache: "no-store" });
+      if (!ping.ok) {
+        await sleep(900 * (attempt + 1));
         continue;
       }
 
-      if (backendSessionToken) {
-        await fetch(`${API_URL}/api/stars/products`, { method: "GET", cache: "no-store" });
+      const health = await fetch(`${API_URL}/health`, { method: "GET", cache: "no-store" });
+      if (!health.ok) {
+        await sleep(900 * (attempt + 1));
+        continue;
       }
 
+      await fetch(`${API_URL}/api/stars/products`, { method: "GET", cache: "no-store" });
       return true;
     } catch {
-      await sleep(700 * (attempt + 1));
+      await sleep(900 * (attempt + 1));
     }
   }
 
   return false;
 }
 
-function starsInvoiceErrorMessage(result, status) {
-  if (result?.error === "TELEGRAM_AUTH_FAILED") {
-    return "Telegram auth missing. Close and reopen the game.";
-  }
-  if (result?.error === "STARS_NOT_CONFIGURED") {
-    return "Stars payments not configured yet.";
-  }
-  if (result?.error === "STARS_TEST_MODE_DISABLED") {
-    return "Stars payments are unavailable in test mode.";
-  }
-  if (result?.error === "SESSION_EXPIRED") {
-    return "Session expired. Close and reopen the game.";
-  }
-  if (result?.error === "BAD_PRODUCT") {
-    return "This pack is not available yet. Refresh the game.";
-  }
-  if (result?.error === "INVOICE_RATE_LIMITED") {
-    return "Please wait a moment before starting another payment.";
-  }
-  if (result?.error === "INVOICE_CREATE_FAILED" || result?.error === "INVALID_INVOICE_LINK" || result?.error === "INVOICE_ERROR") {
-    return result?.message || "Could not create Stars payment. Try again.";
-  }
-  if (result?.error === "TIMEOUT" || result?.error === "CONNECTION_ERROR" || status === 0) {
-    return result?.message || "Server is waking up. Wait 10 seconds and try again.";
-  }
-  if (result?.message) return String(result.message);
-  if (result?.error) return String(result.error);
-  return "Could not open Stars payment.";
-}
-
-async function fetchStarsInvoice(productId, initData) {
+async function postInvoiceRequest(productId, options = {}) {
   const normalizedProductId = String(productId || "").trim();
+  const initData = options.initData ?? getTelegramInitData();
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), API_FETCH_TIMEOUT_MS);
+  const timeout = window.setTimeout(() => controller.abort(), INVOICE_FETCH_TIMEOUT_MS);
 
   try {
+    const headers = { "Content-Type": "application/json" };
+    if (backendSessionToken) {
+      headers.Authorization = `Bearer ${backendSessionToken}`;
+    }
+
     const body = { productId: normalizedProductId };
     if (initData) body.initData = initData;
 
     const response = await fetch(`${API_URL}/api/stars/invoice`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(body),
       signal: controller.signal
     });
@@ -3259,32 +3239,70 @@ async function fetchStarsInvoice(productId, initData) {
   }
 }
 
+async function fetchStarsInvoice(productId, initData) {
+  return postInvoiceRequest(productId, { initData });
+}
+
+function starsInvoiceErrorMessage(result, status) {
+  if (result?.error === "TELEGRAM_AUTH_FAILED") {
+    return "Telegram auth missing. Close and reopen the game.";
+  }
+  if (result?.error === "STARS_NOT_CONFIGURED") {
+    return "Stars payments not configured yet.";
+  }
+  if (result?.error === "STARS_TEST_MODE_DISABLED") {
+    return "Stars payments are unavailable in test mode.";
+  }
+  if (result?.error === "SESSION_EXPIRED") {
+    return "Session expired. Close and reopen the game.";
+  }
+  if (result?.error === "BAD_PRODUCT") {
+    return "This pack is not available yet. Refresh the game.";
+  }
+  if (result?.error === "INVOICE_RATE_LIMITED") {
+    return "Please wait a moment before starting another payment.";
+  }
+  if (result?.error === "INVOICE_CREATE_FAILED" || result?.error === "INVALID_INVOICE_LINK" || result?.error === "INVOICE_ERROR") {
+    return result?.message || "Could not create Stars payment. Try again.";
+  }
+  if (result?.error === "TIMEOUT" || result?.error === "CONNECTION_ERROR" || status === 0) {
+    return result?.message || "Server is waking up. Wait 10 seconds and try again.";
+  }
+  if (result?.message) return String(result.message);
+  if (result?.error) return String(result.error);
+  return "Could not open Stars payment.";
+}
+
 async function apiPostInvoice(productId) {
   const normalizedProductId = String(productId || "").trim();
   const initData = getTelegramInitData();
+  let response = await postInvoiceRequest(normalizedProductId, { initData });
 
-  if (initData) {
-    return fetchStarsInvoice(normalizedProductId, initData);
-  }
-
-  let response = await apiPost("/api/stars/invoice", { productId: normalizedProductId });
+  if (response.ok) return response;
 
   if (response.status === 401 || response.result?.error === "SESSION_EXPIRED") {
-    await connectBackend(2, { silent: true });
-    response = await apiPost("/api/stars/invoice", { productId: normalizedProductId });
+    backendSessionToken = "";
+    await connectBackend(3, { silent: true });
+    response = await postInvoiceRequest(normalizedProductId, { initData: getTelegramInitData() });
+    if (response.ok) return response;
+  }
+
+  if (!backendSessionToken) {
+    await connectBackend(3, { silent: true });
+    response = await postInvoiceRequest(normalizedProductId, { initData: getTelegramInitData() });
   }
 
   return response;
 }
 
 async function ensureBackendForPayment() {
-  await warmBackendForPayment(5);
+  const warmed = await warmBackendForPayment(8);
 
   if (isTelegramWebApp()) {
     await waitForTelegramInitData(8000);
   }
 
-  if (getTelegramInitData()) {
+  if (warmed && (backendReady || getTelegramInitData())) {
     return true;
   }
 
@@ -3292,8 +3310,10 @@ async function ensureBackendForPayment() {
     return true;
   }
 
-  await connectBackend(4, { silent: true });
-  return Boolean(getTelegramInitData() || (backendReady && backendSessionToken));
+  const connected = await connectBackend(5, { silent: true });
+  if (connected) return true;
+
+  return warmBackendForPayment(4);
 }
 
 function lockPaymentButton(button, options = {}) {
@@ -3354,19 +3374,17 @@ async function requestStarsInvoice(productId) {
 
   const createInvoice = () => apiPostInvoice(normalizedProductId);
 
-  await warmBackendForPayment(5);
+  await warmBackendForPayment(8);
 
   let response = await createInvoice();
 
-  if (response.status === 401 || response.result?.error === "SESSION_EXPIRED") {
-    backendSessionToken = "";
-    await connectBackend(3, { silent: true });
-    response = await createInvoice();
-  }
-
-  for (let retry = 0; retry < 3 && !response.ok && (response.status === 0 || response.status >= 500); retry += 1) {
-    await warmBackendForPayment(5);
-    await sleep(1500 * (retry + 1));
+  for (let retry = 0; retry < 5 && !response.ok && (response.status === 0 || response.status >= 500 || response.result?.error === "SESSION_EXPIRED"); retry += 1) {
+    if (response.status === 401 || response.result?.error === "SESSION_EXPIRED") {
+      backendSessionToken = "";
+      await connectBackend(3, { silent: true });
+    }
+    await warmBackendForPayment(6);
+    await sleep(1800 * (retry + 1));
     response = await createInvoice();
   }
 
@@ -4100,7 +4118,7 @@ async function buyTicketPack(productId, packTickets, button) {
 
   if (!(await ensureBackendForPayment())) {
     paymentInProgress = false;
-    showToast("Server not connected. Wait 10 seconds and try again.");
+    showToast("Server not connected. Wait 15 seconds and try again.");
     releasePaymentButton(button, { busyClass: "ticket-store__pack--busy payment-btn--busy" });
     return;
   }
@@ -4113,6 +4131,7 @@ async function buyTicketPack(productId, packTickets, button) {
   };
 
   try {
+    showToast("Opening Stars payment...");
     const { ok, result, status } = await requestStarsInvoice(productId);
 
     if (!ok || !result?.invoiceLink) {

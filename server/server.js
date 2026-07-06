@@ -1179,22 +1179,32 @@ function requirePlayer(req, res, next) {
 }
 
 function requirePlayerOrTelegram(req, res, next) {
-  const userId = verifyToken(bearerTokenFromRequest(req));
-  if (userId) {
-    req.playerId = userId;
-    next();
-    return;
-  }
-
-  const initData = String(req.body?.initData || "");
-  if (initData && TELEGRAM_BOT_TOKEN) {
-    const diagnosis = diagnoseTelegramAuth(initData, TELEGRAM_BOT_TOKEN);
-    if (diagnosis.ok && diagnosis.user?.id) {
-      req.playerId = String(diagnosis.user.id);
-      req.telegramUser = diagnosis.user;
+  try {
+    const userId = verifyToken(bearerTokenFromRequest(req));
+    if (userId) {
+      req.playerId = userId;
       next();
       return;
     }
+
+    const initData = String(req.body?.initData || "");
+    if (initData && TELEGRAM_BOT_TOKEN) {
+      const diagnosis = diagnoseTelegramAuth(initData, TELEGRAM_BOT_TOKEN);
+      if (diagnosis.ok && diagnosis.user?.id) {
+        req.playerId = String(diagnosis.user.id);
+        req.telegramUser = diagnosis.user;
+        next();
+        return;
+      }
+    }
+  } catch (error) {
+    console.error("REQUIRE_PLAYER_OR_TELEGRAM_ERROR:", error.message);
+    res.status(500).json({
+      ok: false,
+      error: "AUTH_ERROR",
+      message: "Payment auth failed. Close and reopen the game."
+    });
+    return;
   }
 
   res.status(401).json({
@@ -1221,7 +1231,7 @@ function ipRateLimit(req, res, next) {
     return;
   }
 
-  if (req.path === "/api/adsgram/reward" || req.path === "/api/session") {
+  if (req.path === "/api/adsgram/reward" || req.path === "/api/session" || req.path === "/api/stars/invoice") {
     next();
     return;
   }
@@ -4826,7 +4836,7 @@ async function sendPushMessage(telegramId, text) {
   if (!TELEGRAM_BOT_TOKEN) return false;
 
   try {
-    const webAppUrl = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2106";
+    const webAppUrl = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2107";
     await telegramApi("sendMessage", {
       chat_id: telegramId,
       text,
