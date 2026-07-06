@@ -717,34 +717,159 @@ function profileErrorMessage(result) {
   return result.error || result.detail || "Search failed.";
 }
 
-function renderUserProfileCard(profile) {
-  if (!els.userProfileCard || !profile) return;
+function resolveProfileFromApi(result) {
+  if (!result || typeof result !== "object") return null;
 
-  activeProfile = profile;
-  els.userProfileCard.hidden = false;
+  const profile = result.profile || result.user || result.data;
+  if (profile && (profile.userId || profile.user_id || profile.id)) {
+    return {
+      userId: String(profile.userId || profile.user_id || profile.id),
+      username: profile.username || "",
+      displayName: profile.displayName || profile.display_name || profile.first_name || profile.firstName || "",
+      coins: Number(profile.coins ?? 0),
+      tickets: Number(profile.tickets ?? 0),
+      totalSpins: Number(profile.totalSpins ?? profile.total_spins ?? 0),
+      registrationDate: profile.registrationDate || profile.registration_date || profile.created_at || null,
+      lastSeenAt: profile.lastSeenAt || profile.last_seen_at || null,
+      isBanned: Boolean(profile.isBanned ?? profile.is_banned),
+      bannedAt: profile.bannedAt || profile.banned_at || null,
+      banReason: profile.banReason || profile.ban_reason || ""
+    };
+  }
+
+  if (result.userId || result.user_id || result.id) {
+    return resolveProfileFromApi({ profile: result });
+  }
+
+  return null;
+}
+
+function getProfileElements() {
+  return {
+    card: document.getElementById("userProfileCard"),
+    displayName: document.getElementById("profileDisplayName"),
+    userMeta: document.getElementById("profileUserMeta"),
+    banBadge: document.getElementById("profileBanBadge"),
+    coins: document.getElementById("profileCoins"),
+    tickets: document.getElementById("profileTickets"),
+    totalSpins: document.getElementById("profileTotalSpins"),
+    registrationDate: document.getElementById("profileRegistrationDate"),
+    updateButton: document.getElementById("profileUpdateButton"),
+    banButton: document.getElementById("profileBanButton"),
+    unbanButton: document.getElementById("profileUnbanButton")
+  };
+}
+
+function ensureUserProfileCard() {
+  let card = document.getElementById("userProfileCard");
+  if (card) return card;
+
+  const host = document.querySelector(".profile-search-card") ||
+    document.getElementById("playersView");
+  if (!host) return null;
+
+  const wrapper = document.createElement("div");
+  wrapper.innerHTML = `
+    <div class="user-profile-card" id="userProfileCard">
+      <div class="user-profile-card__head">
+        <div>
+          <strong id="profileDisplayName">Player</strong>
+          <p class="empty" id="profileUserMeta">@username · ID</p>
+        </div>
+        <span class="badge badge--draft" id="profileBanBadge">Active</span>
+      </div>
+      <div class="form-grid profile-edit-grid">
+        <label>Coins <input id="profileCoins" type="number" min="0" /></label>
+        <label>Tickets <input id="profileTickets" type="number" min="0" /></label>
+        <label>Total Spins <input id="profileTotalSpins" type="text" readonly /></label>
+        <label>Registration Date <input id="profileRegistrationDate" type="text" readonly /></label>
+      </div>
+      <div class="profile-actions">
+        <button type="button" class="btn-save-config" id="profileUpdateButton">UPDATE PROFILE</button>
+        <button type="button" class="btn-ban" id="profileBanButton">BAN USER</button>
+        <button type="button" class="btn-secondary" id="profileUnbanButton" hidden>UNBAN USER</button>
+      </div>
+    </div>
+  `;
+
+  card = wrapper.firstElementChild;
+  host.appendChild(card);
+  bindProfileCardActions();
+  return card;
+}
+
+function showProfileCard(card) {
+  if (!card) return;
+  card.removeAttribute("hidden");
+  card.hidden = false;
+  card.classList.remove("user-profile-card--hidden");
+  card.classList.add("is-visible");
+  card.style.removeProperty("display");
+}
+
+function hideProfileCard(card) {
+  if (!card) return;
+  card.classList.remove("is-visible");
+  card.classList.add("user-profile-card--hidden");
+  card.hidden = true;
+  card.setAttribute("hidden", "");
+}
+
+function bindProfileCardActions() {
+  const updateButton = document.getElementById("profileUpdateButton");
+  const banButton = document.getElementById("profileBanButton");
+  const unbanButton = document.getElementById("profileUnbanButton");
+
+  if (updateButton && !updateButton.dataset.bound) {
+    updateButton.dataset.bound = "1";
+    updateButton.addEventListener("click", () => updateUserProfile().catch(() => showToast("Update failed.")));
+  }
+  if (banButton && !banButton.dataset.bound) {
+    banButton.dataset.bound = "1";
+    banButton.addEventListener("click", () => setProfileBanState(true).catch(() => showToast("Ban failed.")));
+  }
+  if (unbanButton && !unbanButton.dataset.bound) {
+    unbanButton.dataset.bound = "1";
+    unbanButton.addEventListener("click", () => setProfileBanState(false).catch(() => showToast("Unban failed.")));
+  }
+}
+
+function renderUserProfileCard(profile) {
+  const normalized = resolveProfileFromApi({ profile });
+  if (!normalized) return false;
+
+  const card = ensureUserProfileCard();
+  if (!card) return false;
+
+  const ui = getProfileElements();
+  activeProfile = normalized;
+  showProfileCard(card);
   setProfileSearchStatus("");
 
-  if (els.profileDisplayName) {
-    els.profileDisplayName.textContent = profile.displayName || profile.username || profile.userId;
+  if (ui.displayName) {
+    ui.displayName.textContent = normalized.displayName || normalized.username || normalized.userId;
   }
-  if (els.profileUserMeta) {
-    const username = profile.username ? `@${profile.username}` : "no username";
-    els.profileUserMeta.textContent = `${username} · ${profile.userId}`;
+  if (ui.userMeta) {
+    const username = normalized.username ? `@${normalized.username}` : "no username";
+    ui.userMeta.textContent = `${username} · ${normalized.userId}`;
   }
-  if (els.profileCoins) els.profileCoins.value = profile.coins;
-  if (els.profileTickets) els.profileTickets.value = profile.tickets;
-  if (els.profileTotalSpins) els.profileTotalSpins.value = formatNumber(profile.totalSpins);
-  if (els.profileRegistrationDate) {
-    els.profileRegistrationDate.value = formatDate(profile.registrationDate);
+  if (ui.coins) ui.coins.value = normalized.coins;
+  if (ui.tickets) ui.tickets.value = normalized.tickets;
+  if (ui.totalSpins) ui.totalSpins.value = formatNumber(normalized.totalSpins);
+  if (ui.registrationDate) {
+    ui.registrationDate.value = formatDate(normalized.registrationDate);
   }
 
-  const banned = Boolean(profile.isBanned);
-  if (els.profileBanBadge) {
-    els.profileBanBadge.textContent = banned ? "Banned" : "Active";
-    els.profileBanBadge.className = `badge ${banned ? "badge--ended" : "badge--active"}`;
+  const banned = Boolean(normalized.isBanned);
+  if (ui.banBadge) {
+    ui.banBadge.textContent = banned ? "Banned" : "Active";
+    ui.banBadge.className = `badge ${banned ? "badge--ended" : "badge--active"}`;
   }
-  if (els.profileBanButton) els.profileBanButton.hidden = banned;
-  if (els.profileUnbanButton) els.profileUnbanButton.hidden = !banned;
+  if (ui.banButton) ui.banButton.hidden = banned;
+  if (ui.unbanButton) ui.unbanButton.hidden = !banned;
+
+  card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  return true;
 }
 
 async function fetchUserProfileByQuery(query) {
@@ -764,7 +889,7 @@ async function fetchUserProfileByQuery(query) {
     els.profileSearchButton.textContent = "Searching...";
   }
   setProfileSearchStatus("Searching...", "info");
-  if (els.userProfileCard) els.userProfileCard.hidden = true;
+  hideProfileCard(document.getElementById("userProfileCard"));
 
   try {
     const params = new URLSearchParams({ query: trimmed });
@@ -783,7 +908,23 @@ async function fetchUserProfileByQuery(query) {
       return;
     }
 
-    renderUserProfileCard(result.profile);
+    const profile = resolveProfileFromApi(result);
+    if (!profile) {
+      const message = "Profile data missing in server response.";
+      setProfileSearchStatus(message, "error");
+      showToast(message);
+      activeProfile = null;
+      return;
+    }
+
+    if (!renderUserProfileCard(profile)) {
+      const message = "Could not render profile card. Hard refresh admin page (Ctrl+Shift+R).";
+      setProfileSearchStatus(message, "error");
+      showToast(message);
+      activeProfile = null;
+      return;
+    }
+
     showToast("Profile loaded.");
   } catch (error) {
     console.error("PROFILE_SEARCH_ERROR:", error);
@@ -818,13 +959,14 @@ async function updateUserProfile() {
 
   const payload = {
     userId: activeProfile.userId,
-    coins: Number(els.profileCoins ? els.profileCoins.value : activeProfile.coins),
-    tickets: Number(els.profileTickets ? els.profileTickets.value : activeProfile.tickets)
+    coins: Number(document.getElementById("profileCoins")?.value ?? activeProfile.coins),
+    tickets: Number(document.getElementById("profileTickets")?.value ?? activeProfile.tickets)
   };
 
-  if (els.profileUpdateButton) {
-    els.profileUpdateButton.disabled = true;
-    els.profileUpdateButton.textContent = "Updating...";
+  const updateButton = document.getElementById("profileUpdateButton");
+  if (updateButton) {
+    updateButton.disabled = true;
+    updateButton.textContent = "Updating...";
   }
 
   try {
@@ -838,16 +980,23 @@ async function updateUserProfile() {
       return;
     }
 
-    renderUserProfileCard(result.profile);
+    const profile = resolveProfileFromApi(result);
+    if (!renderUserProfileCard(profile)) {
+      showToast("Profile updated, but card could not refresh.");
+      await loadPlayers();
+      return;
+    }
+
     showToast("Profile updated.");
     await loadPlayers();
   } catch (error) {
     console.error("UPDATE_PROFILE_ERROR:", error);
     showToast("Update failed unexpectedly.");
   } finally {
-    if (els.profileUpdateButton) {
-      els.profileUpdateButton.disabled = false;
-      els.profileUpdateButton.textContent = "UPDATE PROFILE";
+    const updateButton = document.getElementById("profileUpdateButton");
+    if (updateButton) {
+      updateButton.disabled = false;
+      updateButton.textContent = "UPDATE PROFILE";
     }
   }
 }
@@ -876,7 +1025,12 @@ async function setProfileBanState(shouldBan) {
     return;
   }
 
-  renderUserProfileCard(result.profile);
+  const profile = resolveProfileFromApi(result);
+  if (!renderUserProfileCard(profile)) {
+    showToast(shouldBan ? "User banned." : "User unbanned.");
+    return;
+  }
+
   showToast(shouldBan ? "User banned." : "User unbanned.");
 }
 
@@ -1259,17 +1413,7 @@ if (els.profileSearchForm) {
   els.profileSearchForm.addEventListener("submit", searchUserProfile);
 }
 
-if (els.profileUpdateButton) {
-  els.profileUpdateButton.addEventListener("click", () => updateUserProfile().catch(() => showToast("Update failed.")));
-}
-
-if (els.profileBanButton) {
-  els.profileBanButton.addEventListener("click", () => setProfileBanState(true).catch(() => showToast("Ban failed.")));
-}
-
-if (els.profileUnbanButton) {
-  els.profileUnbanButton.addEventListener("click", () => setProfileBanState(false).catch(() => showToast("Unban failed.")));
-}
+bindProfileCardActions();
 
 if (els.createPromoForm) {
   els.createPromoForm.addEventListener("submit", createPromoCode);

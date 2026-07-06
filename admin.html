@@ -13,7 +13,7 @@
     #adminApp { display: none; }
     [hidden] { display: none !important; }
   </style>
-  <link rel="stylesheet" href="./admin.css?v=9" />
+  <link rel="stylesheet" href="./admin.css?v=10" />
 </head>
 <body>
   <div class="login" id="loginScreen">
@@ -238,7 +238,7 @@
             <button type="submit" id="profileSearchButton">Search</button>
           </form>
           <p class="profile-search-status empty" id="profileSearchStatus" hidden></p>
-          <div class="user-profile-card" id="userProfileCard" hidden>
+          <div class="user-profile-card user-profile-card--hidden" id="userProfileCard">
             <div class="user-profile-card__head">
               <div>
                 <strong id="profileDisplayName">Player</strong>
@@ -445,6 +445,6 @@
   <div class="toast" id="toast"></div>
 
   <script src="./config.js?v=1"></script>
-  <script src="./admin.js?v=10"></script>
+  <script src="./admin.js?v=11"></script>
 </body>
 </html>
