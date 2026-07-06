@@ -1,0 +1,14 @@
+name: Keep backend warm
+
+on:
+  schedule:
+    # Every 10 minutes — keeps Render from cold-starting (~15 min idle sleep)
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Wealthia backend
+        run: curl -fsS "https://wealthia-backend.onrender.com/ping"
