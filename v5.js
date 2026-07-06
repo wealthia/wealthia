@@ -1924,6 +1924,7 @@ function renderEarnPanel() {
 
   scheduleBoostRefresh();
   bindPromoRedeemForm();
+  prefetchEarnBoostInvoices();
 }
 
 function bindPromoRedeemForm() {
@@ -2433,6 +2434,8 @@ function bindRankPanelActions(panel) {
 }
 
 function renderRankPanel() {
+  if (paymentInProgress) return;
+
   const panel = els.globalLeaderboard;
   if (!panel) return;
 
@@ -2472,6 +2475,7 @@ function renderRankPanel() {
   `;
 
   bindRankPanelActions(panel);
+  prefetchTicketStoreInvoices();
 }
 
 function setRankPanelLayoutMode() {
@@ -3028,7 +3032,9 @@ function getReferrerId() {
 }
 
 const API_FETCH_TIMEOUT_MS = 25000;
-const INVOICE_FETCH_TIMEOUT_MS = 45000;
+const INVOICE_FETCH_TIMEOUT_MS = 15000;
+const STARS_INVOICE_CACHE_TTL_MS = 4 * 60 * 1000;
+const starsInvoiceCache = new Map();
 
 function shouldShowSyncErrorToast(silent) {
   return !silent && !paymentInProgress;
@@ -3139,6 +3145,7 @@ async function applyBackendUser(user, message) {
     }
   }
   startOnboardingIfNeeded();
+  prefetchStarsPaymentLinks();
   return true;
 }
 
@@ -3339,36 +3346,84 @@ async function ensureBackendForPayment() {
   return true;
 }
 
-async function startStarsPurchase(productId, options = {}) {
-  const {
-    button,
-    busyClass = "payment-btn--busy",
-    onPaid
-  } = options;
+function getCachedStarsInvoiceLink(productId) {
+  const id = String(productId || "").trim();
+  const entry = starsInvoiceCache.get(id);
+  if (!entry) return "";
 
-  if (!getTelegramWebApp() || typeof getTelegramWebApp().openInvoice !== "function") {
-    showToast("Open in Telegram to pay with Stars.");
-    return false;
+  if (Date.now() > entry.expiresAt) {
+    starsInvoiceCache.delete(id);
+    return "";
   }
 
-  if (button && !lockPaymentButton(button, { busyClass })) {
-    showToast("Payment already in progress. Wait a moment.");
-    return false;
-  }
+  return entry.link;
+}
 
-  const releaseButton = () => {
-    releasePaymentButton(button, { busyClass });
-  };
+function setCachedStarsInvoiceLink(productId, link) {
+  const id = String(productId || "").trim();
+  const cleanLink = String(link || "").trim();
+  if (!id || !cleanLink.startsWith("https://")) return;
+
+  starsInvoiceCache.set(id, {
+    link: cleanLink,
+    expiresAt: Date.now() + STARS_INVOICE_CACHE_TTL_MS
+  });
+}
+
+async function prefetchStarsInvoice(productId) {
+  const id = String(productId || "").trim();
+  if (!id || getCachedStarsInvoiceLink(id) || !getTelegramInitData()) return;
+
+  try {
+    wakeBackend();
+    const { link } = await fetchStarsInvoiceLink(id);
+    setCachedStarsInvoiceLink(id, link);
+  } catch (error) {
+    console.warn("PREFETCH_STARS_INVOICE_FAILED:", id, error.message);
+  }
+}
+
+function prefetchTicketStoreInvoices() {
+  if (!getTelegramInitData()) return;
+  for (const pack of getTicketStorePacks()) {
+    void prefetchStarsInvoice(pack.id);
+  }
+}
+
+function prefetchCoinStoreInvoices() {
+  if (!getTelegramInitData()) return;
+  for (const pack of COIN_STORE_PACKS) {
+    void prefetchStarsInvoice(pack.productId);
+  }
+}
+
+function prefetchEarnBoostInvoices() {
+  if (!getTelegramInitData()) return;
+  for (const id of ["refill_energy", "tap_boost_30", "endless_energy_30", "income_boost_30"]) {
+    void prefetchStarsInvoice(id);
+  }
+}
+
+function prefetchStarsPaymentLinks() {
+  prefetchTicketStoreInvoices();
+  prefetchCoinStoreInvoices();
+  prefetchEarnBoostInvoices();
+  void prefetchStarsInvoice("premium_spin");
+}
+
+function openStarsPurchaseSheet(productId, link, options = {}) {
+  const { onPaid } = options;
 
   paymentInProgress = true;
   beginPaymentQuietWindow();
   showToast(PAYMENT_OPENING_TOAST);
+  setCachedStarsInvoiceLink(productId, link);
 
-  let paymentSettled = false;
-  let paymentGuardTimer = null;
+  let paymentGuardTimer = window.setTimeout(() => {
+    paymentInProgress = false;
+  }, 120000);
 
-  const clearPaymentGuard = () => {
-    paymentSettled = true;
+  const clearGuard = () => {
     if (paymentGuardTimer) {
       window.clearTimeout(paymentGuardTimer);
       paymentGuardTimer = null;
@@ -3376,53 +3431,82 @@ async function startStarsPurchase(productId, options = {}) {
   };
 
   try {
+    openTelegramStarsInvoice(link, (paymentStatus) => {
+      clearGuard();
+      paymentInProgress = false;
+      runStarsInvoiceCallback(async (status) => {
+        if (status === "paid") {
+          showToast(PAYMENT_VERIFYING_TOAST);
+          starsInvoiceCache.delete(String(productId || "").trim());
+          if (onPaid) await onPaid();
+          void prefetchStarsInvoice(productId);
+          return;
+        }
+
+        if (status === "failed") {
+          showToast("Payment failed.");
+        } else if (status === "cancelled") {
+          showToast("Payment cancelled.");
+        }
+
+        void prefetchStarsInvoice(productId);
+      }, paymentStatus);
+    });
+
+    void prefetchStarsInvoice(productId);
+    return true;
+  } catch (error) {
+    clearGuard();
+    paymentInProgress = false;
+    console.error("OPEN_STARS_PURCHASE_SHEET_ERROR:", productId, error);
+    showToast(error.message || "Could not open Stars payment.");
+    void prefetchStarsInvoice(productId);
+    return false;
+  }
+}
+
+async function fetchAndOpenStarsPurchase(productId, options = {}) {
+  try {
     if (!(await ensureBackendForPayment())) {
       throw new Error("Open the game from @WealthiaGameBot, then try again.");
     }
 
     const { link } = await fetchStarsInvoiceLink(productId);
-    releaseButton();
-
-    paymentGuardTimer = window.setTimeout(() => {
-      if (!paymentSettled) {
-        paymentInProgress = false;
-        releaseButton();
-      }
-    }, 120000);
-
-    openTelegramStarsInvoice(link, (paymentStatus) => {
-      clearPaymentGuard();
-      paymentInProgress = false;
-      runStarsInvoiceCallback(async (status) => {
-        if (status === "paid") {
-          showToast(PAYMENT_VERIFYING_TOAST);
-          if (onPaid) await onPaid();
-          releaseButton();
-          return;
-        }
-
-        releaseButton();
-
-        if (status === "failed") {
-          showToast("Payment failed.");
-          return;
-        }
-
-        if (status === "cancelled") {
-          showToast("Payment cancelled.");
-        }
-      }, paymentStatus);
-    });
-
-    return true;
+    return openStarsPurchaseSheet(productId, link, options);
   } catch (error) {
-    clearPaymentGuard();
     paymentInProgress = false;
     console.error("STARS_PURCHASE_ERROR:", productId, error);
     showToast(error.message || "Could not start Stars payment.");
-    releaseButton();
+    void prefetchStarsInvoice(productId);
     return false;
   }
+}
+
+function launchStarsPurchase(productId, options = {}) {
+  if (!getTelegramWebApp() || typeof getTelegramWebApp().openInvoice !== "function") {
+    showToast("Open in Telegram to pay with Stars.");
+    return false;
+  }
+
+  if (paymentInProgress) {
+    showToast("Payment already in progress.");
+    return false;
+  }
+
+  const cachedLink = getCachedStarsInvoiceLink(productId);
+  if (cachedLink) {
+    return openStarsPurchaseSheet(productId, cachedLink, options);
+  }
+
+  paymentInProgress = true;
+  beginPaymentQuietWindow();
+  showToast(PAYMENT_OPENING_TOAST);
+  void fetchAndOpenStarsPurchase(productId, options);
+  return true;
+}
+
+async function startStarsPurchase(productId, options = {}) {
+  return launchStarsPurchase(productId, options);
 }
 
 function lockPaymentButton(button, options = {}) {
@@ -3703,6 +3787,8 @@ function markMessageShown(key) {
 }
 
 async function loadLeaderboard() {
+  if (paymentInProgress) return;
+
   if (!backendReady) {
     renderRankPanel();
     renderCampaignBanner();
@@ -4142,6 +4228,7 @@ function openCoinStoreModal() {
   const modal = document.getElementById("coinStoreModal");
   if (!modal) return;
   renderCoinStorePacks();
+  prefetchCoinStoreInvoices();
   modal.hidden = false;
 }
 
@@ -4177,9 +4264,7 @@ async function buyCoinPack(productId, coinAmount, button) {
   const beforeCoins = Number(state.coins || 0);
   const expectedAdd = Math.max(0, Number(coinAmount || 0));
 
-  await startStarsPurchase(productId, {
-    button,
-    busyClass: "coin-store-pack--busy payment-btn--busy",
+  launchStarsPurchase(productId, {
     onPaid: async () => {
       const fulfilled = await waitForCoinFulfillment(beforeCoins, expectedAdd);
       await refreshBackendState();
@@ -4202,9 +4287,7 @@ async function buyCoinPack(productId, coinAmount, button) {
 async function buyTicketPack(productId, packTickets, button) {
   const beforeTickets = ticketCount();
 
-  await startStarsPurchase(productId, {
-    button,
-    busyClass: "ticket-store__pack--busy payment-btn--busy",
+  launchStarsPurchase(productId, {
     onPaid: async () => {
       const fulfilled = await waitForTicketFulfillment(beforeTickets, packTickets);
 
@@ -4228,9 +4311,7 @@ async function buyTicketPack(productId, packTickets, button) {
 }
 
 async function buyStarsProduct(productId, button) {
-  await startStarsPurchase(productId, {
-    button,
-    busyClass: "earn-boost--busy payment-btn--busy",
+  launchStarsPurchase(productId, {
     onPaid: async () => {
       const fulfilled = await waitForStarFulfillment(productId);
 
@@ -4445,6 +4526,11 @@ document.querySelectorAll(".tab").forEach((tab) => {
     if (tab.dataset.tab === "rankPanel") {
       loadLeaderboard();
       loadTournament();
+      prefetchTicketStoreInvoices();
+    }
+
+    if (tab.dataset.tab === "earnPanel") {
+      prefetchEarnBoostInvoices();
     }
   });
 });
