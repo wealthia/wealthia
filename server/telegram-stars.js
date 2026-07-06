@@ -1,13 +1,14 @@
 const STARS_PRODUCTION_MODE = process.env.STARS_TEST_MODE !== "true";
 const paymentSecurity = require("./payment-security");
 
-function buildStarsInvoiceBody({ title, description, payload, stars }) {
+function buildStarsInvoiceBody({ title, description, payload, stars, priceLabel }) {
   const safeTitle = String(title || "Wealthia").trim().slice(0, 32);
   const safeDescription = String(description || "Premium purchase").trim().slice(0, 255);
   const productionPayload = String(payload || "").startsWith("prod|")
     ? String(payload)
     : `prod|${String(payload || "")}`;
   const starAmount = Math.max(1, Math.round(Number(stars) || 0));
+  const label = String(priceLabel || safeTitle).trim().slice(0, 32);
 
   return {
     title: safeTitle,
@@ -15,7 +16,7 @@ function buildStarsInvoiceBody({ title, description, payload, stars }) {
     payload: productionPayload.slice(0, 128),
     provider_token: "",
     currency: "XTR",
-    prices: [{ label: safeTitle, amount: starAmount }]
+    prices: [{ label, amount: starAmount }]
   };
 }
 
