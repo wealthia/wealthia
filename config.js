@@ -2,7 +2,7 @@
 // Full monetization guide: MONETIZATION.md
 window.WEALTHIA_CONFIG = {
   API_URL: "https://wealthia-backend.onrender.com",
-  GAME_URL: "https://wealthia.github.io/wealthia/v5.html?v=2102",
+  GAME_URL: "https://wealthia.github.io/wealthia/v5.html?v=2103",
   ADMIN_URL: "https://wealthia.github.io/wealthia/admin.html",
 
   // Your bot username without @ — used for invite links

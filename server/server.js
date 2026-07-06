@@ -1178,6 +1178,31 @@ function requirePlayer(req, res, next) {
   next();
 }
 
+function requirePlayerOrTelegram(req, res, next) {
+  const userId = verifyToken(bearerTokenFromRequest(req));
+  if (userId) {
+    req.playerId = userId;
+    next();
+    return;
+  }
+
+  const initData = String(req.body?.initData || "");
+  if (initData && TELEGRAM_BOT_TOKEN) {
+    const telegramUser = verifyTelegramInitData(initData, TELEGRAM_BOT_TOKEN);
+    if (telegramUser?.id) {
+      req.playerId = String(telegramUser.id);
+      req.telegramUser = telegramUser;
+      next();
+      return;
+    }
+  }
+
+  res.status(401).json({
+    error: "SESSION_EXPIRED",
+    message: "Session expired. Close and reopen the game."
+  });
+}
+
 async function getPlayerTelegramId(userId) {
   const { data, error } = await supabase
     .from("users")
@@ -2741,7 +2766,7 @@ app.get("/api/stars/products", (_req, res) => {
   res.json({ ok: true, products });
 });
 
-app.post("/api/stars/invoice", requirePlayer, paymentSecurity.starsInvoiceRateLimit, async (req, res) => {
+app.post("/api/stars/invoice", requirePlayerOrTelegram, paymentSecurity.starsInvoiceRateLimit, async (req, res) => {
   try {
     const tokenUserId = String(req.playerId || "");
     const productId = String(req.body.productId || "").trim();

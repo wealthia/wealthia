@@ -3039,7 +3039,12 @@ function getReferrerId() {
   return String(startParam);
 }
 
+const API_FETCH_TIMEOUT_MS = 25000;
+
 async function apiPost(path, body = {}) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), API_FETCH_TIMEOUT_MS);
+
   try {
     const headers = { "Content-Type": "application/json" };
     if (backendSessionToken) {
@@ -3049,7 +3054,8 @@ async function apiPost(path, body = {}) {
     const response = await fetch(`${API_URL}${path}`, {
       method: "POST",
       headers,
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: controller.signal
     });
 
     let result = null;
@@ -3059,17 +3065,26 @@ async function apiPost(path, body = {}) {
       try {
         result = JSON.parse(raw);
       } catch {
-        result = { error: "CONNECTION_ERROR", message: CONNECTION_ERROR_TOAST };
+        result = { error: "BAD_RESPONSE", message: "Server returned an invalid response." };
       }
     }
 
     return { ok: response.ok, status: response.status, result };
-  } catch {
+  } catch (error) {
+    if (error && error.name === "AbortError") {
+      return {
+        ok: false,
+        status: 0,
+        result: { error: "TIMEOUT", message: "Server is waking up. Wait a few seconds and try again." }
+      };
+    }
     return {
       ok: false,
       status: 0,
       result: { error: "CONNECTION_ERROR", message: CONNECTION_ERROR_TOAST }
     };
+  } finally {
+    window.clearTimeout(timeout);
   }
 }
 
@@ -3138,7 +3153,7 @@ async function sleep(ms) {
 
 async function wakeBackend() {
   try {
-    await fetch(`${API_URL}/health`, { method: "GET", cache: "no-store" });
+    await fetch(`${API_URL}/ping`, { method: "GET", cache: "no-store" });
   } catch {
     // Render cold start — session retry will follow.
   }
@@ -3147,7 +3162,7 @@ async function wakeBackend() {
 async function warmBackendForPayment(attempts = 4) {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      const health = await fetch(`${API_URL}/health`, { method: "GET", cache: "no-store" });
+      const health = await fetch(`${API_URL}/ping`, { method: "GET", cache: "no-store" });
       if (!health.ok) {
         await sleep(700 * (attempt + 1));
         continue;
@@ -3188,8 +3203,8 @@ function starsInvoiceErrorMessage(result, status) {
   if (result?.error === "INVOICE_CREATE_FAILED" || result?.error === "INVALID_INVOICE_LINK") {
     return result?.message || "Could not create Stars payment. Try again.";
   }
-  if (result?.error === "CONNECTION_ERROR" || status === 0) {
-    return "Server is waking up. Wait 10 seconds and try again.";
+  if (result?.error === "TIMEOUT" || result?.error === "CONNECTION_ERROR" || status === 0) {
+    return result?.message || "Server is waking up. Wait 10 seconds and try again.";
   }
   if (result?.message) return String(result.message);
   if (result?.error) return String(result.error);
@@ -3269,23 +3284,7 @@ async function requestStarsInvoice(productId) {
 
   await waitForTelegramInitData(5000);
 
-  const createInvoice = async () => {
-    const initData = getTelegramInitData();
-    if (initData) {
-      return apiPost("/api/stars/invoice", { productId: normalizedProductId, initData });
-    }
-    if (backendSessionToken) {
-      return apiPost("/api/stars/invoice", { productId: normalizedProductId });
-    }
-    return {
-      ok: false,
-      status: 403,
-      result: {
-        error: "SESSION_EXPIRED",
-        message: "Session expired. Close and reopen the game."
-      }
-    };
-  };
+  const createInvoice = () => apiPostSecure("/api/stars/invoice", { productId: normalizedProductId });
 
   await warmBackendForPayment();
 
@@ -3299,8 +3298,9 @@ async function requestStarsInvoice(productId) {
     }
   }
 
-  if (!response.ok && (response.status === 0 || response.status >= 500)) {
-    await warmBackendForPayment(5);
+  for (let retry = 0; retry < 2 && !response.ok && (response.status === 0 || response.status >= 500); retry += 1) {
+    await warmBackendForPayment(4);
+    await sleep(1200 * (retry + 1));
     response = await createInvoice();
   }
 
@@ -3472,7 +3472,7 @@ async function loadLeaderboard() {
   if (!ok || !result) {
     if (status === 401) {
       backendSessionToken = "";
-      await connectBackend(1);
+      await connectBackend(1, { silent: true });
     }
     renderRankPanel();
     return;
