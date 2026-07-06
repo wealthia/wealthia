@@ -606,8 +606,10 @@ const CONNECTION_ERROR_TOAST =
   "⚠️ Connection error. Please try again or restart the bot.";
 
 const PAYMENT_VERIFYING_TOAST = "Payment is being verified. Please wait...";
+const PAYMENT_OPENING_TOAST = "Opening Stars payment...";
 
 let channelGateUrl = "";
+let starsInvoiceStatusHandler = null;
 
 function showConnectionErrorToast() {
   if (paymentInProgress || Date.now() < paymentQuietUntil) return;
@@ -3326,14 +3328,15 @@ async function apiPostInvoice(productId) {
 
 async function ensureBackendForPayment() {
   if (isTelegramWebApp()) {
-    await waitForTelegramInitData(8000);
+    await waitForTelegramInitData(5000);
   }
 
   if (!getTelegramInitData()) {
     return false;
   }
 
-  return warmBackendForPayment(8);
+  wakeBackend();
+  return true;
 }
 
 async function startStarsPurchase(productId, options = {}) {
@@ -3349,6 +3352,7 @@ async function startStarsPurchase(productId, options = {}) {
   }
 
   if (button && !lockPaymentButton(button, { busyClass })) {
+    showToast("Payment already in progress. Wait a moment.");
     return false;
   }
 
@@ -3358,15 +3362,36 @@ async function startStarsPurchase(productId, options = {}) {
 
   paymentInProgress = true;
   beginPaymentQuietWindow();
+  showToast(PAYMENT_OPENING_TOAST);
+
+  let paymentSettled = false;
+  let paymentGuardTimer = null;
+
+  const clearPaymentGuard = () => {
+    paymentSettled = true;
+    if (paymentGuardTimer) {
+      window.clearTimeout(paymentGuardTimer);
+      paymentGuardTimer = null;
+    }
+  };
 
   try {
     if (!(await ensureBackendForPayment())) {
-      throw new Error("Payment server is waking up. Wait 10 seconds and try again.");
+      throw new Error("Open the game from @WealthiaGameBot, then try again.");
     }
 
     const { link } = await fetchStarsInvoiceLink(productId);
+    releaseButton();
+
+    paymentGuardTimer = window.setTimeout(() => {
+      if (!paymentSettled) {
+        paymentInProgress = false;
+        releaseButton();
+      }
+    }, 120000);
 
     openTelegramStarsInvoice(link, (paymentStatus) => {
+      clearPaymentGuard();
       paymentInProgress = false;
       runStarsInvoiceCallback(async (status) => {
         if (status === "paid") {
@@ -3391,6 +3416,7 @@ async function startStarsPurchase(productId, options = {}) {
 
     return true;
   } catch (error) {
+    clearPaymentGuard();
     paymentInProgress = false;
     console.error("STARS_PURCHASE_ERROR:", productId, error);
     showToast(error.message || "Could not start Stars payment.");
@@ -3422,6 +3448,26 @@ function getTelegramWebApp() {
   return WebApp || null;
 }
 
+function bindStarsInvoiceClosedListener() {
+  const WebApp = getTelegramWebApp();
+  if (!WebApp || WebApp.__wealthiaInvoiceBound) return;
+
+  WebApp.__wealthiaInvoiceBound = true;
+
+  const handleClosed = (event) => {
+    const status = event && event.status ? event.status : event;
+    if (!status || typeof starsInvoiceStatusHandler !== "function") return;
+
+    const handler = starsInvoiceStatusHandler;
+    starsInvoiceStatusHandler = null;
+    handler(status);
+  };
+
+  if (typeof WebApp.onEvent === "function") {
+    WebApp.onEvent("invoiceClosed", handleClosed);
+  }
+}
+
 function openTelegramStarsInvoice(invoiceLink, onStatus) {
   const WebApp = getTelegramWebApp();
   const link = String(invoiceLink || "").trim();
@@ -3435,7 +3481,35 @@ function openTelegramStarsInvoice(invoiceLink, onStatus) {
     throw new Error("Open in Telegram to pay with Stars.");
   }
 
-  WebApp.openInvoice(link, typeof onStatus === "function" ? onStatus : () => {});
+  bindStarsInvoiceClosedListener();
+  WebApp.ready();
+  WebApp.expand();
+
+  const callback = typeof onStatus === "function" ? onStatus : () => {};
+  let settled = false;
+
+  const finish = (status) => {
+    if (settled) return;
+    settled = true;
+    starsInvoiceStatusHandler = null;
+    callback(status);
+  };
+
+  starsInvoiceStatusHandler = finish;
+
+  try {
+    WebApp.openInvoice(link, finish);
+  } catch (error) {
+    console.error("OPEN_INVOICE_FAILED:", error);
+    if (link.includes("t.me") && typeof WebApp.openTelegramLink === "function") {
+      WebApp.openTelegramLink(link);
+      showToast("Complete payment in Telegram, then return to the game.");
+      return true;
+    }
+    finish("failed");
+    throw error;
+  }
+
   return true;
 }
 
@@ -4269,6 +4343,8 @@ function initTelegramWebApp() {
   if (typeof tg.disableVerticalSwipes === "function") {
     tg.disableVerticalSwipes();
   }
+
+  bindStarsInvoiceClosedListener();
 }
 
 function setupTapControls() {
