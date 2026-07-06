@@ -503,6 +503,15 @@ input, select {
   background: linear-gradient(160deg, rgba(26, 34, 58, 0.95), rgba(12, 16, 28, 0.98));
 }
 
+.user-profile-card--hidden,
+.user-profile-card:not(.is-visible) {
+  display: none;
+}
+
+.user-profile-card.is-visible {
+  display: block;
+}
+
 .user-profile-card__head {
   display: flex;
   justify-content: space-between;
