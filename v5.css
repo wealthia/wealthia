@@ -501,7 +501,7 @@ p {
   flex-direction: column;
   gap: 4px;
   margin: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .daily-prize-card--fit .grand-prize-card__head {
@@ -596,8 +596,8 @@ p {
 }
 
 .app.view-main .energy-section .daily-prize-card--fit-main {
-  flex-shrink: 1;
-  min-height: 0;
+  flex-shrink: 0;
+  overflow: visible;
 }
 
 .app.view-main .energy-section .grand-prize-card__head h3 {
@@ -1111,6 +1111,24 @@ p {
   background: linear-gradient(145deg, rgba(124, 92, 255, 0.1), rgba(18, 24, 42, 0.95));
 }
 
+.app.view-earn {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  padding: max(6px, env(safe-area-inset-top)) 12px max(4px, env(safe-area-inset-bottom));
+}
+
+.app.view-earn .app-scroll {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+
+.app.view-earn .tabs {
+  flex-shrink: 0;
+}
+
 /* Earn tab — compact, no scroll */
 .app.view-earn .app-scroll {
   display: flex;
@@ -1125,11 +1143,21 @@ p {
 .app.view-earn #earnPanel.panel.active {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-rows: auto auto auto;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   overflow: hidden;
-  align-content: start;
+}
+
+.app.view-earn .earn-compact-head,
+.app.view-earn .earn-rows,
+.app.view-earn .earn-promo {
+  flex-shrink: 0;
+}
+
+.app.view-earn .earn-boosts {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .earn-boosts {
@@ -1203,7 +1231,8 @@ p {
 }
 
 .earn-promo {
-  margin-top: 10px;
+  flex-shrink: 0;
+  margin-top: 0;
   padding: 12px;
   border-radius: 14px;
   border: 1px solid var(--line);
@@ -1561,11 +1590,11 @@ p {
 }
 
 .app.view-rank .rank-stack .grand-prize-card.daily-prize-card {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   margin: 0;
   padding: 6px 8px;
   gap: 4px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .app.view-rank .rank-stack .daily-prize-card .grand-prize-card__head,
@@ -4482,10 +4511,6 @@ body.channel-gate-active .app {
     height: 58px !important;
   }
 
-  .app.view-main #grandPrizeMount {
-    max-height: 22vh;
-  }
-
   .buy-button {
     padding: 0 10px;
     font-size: 11px;
@@ -4756,7 +4781,7 @@ body.channel-gate-active .app {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .app.view-main .stats,
@@ -4769,23 +4794,30 @@ body.channel-gate-active .app {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  justify-content: flex-start;
+  gap: 6px;
   overflow: hidden;
   margin-top: 0;
-  gap: 6px;
 }
 
 .app.view-main #grandPrizeMount,
 .app.view-main #goldRushMount {
-  flex: 0 1 auto;
-  min-height: 0;
-  max-height: min(30vh, 210px);
-  overflow: hidden;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  overflow: visible;
+  max-height: none;
+}
+
+.app.view-main #grandPrizeMount .daily-prize-card--fit-main,
+.app.view-main #grandPrizeMount .grand-prize-card {
+  overflow: visible;
 }
 
 .app.view-main .play-stack {
   flex: 0 0 auto;
   flex-shrink: 0;
-  margin-top: auto;
+  margin-top: 0;
+  gap: 10px;
   padding-bottom: 2px;
 }
 
@@ -4796,15 +4828,11 @@ body.channel-gate-active .app {
 
 @media (max-height: 720px) {
   .app.view-main .energy-section {
-    gap: 8px;
+    gap: 5px;
   }
 
   .app.view-main .play-stack {
-    gap: 10px;
-  }
-
-  .app.view-main #grandPrizeMount {
-    max-height: min(28vh, 180px);
+    gap: 8px;
   }
 
   .app.view-main .tap-button-wrap {
@@ -4816,18 +4844,107 @@ body.channel-gate-active .app {
     width: 60px;
     height: 60px;
   }
+
+  .daily-prize-card--fit .grand-prize-card__head h3 {
+    font-size: 11px;
+  }
+
+  .daily-prize-card--fit .daily-prize__gain-value {
+    font-size: 13px;
+  }
 }
 
 @media (max-height: 640px) {
-  .app.view-main #grandPrizeMount {
-    max-height: min(24vh, 160px);
-  }
-
   .app.view-main .play-stack {
-    gap: 8px;
+    gap: 6px;
   }
 
   .app.view-main .tap-area {
     padding: 6px 12px;
+  }
+
+  .app.view-main .city {
+    height: 52px !important;
+  }
+}
+
+/* Telegram Desktop / Web — taller viewport fixes */
+@media (hover: hover) and (pointer: fine), (min-width: 500px) {
+  .app.view-main .city {
+    height: 52px !important;
+  }
+
+  .app.view-main .energy-section {
+    gap: 4px;
+    justify-content: flex-start;
+  }
+
+  .app.view-main #grandPrizeMount,
+  .app.view-main #goldRushMount {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .app.view-main .play-stack {
+    margin-top: 0;
+    gap: 8px;
+  }
+
+  .app.view-earn {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+    padding-bottom: 0;
+  }
+
+  .app.view-earn .app-scroll {
+    overflow: hidden;
+    padding-bottom: 0;
+  }
+
+  .app.view-earn #earnPanel.panel.active {
+    gap: 6px;
+    padding-bottom: 2px;
+  }
+
+  .app.view-earn .earn-compact-head {
+    padding: 8px 10px;
+  }
+
+  .app.view-earn .earn-compact-head h2 {
+    font-size: 16px;
+    margin-top: 4px;
+  }
+
+  .app.view-earn .earn-task--compact {
+    min-height: 46px;
+    padding: 8px 10px;
+  }
+
+  .app.view-earn .earn-boosts {
+    padding: 8px 10px;
+  }
+
+  .app.view-earn .earn-boost {
+    min-height: 62px;
+    padding: 6px 3px;
+  }
+
+  .app.view-earn .earn-promo {
+    padding: 10px;
+  }
+
+  .app.view-rank .rank-stack {
+    overflow: visible;
+  }
+
+  .app.view-rank .rank-stack .grand-prize-card.daily-prize-card--fit,
+  .app.view-rank .rank-stack .grand-prize-card.daily-prize-card {
+    overflow: visible;
+    flex-shrink: 0;
+  }
+
+  .app.view-rank #globalLeaderboard {
+    overflow: visible;
   }
 }
