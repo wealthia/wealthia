@@ -1482,30 +1482,32 @@ async function openPremiumSpinInvoice(spinButton) {
     const { link } = await fetchStarsInvoiceLink("premium_spin");
     resetPremiumSpinButton(spinButton);
 
-    openTelegramStarsInvoice(link, async (status) => {
-      if (status !== "paid") {
-        if (status === "failed") showToast("Payment failed.");
-        if (status === "cancelled") showToast("Payment cancelled.");
-        resetPremiumSpinButton(spinButton);
-        return;
-      }
+    openTelegramStarsInvoice(link, (status) => {
+      runStarsInvoiceCallback(async (paymentStatus) => {
+        if (paymentStatus !== "paid") {
+          if (paymentStatus === "failed") showToast("Payment failed.");
+          if (paymentStatus === "cancelled") showToast("Payment cancelled.");
+          resetPremiumSpinButton(spinButton);
+          return;
+        }
 
-      setPremiumSpinButton(spinButton, true, "Confirming payment...");
-      const ready = await waitForPremiumSpinPayment(60);
-      if (!ready) {
+        setPremiumSpinButton(spinButton, true, "Confirming payment...");
+        const ready = await waitForPremiumSpinPayment(60);
+        if (!ready) {
+          premiumSpinAwaitingRetry = true;
+          premiumSpinPaid = true;
+          showToast("Payment received. Tap SPIN again in a few seconds.");
+          if (spinButton) {
+            spinButton.textContent = "SPIN (PAID)";
+            spinButton.disabled = false;
+          }
+          return;
+        }
+
         premiumSpinAwaitingRetry = true;
         premiumSpinPaid = true;
-        showToast("Payment received. Tap SPIN again in a few seconds.");
-        if (spinButton) {
-          spinButton.textContent = "SPIN (PAID)";
-          spinButton.disabled = false;
-        }
-        return;
-      }
-
-      premiumSpinAwaitingRetry = true;
-      premiumSpinPaid = true;
-      await runPremiumSpinAfterPayment();
+        await runPremiumSpinAfterPayment();
+      }, status);
     });
   } catch (error) {
     console.error("PREMIUM_SPIN_INVOICE_ERROR:", error);
@@ -2438,7 +2440,8 @@ function bindRankPanelActions(panel) {
       if (productId && count > 0) {
         buyTicketPack(productId, count, button).catch((error) => {
           console.error("BUY_TICKET_PACK_ERROR:", error);
-          showToast("Could not start payment. Please try again.");
+          paymentInProgress = false;
+          showToast(error.message || "Could not start Stars payment.");
           releasePaymentButton(button, { busyClass: "ticket-store__pack--busy payment-btn--busy" });
         });
       }
@@ -3046,6 +3049,27 @@ function getReferrerId() {
 const API_FETCH_TIMEOUT_MS = 25000;
 const INVOICE_FETCH_TIMEOUT_MS = 45000;
 
+function shouldShowSyncErrorToast(silent) {
+  return !silent && !paymentInProgress;
+}
+
+async function refreshPaymentSession() {
+  const { ok, result } = await apiPost("/api/session", {
+    initData: getTelegramInitData(),
+    telegramUser: getTelegramUser(),
+    referrerId: getReferrerId()
+  });
+
+  if (ok && result && !result.error && result.token) {
+    backendSessionToken = result.token;
+    backendUserId = result.userId || backendUserId;
+    backendReady = true;
+    return true;
+  }
+
+  return false;
+}
+
 async function apiPost(path, body = {}) {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), API_FETCH_TIMEOUT_MS);
@@ -3280,21 +3304,24 @@ function starsInvoiceErrorMessage(result, status) {
 
 async function apiPostInvoice(productId) {
   const normalizedProductId = String(productId || "").trim();
-  const initData = getTelegramInitData();
-  let response = await postInvoiceRequest(normalizedProductId, { initData });
+  let response = null;
 
-  if (response.ok) return response;
-
-  if (response.status === 401 || response.result?.error === "SESSION_EXPIRED") {
-    backendSessionToken = "";
-    await connectBackend(3, { silent: true });
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    await warmBackendForPayment(4);
     response = await postInvoiceRequest(normalizedProductId, { initData: getTelegramInitData() });
     if (response.ok) return response;
-  }
 
-  if (!backendSessionToken) {
-    await connectBackend(3, { silent: true });
-    response = await postInvoiceRequest(normalizedProductId, { initData: getTelegramInitData() });
+    const err = response.result?.error;
+    if (response.status === 401 || err === "SESSION_EXPIRED") {
+      backendSessionToken = "";
+      await refreshPaymentSession();
+    }
+
+    if (response.status !== 0 && response.status < 500 && err !== "SESSION_EXPIRED") {
+      return response;
+    }
+
+    await sleep(1600 * (attempt + 1));
   }
 
   return response;
@@ -3378,6 +3405,15 @@ async function fetchStarsInvoiceLink(productId) {
   };
 }
 
+function runStarsInvoiceCallback(callback, paymentStatus) {
+  Promise.resolve()
+    .then(() => callback(paymentStatus))
+    .catch((error) => {
+      console.error("STARS_INVOICE_CALLBACK_ERROR:", error);
+      showToast(error.message || "Payment confirmation failed.");
+    });
+}
+
 function openStarsPaymentSheet(tg, invoiceLink, onStatus) {
   return openTelegramStarsInvoice(invoiceLink, onStatus);
 }
@@ -3393,36 +3429,13 @@ async function requestStarsInvoice(productId) {
   }
 
   await waitForTelegramInitData(5000);
+  await warmBackendForPayment(6);
 
-  const createInvoice = () => apiPostInvoice(normalizedProductId);
-
-  await warmBackendForPayment(8);
-
-  let response = await createInvoice();
-
-  for (let retry = 0; retry < 5 && !response.ok && (response.status === 0 || response.status >= 500 || response.result?.error === "SESSION_EXPIRED"); retry += 1) {
-    if (response.status === 401 || response.result?.error === "SESSION_EXPIRED") {
-      backendSessionToken = "";
-      await connectBackend(3, { silent: true });
-    }
-    await warmBackendForPayment(6);
-    await sleep(1800 * (retry + 1));
-    response = await createInvoice();
+  if (!backendSessionToken) {
+    await refreshPaymentSession();
   }
 
-  const link = response.result?.invoiceLink;
-  if (response.ok && (!link || typeof link !== "string" || !String(link).startsWith("https://"))) {
-    return {
-      ok: false,
-      status: response.status || 502,
-      result: {
-        error: "INVALID_INVOICE_LINK",
-        message: "Payment link was invalid. Please try again."
-      }
-    };
-  }
-
-  return response;
+  return apiPostInvoice(normalizedProductId);
 }
 
 async function connectBackend(retries = 6, options = {}) {
@@ -3487,7 +3500,7 @@ async function connectBackend(retries = 6, options = {}) {
         message = `Server bot is @${health.telegram.username}, expected @${CONFIG.BOT_USERNAME}.`;
       }
 
-      if (!silent) showToast(message);
+      if (shouldShowSyncErrorToast(silent)) showToast(message);
       renderSyncBar();
       render();
       return false;
@@ -3505,10 +3518,10 @@ async function connectBackend(retries = 6, options = {}) {
     if (result && result.error === "CONNECTION_ERROR") {
       backendReady = false;
       backendSessionToken = "";
-      if (!silent && els.syncBarText) {
+      if (shouldShowSyncErrorToast(silent) && els.syncBarText) {
         els.syncBarText.textContent = CONNECTION_ERROR_TOAST;
       }
-      if (!silent) showConnectionErrorToast();
+      if (shouldShowSyncErrorToast(silent)) showConnectionErrorToast();
       renderSyncBar();
       render();
       if (attempt < retries && (status === 0 || status >= 500)) {
@@ -3519,7 +3532,7 @@ async function connectBackend(retries = 6, options = {}) {
     }
 
     if (attempt < retries && (status === 0 || status >= 500)) {
-      if (!silent && els.syncBarText) {
+      if (shouldShowSyncErrorToast(silent) && els.syncBarText) {
         els.syncBarText.textContent = status === 0
           ? "Network error — retrying..."
           : CONNECTION_ERROR_TOAST;
@@ -3534,15 +3547,15 @@ async function connectBackend(retries = 6, options = {}) {
   backendReady = false;
   backendSessionToken = "";
   if (!getTelegramInitData()) {
-    if (!silent) showToast("Backend offline. Local mode — tap still works.");
+    if (shouldShowSyncErrorToast(silent)) showToast("Backend offline. Local mode — tap still works.");
   } else {
     const health = await fetchBackendHealth();
     if (health && health.database === false) {
-      if (!silent) showToast("Database offline. Tap works, sync paused.");
-    } else if (!silent) {
+      if (shouldShowSyncErrorToast(silent)) showToast("Database offline. Tap works, sync paused.");
+    } else if (shouldShowSyncErrorToast(silent)) {
       showConnectionErrorToast();
     }
-    if (!silent) scheduleBackendReconnect();
+    if (shouldShowSyncErrorToast(silent)) scheduleBackendReconnect();
   }
   renderSyncBar();
   render();
@@ -4001,7 +4014,8 @@ function renderCoinStorePacks() {
     const coinAmount = Number(button.dataset.coinAmount || 0);
     buyCoinPack(productId, coinAmount, button).catch((error) => {
       console.error("BUY_COIN_PACK_ERROR:", error);
-      showToast("Could not start payment. Please try again.");
+      paymentInProgress = false;
+      showToast(error.message || "Could not start Stars payment.");
       releasePaymentButton(button, { busyClass: "coin-store-pack--busy payment-btn--busy" });
     });
   });
@@ -4068,37 +4082,39 @@ async function buyCoinPack(productId, coinAmount, button) {
 
     const { link } = await fetchStarsInvoiceLink(productId);
 
-    openTelegramStarsInvoice(link, async (paymentStatus) => {
-      if (paymentStatus === "paid") {
-        showToast(PAYMENT_VERIFYING_TOAST);
-        const fulfilled = await waitForCoinFulfillment(beforeCoins, expectedAdd);
-        await refreshBackendState();
-        render();
+    openTelegramStarsInvoice(link, (paymentStatus) => {
+      runStarsInvoiceCallback(async (status) => {
+        if (status === "paid") {
+          showToast(PAYMENT_VERIFYING_TOAST);
+          const fulfilled = await waitForCoinFulfillment(beforeCoins, expectedAdd);
+          await refreshBackendState();
+          render();
+          releaseButton();
+
+          if (fulfilled) {
+            closeCoinStoreModal();
+            showToast(STAR_SUCCESS_LABELS[productId] || `+${format(expectedAdd)} Coins added!`);
+            const tg = getTelegramWebApp();
+            if (tg?.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === "function") {
+              tg.HapticFeedback.notificationOccurred("success");
+            }
+          } else {
+            showToast("Payment received. Coins are syncing...");
+          }
+          return;
+        }
+
         releaseButton();
 
-        if (fulfilled) {
-          closeCoinStoreModal();
-          showToast(STAR_SUCCESS_LABELS[productId] || `+${format(expectedAdd)} Coins added!`);
-          const tg = getTelegramWebApp();
-          if (tg?.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === "function") {
-            tg.HapticFeedback.notificationOccurred("success");
-          }
-        } else {
-          showToast("Payment received. Coins are syncing...");
+        if (status === "failed") {
+          showToast("Payment failed.");
+          return;
         }
-        return;
-      }
 
-      releaseButton();
-
-      if (paymentStatus === "failed") {
-        showToast("Payment failed.");
-        return;
-      }
-
-      if (paymentStatus === "cancelled") {
-        showToast("Payment cancelled.");
-      }
+        if (status === "cancelled") {
+          showToast("Payment cancelled.");
+        }
+      }, paymentStatus);
     });
   } catch (error) {
     console.error("BUY_COIN_PACK_ERROR:", error);
@@ -4132,40 +4148,42 @@ async function buyTicketPack(productId, packTickets, button) {
 
     const { link } = await fetchStarsInvoiceLink(productId);
 
-    openTelegramStarsInvoice(link, async (paymentStatus) => {
-      if (paymentStatus === "paid") {
-        showToast(PAYMENT_VERIFYING_TOAST);
-        const fulfilled = await waitForTicketFulfillment(beforeTickets, packTickets);
+    openTelegramStarsInvoice(link, (paymentStatus) => {
+      runStarsInvoiceCallback(async (status) => {
+        if (status === "paid") {
+          showToast(PAYMENT_VERIFYING_TOAST);
+          const fulfilled = await waitForTicketFulfillment(beforeTickets, packTickets);
+          releaseButton();
+
+          if (fulfilled) {
+            showTicketConfetti();
+            renderRankPanel();
+            renderCampaignBanner();
+            showToast(STAR_SUCCESS_LABELS[productId] || `+${packTickets} Tickets added!`);
+            const tg = getTelegramWebApp();
+            if (tg?.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === "function") {
+              tg.HapticFeedback.notificationOccurred("success");
+            }
+          } else {
+            showToast("Payment received. Tickets are syncing...");
+            await loadLeaderboard();
+            renderRankPanel();
+            renderCampaignBanner();
+          }
+          return;
+        }
+
         releaseButton();
 
-        if (fulfilled) {
-          showTicketConfetti();
-          renderRankPanel();
-          renderCampaignBanner();
-          showToast(STAR_SUCCESS_LABELS[productId] || `+${packTickets} Tickets added!`);
-          const tg = getTelegramWebApp();
-          if (tg?.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === "function") {
-            tg.HapticFeedback.notificationOccurred("success");
-          }
-        } else {
-          showToast("Payment received. Tickets are syncing...");
-          await loadLeaderboard();
-          renderRankPanel();
-          renderCampaignBanner();
+        if (status === "failed") {
+          showToast("Payment failed.");
+          return;
         }
-        return;
-      }
 
-      releaseButton();
-
-      if (paymentStatus === "failed") {
-        showToast("Payment failed.");
-        return;
-      }
-
-      if (paymentStatus === "cancelled") {
-        showToast("Payment cancelled.");
-      }
+        if (status === "cancelled") {
+          showToast("Payment cancelled.");
+        }
+      }, paymentStatus);
     });
   } catch (error) {
     console.error("BUY_TICKET_PACK_ERROR:", error);
@@ -4198,34 +4216,36 @@ async function buyStarsProduct(productId, button) {
 
     const { link } = await fetchStarsInvoiceLink(productId);
 
-    openTelegramStarsInvoice(link, async (paymentStatus) => {
-      if (paymentStatus === "paid") {
-        showToast(PAYMENT_VERIFYING_TOAST);
-        const fulfilled = await waitForStarFulfillment(productId);
+    openTelegramStarsInvoice(link, (paymentStatus) => {
+      runStarsInvoiceCallback(async (status) => {
+        if (status === "paid") {
+          showToast(PAYMENT_VERIFYING_TOAST);
+          const fulfilled = await waitForStarFulfillment(productId);
+          releaseButton();
+
+          if (fulfilled) {
+            showToast(STAR_SUCCESS_LABELS[productId] || "Premium boost activated!");
+            const tg = getTelegramWebApp();
+            if (tg?.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === "function") {
+              tg.HapticFeedback.notificationOccurred("success");
+            }
+          } else {
+            showToast("Payment received. Boost is activating — check again in a few seconds.");
+          }
+          return;
+        }
+
         releaseButton();
 
-        if (fulfilled) {
-          showToast(STAR_SUCCESS_LABELS[productId] || "Premium boost activated!");
-          const tg = getTelegramWebApp();
-          if (tg?.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === "function") {
-            tg.HapticFeedback.notificationOccurred("success");
-          }
-        } else {
-          showToast("Payment received. Boost is activating — check again in a few seconds.");
+        if (status === "failed") {
+          showToast("Payment failed.");
+          return;
         }
-        return;
-      }
 
-      releaseButton();
-
-      if (paymentStatus === "failed") {
-        showToast("Payment failed.");
-        return;
-      }
-
-      if (paymentStatus === "cancelled") {
-        showToast("Payment cancelled.");
-      }
+        if (status === "cancelled") {
+          showToast("Payment cancelled.");
+        }
+      }, paymentStatus);
     });
   } catch (error) {
     console.error("BUY_STARS_PRODUCT_ERROR:", error);
@@ -4458,7 +4478,8 @@ if (els.earnPanel) {
     if (starButton && !starButton.disabled) {
       buyStarsProduct(starButton.dataset.star, starButton).catch((error) => {
         console.error("BUY_STARS_PRODUCT_ERROR:", error);
-        showToast("Could not start payment. Please try again.");
+        paymentInProgress = false;
+        showToast(error.message || "Could not start Stars payment.");
         releasePaymentButton(starButton, { busyClass: "earn-boost--busy payment-btn--busy" });
       });
     }
@@ -4489,20 +4510,16 @@ function bootApp() {
   bindPremiumSpinUi();
 
   window.addEventListener("unhandledrejection", (event) => {
+    console.error("UNHANDLED_REJECTION:", event.reason);
     event.preventDefault();
-    showConnectionErrorToast();
+    if (paymentInProgress) return;
   });
 
   window.addEventListener("error", (event) => {
     if (!event || !event.message) return;
-    const message = String(event.message).toLowerCase();
-    if (
-      message.includes("user not found") ||
-      message.includes("network") ||
-      message.includes("fetch")
-    ) {
+    console.error("WINDOW_ERROR:", event.message, event.filename, event.lineno);
+    if (paymentInProgress) {
       event.preventDefault();
-      showConnectionErrorToast();
     }
   });
 
@@ -4518,6 +4535,7 @@ function bootApp() {
   connectBackend();
 
   document.addEventListener("visibilitychange", () => {
+    if (paymentInProgress) return;
     if (document.visibilityState === "visible" && !backendReady && isTelegramWebApp()) {
       connectBackend(4);
     }
