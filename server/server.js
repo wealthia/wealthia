@@ -5,9 +5,9 @@ const {
   authFailureReason,
   bearerTokenFromRequest,
   createSessionToken,
+  diagnoseTelegramAuth,
   requireVerifiedTelegramPlayer,
   resolveTelegramUser,
-  verifyTelegramInitData,
   verifyToken
 } = require("./auth");
 const {
@@ -1188,10 +1188,10 @@ function requirePlayerOrTelegram(req, res, next) {
 
   const initData = String(req.body?.initData || "");
   if (initData && TELEGRAM_BOT_TOKEN) {
-    const telegramUser = verifyTelegramInitData(initData, TELEGRAM_BOT_TOKEN);
-    if (telegramUser?.id) {
-      req.playerId = String(telegramUser.id);
-      req.telegramUser = telegramUser;
+    const diagnosis = diagnoseTelegramAuth(initData, TELEGRAM_BOT_TOKEN);
+    if (diagnosis.ok && diagnosis.user?.id) {
+      req.playerId = String(diagnosis.user.id);
+      req.telegramUser = diagnosis.user;
       next();
       return;
     }
@@ -2771,23 +2771,11 @@ app.post("/api/stars/invoice", requirePlayerOrTelegram, paymentSecurity.starsInv
     const tokenUserId = String(req.playerId || "");
     const productId = String(req.body.productId || "").trim();
     const product = getStarProduct(productId);
-    let payloadUserId = tokenUserId;
+    const payloadUserId = tokenUserId;
 
     if (!tokenUserId || !product) {
       res.status(400).json({ ok: false, error: "BAD_PRODUCT" });
       return;
-    }
-
-    const initData = String(req.body.initData || "");
-    if (initData) {
-      const telegramUser = verifyTelegramInitData(initData, TELEGRAM_BOT_TOKEN);
-      if (telegramUser) {
-        if (String(telegramUser.id) !== tokenUserId) {
-          res.status(403).json({ ok: false, error: "TELEGRAM_USER_MISMATCH" });
-          return;
-        }
-        payloadUserId = String(telegramUser.id);
-      }
     }
 
     if (!TELEGRAM_BOT_TOKEN) {
@@ -4838,7 +4826,7 @@ async function sendPushMessage(telegramId, text) {
   if (!TELEGRAM_BOT_TOKEN) return false;
 
   try {
-    const webAppUrl = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2105";
+    const webAppUrl = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2106";
     await telegramApi("sendMessage", {
       chat_id: telegramId,
       text,
