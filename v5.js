@@ -686,16 +686,49 @@ async function shareInviteLink() {
   }
 }
 
-function renderDailyPrizeCardHtml() {
+function renderDailyPrizeCardHtml(options = {}) {
   const prize = getDailyPrizeConfig();
   if (!prize) return "";
 
+  const variant = options.variant || "default";
+  const compact = variant === "main" || variant === "rank";
   const symbol = prize.currency === "USD" ? "$" : "";
   const score = todayGainScore();
   const referrals = dailyReferralCount || Number(state.referrals?.count || 0);
   const required = prize.minReferrals || dailyReferralsRequired || 3;
   const eligible = dailyPrizeEligible || Boolean(state.referrals?.eligible);
   const timeLeft = dailyPrizeTimeLeft(dailyContestResetsAt || state.dailyContest?.resetsAt);
+
+  if (compact) {
+    const progress = ticketProgress();
+    return `
+      <article class="grand-prize-card daily-prize-card daily-prize-card--compact daily-prize-card--${variant} ${eligible ? "" : "daily-prize-card--locked"}">
+        <div class="daily-prize-compact__head">
+          <span class="grand-prize__badge">⚡ ${prize.title}</span>
+          <div class="daily-prize-compact__meta">
+            <strong>${symbol}${format(prize.prize)} · ${required} friends</strong>
+            <small>${timeLeft} left · ${referrals}/${required} friends</small>
+          </div>
+        </div>
+        <div class="daily-prize-compact__score-bar">
+          <div class="daily-prize-compact__points">
+            <span class="daily-prize-compact__points-label">POINTS</span>
+            <strong>+${format(score)}</strong>
+          </div>
+          <div class="daily-prize-compact__progress">
+            <div class="daily-prize-compact__tickets">
+              <span class="daily-prize__ticket-icon" aria-hidden="true">&#127915;</span>
+              <span class="daily-prize__ticket-count">${ticketCount()}</span>
+            </div>
+            <div class="daily-prize__ticket-progress" role="progressbar" aria-valuenow="${progress.percent}" aria-valuemin="0" aria-valuemax="100">
+              <span style="width:${progress.percent}%"></span>
+            </div>
+            <small class="daily-prize-compact__progress-label">${format(progress.current)} / ${format(progress.target)}</small>
+          </div>
+        </div>
+      </article>
+    `;
+  }
 
   return `
     <article class="grand-prize-card daily-prize-card ${eligible ? "" : "daily-prize-card--locked"}">
@@ -736,7 +769,7 @@ function renderDailyPrizeBanner() {
     return;
   }
 
-  mount.innerHTML = renderDailyPrizeCardHtml();
+  mount.innerHTML = renderDailyPrizeCardHtml({ variant: "main" });
   bindDailyPrizeCardActions(mount);
 }
 
@@ -746,7 +779,7 @@ function renderCampaignRankCard() {
 }
 
 function renderDailyPrizeRankCard() {
-  return renderDailyPrizeCardHtml();
+  return renderDailyPrizeCardHtml({ variant: "rank" });
 }
 
 function renderGrandPrizeBanner() {
@@ -2472,7 +2505,7 @@ function renderRankPanel() {
   panel.innerHTML = `
     ${offlineBanner}
     <div class="rank-stack">
-      ${dailyMode ? renderDailyPrizeCardHtml() : ""}
+      ${dailyMode ? renderDailyPrizeCardHtml({ variant: "rank" }) : ""}
       ${renderPodiumHtml(top3, dailyMode)}
       ${renderYourRankRowHtml(youRow, dailyMode)}
       ${dailyMode ? renderTicketStoreHtml() : ""}
@@ -3212,48 +3245,64 @@ function starsInvoiceErrorMessage(result, status) {
   return "Could not open Stars payment.";
 }
 
+async function fetchStarsInvoice(productId, initData) {
+  const normalizedProductId = String(productId || "").trim();
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), API_FETCH_TIMEOUT_MS);
+
+  try {
+    const body = { productId: normalizedProductId };
+    if (initData) body.initData = initData;
+
+    const response = await fetch(`${API_URL}/api/stars/invoice`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    });
+
+    let result = null;
+    const raw = await response.text();
+    if (raw) {
+      try {
+        result = JSON.parse(raw);
+      } catch {
+        result = { error: "BAD_RESPONSE", message: "Server returned an invalid response." };
+      }
+    }
+
+    return { ok: response.ok, status: response.status, result };
+  } catch (error) {
+    if (error && error.name === "AbortError") {
+      return {
+        ok: false,
+        status: 0,
+        result: { error: "TIMEOUT", message: "Server is waking up. Wait a few seconds and try again." }
+      };
+    }
+    return {
+      ok: false,
+      status: 0,
+      result: { error: "CONNECTION_ERROR", message: CONNECTION_ERROR_TOAST }
+    };
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 async function apiPostInvoice(productId) {
   const normalizedProductId = String(productId || "").trim();
   const initData = getTelegramInitData();
 
-  if (!initData) {
-    return apiPost("/api/stars/invoice", { productId: normalizedProductId });
+  if (initData) {
+    return fetchStarsInvoice(normalizedProductId, initData);
   }
 
-  let response = await apiPostSecure("/api/stars/invoice", { productId: normalizedProductId });
+  let response = await apiPost("/api/stars/invoice", { productId: normalizedProductId });
 
   if (response.status === 401 || response.result?.error === "SESSION_EXPIRED") {
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), API_FETCH_TIMEOUT_MS);
-
-    try {
-      const retry = await fetch(`${API_URL}/api/stars/invoice`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId: normalizedProductId, initData }),
-        signal: controller.signal
-      });
-
-      const raw = await retry.text();
-      let result = null;
-      if (raw) {
-        try {
-          result = JSON.parse(raw);
-        } catch {
-          result = { error: "BAD_RESPONSE" };
-        }
-      }
-
-      response = { ok: retry.ok, status: retry.status, result };
-    } catch (error) {
-      if (error && error.name === "AbortError") {
-        response = { ok: false, status: 0, result: { error: "TIMEOUT" } };
-      } else {
-        response = { ok: false, status: 0, result: { error: "CONNECTION_ERROR", message: CONNECTION_ERROR_TOAST } };
-      }
-    } finally {
-      window.clearTimeout(timeout);
-    }
+    await connectBackend(2, { silent: true });
+    response = await apiPost("/api/stars/invoice", { productId: normalizedProductId });
   }
 
   return response;
