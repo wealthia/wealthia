@@ -3041,6 +3041,62 @@ const starsInvoiceCache = new Map();
 let tapBatchCount = 0;
 let tapBatchTimer = null;
 let tapBatchFlushing = false;
+let tapBatchDelta = null;
+
+function emptyTapDelta() {
+  return { coins: 0, taps: 0, energy: 0, dailyScore: 0 };
+}
+
+function cloneTapDelta(delta) {
+  return delta ? { ...delta } : emptyTapDelta();
+}
+
+function hasTapDelta(delta) {
+  return Boolean(delta && (
+    delta.coins ||
+    delta.taps ||
+    delta.energy ||
+    delta.dailyScore
+  ));
+}
+
+function addTapDelta(current, delta) {
+  const next = cloneTapDelta(current);
+  if (!delta) return next;
+  next.coins += Number(delta.coins || 0);
+  next.taps += Number(delta.taps || 0);
+  next.energy += Number(delta.energy || 0);
+  next.dailyScore += Number(delta.dailyScore || 0);
+  return next;
+}
+
+function applyTapDelta(delta) {
+  if (!hasTapDelta(delta)) return;
+
+  state.coins = Math.max(0, Number(state.coins || 0) + Number(delta.coins || 0));
+  state.taps = Math.max(0, Number(state.taps || 0) + Number(delta.taps || 0));
+  state.energy = Math.max(0, Math.min(
+    Number(state.maxEnergy || 0) || Number(state.energy || 0),
+    Number(state.energy || 0) + Number(delta.energy || 0)
+  ));
+  state.dailyScore = Math.max(0, Number(state.dailyScore || 0) + Number(delta.dailyScore || 0));
+  if (state.dailyContest) state.dailyContest.score = state.dailyScore;
+  dailyContestScore = state.dailyScore;
+}
+
+function rollbackTapDelta(delta) {
+  if (!hasTapDelta(delta)) return;
+  applyTapDelta({
+    coins: -Number(delta.coins || 0),
+    taps: -Number(delta.taps || 0),
+    energy: -Number(delta.energy || 0),
+    dailyScore: -Number(delta.dailyScore || 0)
+  });
+}
+
+function hasPendingTapBatch() {
+  return tapBatchCount > 0 || tapBatchFlushing;
+}
 
 function shouldShowSyncErrorToast(silent) {
   return !silent && !paymentInProgress;
@@ -3897,7 +3953,8 @@ async function joinTournament() {
 
 function tapLocal(event) {
   const cost = tapValue();
-  if (!isEndlessEnergy() && state.energy < cost) {
+  const endless = isEndlessEnergy();
+  if (!endless && state.energy < cost) {
     showToast("No energy.");
     render();
     return false;
@@ -3909,7 +3966,7 @@ function tapLocal(event) {
   state.dailyScore = Number(state.dailyScore || 0) + amount;
   if (state.dailyContest) state.dailyContest.score = state.dailyScore;
   dailyContestScore = state.dailyScore;
-  if (!isEndlessEnergy()) {
+  if (!endless) {
     state.energy = Math.max(0, Number(state.energy || 0) - cost);
   }
 
@@ -3922,7 +3979,12 @@ function tapLocal(event) {
     amount
   );
 
-  return true;
+  return {
+    coins: amount,
+    taps: 1,
+    energy: endless ? 0 : -cost,
+    dailyScore: amount
+  };
 }
 
 async function flushTapBatch() {
@@ -3937,24 +3999,25 @@ async function flushTapBatch() {
   }
 
   const count = tapBatchCount;
+  const delta = cloneTapDelta(tapBatchDelta);
   tapBatchCount = 0;
+  tapBatchDelta = null;
 
-  if (count <= 0 || !backendReady) return;
+  if (count <= 0) return;
+
+  if (!backendReady) {
+    rollbackTapDelta(delta);
+    saveState();
+    render();
+    return;
+  }
 
   tapBatchFlushing = true;
-
-  const snapshot = {
-    coins: state.coins,
-    taps: state.taps,
-    energy: state.energy
-  };
 
   try {
     const { ok, result } = await apiPost("/api/tap", { count });
     if (!ok || !result || !result.user) {
-      state.coins = snapshot.coins;
-      state.taps = snapshot.taps;
-      state.energy = snapshot.energy;
+      rollbackTapDelta(delta);
       saveState();
       render();
 
@@ -3969,7 +4032,9 @@ async function flushTapBatch() {
       return;
     }
 
+    const pendingDelta = cloneTapDelta(tapBatchDelta);
     syncFromBackend(result.user);
+    applyTapDelta(pendingDelta);
     saveState();
     render();
 
@@ -3980,6 +4045,9 @@ async function flushTapBatch() {
     }
   } catch (error) {
     console.error("TAP_BATCH_FLUSH_ERROR:", error);
+    rollbackTapDelta(delta);
+    saveState();
+    render();
   } finally {
     tapBatchFlushing = false;
     if (tapBatchCount > 0) {
@@ -3995,7 +4063,8 @@ function scheduleTapBatchFlush() {
   }, TAP_BATCH_FLUSH_MS);
 }
 
-function queueTapBatch() {
+function queueTapBatch(delta) {
+  tapBatchDelta = addTapDelta(tapBatchDelta, delta);
   tapBatchCount += 1;
   if (tapBatchCount >= TAP_BATCH_MAX) {
     void flushTapBatch();
@@ -4007,10 +4076,11 @@ function queueTapBatch() {
 async function backendTap(event) {
   if (event.cancelable) event.preventDefault();
 
-  if (!tapLocal(event)) return;
+  const delta = tapLocal(event);
+  if (!delta) return;
   if (!backendReady) return;
 
-  queueTapBatch();
+  queueTapBatch(delta);
 }
 
 function upgradeLocal(name) {
@@ -4423,6 +4493,7 @@ async function fetchUserData() {
 
 async function refreshBackendState() {
   if (paymentInProgress) return;
+  if (hasPendingTapBatch()) return;
 
   if (!backendReady) {
     await connectBackend(1, { silent: true });
@@ -4460,6 +4531,8 @@ async function refreshBackendState() {
   if (result.token) {
     backendSessionToken = result.token;
   }
+
+  if (hasPendingTapBatch()) return;
 
   syncFromBackend(result);
   saveState();

@@ -46,6 +46,8 @@ const tapHelpers = {
   todayKey,
   buildCityValue,
   syncDailyContest,
+  refreshDailyTasks,
+  applyPassive,
   hasEndlessEnergy,
   tapPower,
   incrementTournamentScore: null
@@ -863,7 +865,7 @@ async function fulfillStarPaymentRecord({
       .single();
 
     if (error) throw error;
-    syncTapCache(userId, data);
+    await syncTapCache(userId, data);
 
     const { data: buyer } = await supabase
       .from("users")
@@ -1326,7 +1328,7 @@ function tournamentIsLive(row, ms = nowMs()) {
   return ms >= starts && ms < ends;
 }
 
-async function getActiveTournament(userId = "") {
+async function getActiveTournament(userId = "", gameRow = null) {
   const { data, error } = await supabase
     .from("tournaments")
     .select("*")
@@ -1339,14 +1341,18 @@ async function getActiveTournament(userId = "") {
   const live = (data || []).filter((row) => tournamentIsLive(row));
   if (!live.length) return null;
 
-  if (!userId) return live[0];
+  if (!userId && !gameRow) return live[0];
 
   let level = 1;
-  try {
-    const row = await loadGame(userId);
-    level = empireLevel(row);
-  } catch {
-    level = 1;
+  if (gameRow) {
+    level = empireLevel(gameRow);
+  } else {
+    try {
+      const row = await loadGame(userId);
+      level = empireLevel(row);
+    } catch {
+      level = 1;
+    }
   }
 
   return live.find((row) => tournamentMatchesLevel(row, level)) || null;
@@ -1364,8 +1370,8 @@ async function getTournamentEntry(tournamentId, userId) {
   return data;
 }
 
-async function incrementTournamentScore(userId, amount = 1) {
-  const tournament = await getActiveTournament(userId);
+async function incrementTournamentScore(userId, amount = 1, gameRow = null) {
+  const tournament = await getActiveTournament(userId, gameRow);
   if (!tournament) return;
 
   const entry = await getTournamentEntry(tournament.id, userId);
@@ -1759,7 +1765,7 @@ async function creditReferrerCoins(referrerId) {
     .select("*")
     .single();
 
-  syncTapCache(referrer, data);
+  await syncTapCache(referrer, data);
 }
 
 async function registerPendingReferral(referrerId, newUserId, options = {}) {
@@ -2241,8 +2247,8 @@ async function loadGame(userId) {
   return tapPipeline.reload(userId, async () => loadGameRow(userId), tapHelpers);
 }
 
-function syncTapCache(userId, row) {
-  if (row) tapPipeline.hydrate(userId, row);
+async function syncTapCache(userId, row) {
+  if (row) await tapPipeline.syncRow(userId, row);
   return row;
 }
 
@@ -2457,7 +2463,7 @@ app.post("/api/gold-rush/start", requirePlayer, async (req, res) => {
       .single();
 
     if (error) throw error;
-    syncTapCache(userId, data);
+    await syncTapCache(userId, data);
 
     res.json({ ok: true, until, user: toClientUser(data) });
   } catch (error) {
@@ -2549,7 +2555,7 @@ app.post("/api/upgrade", requirePlayer, async (req, res) => {
       .single();
 
     if (error) throw error;
-    syncTapCache(userId, data);
+    await syncTapCache(userId, data);
 
     res.json({ cost, user: toClientUser(data) });
   } catch (error) {
@@ -2598,7 +2604,7 @@ app.post("/api/claim-task", requirePlayer, async (req, res) => {
       .single();
 
     if (error) throw error;
-    syncTapCache(userId, data);
+    await syncTapCache(userId, data);
 
     res.json({ ok: true, reward, user: toClientUser(data) });
   } catch (error) {
@@ -2633,7 +2639,7 @@ app.post("/api/claim-daily", requirePlayer, async (req, res) => {
       .single();
 
     if (error) throw error;
-    syncTapCache(userId, data);
+    await syncTapCache(userId, data);
 
     res.json({ ok: true, reward, streak, user: toClientUser(data) });
   } catch (error) {
@@ -2675,7 +2681,7 @@ app.post("/api/claim-earn", requirePlayer, async (req, res) => {
         .single();
 
       if (error) throw error;
-      syncTapCache(userId, data);
+      await syncTapCache(userId, data);
 
       res.json({ ok: true, reward, user: toClientUser(data) });
       return;
@@ -2702,7 +2708,7 @@ app.post("/api/claim-earn", requirePlayer, async (req, res) => {
         .single();
 
       if (error) throw error;
-      syncTapCache(userId, data);
+      await syncTapCache(userId, data);
 
       res.json({ ok: true, reward, user: toClientUser(data) });
       return;
@@ -2728,7 +2734,7 @@ app.post("/api/claim-earn", requirePlayer, async (req, res) => {
       .single();
 
     if (error) throw error;
-    syncTapCache(userId, data);
+    await syncTapCache(userId, data);
 
     res.json({ ok: true, reward, user: toClientUser(data) });
   } catch (error) {
@@ -2780,7 +2786,7 @@ app.post("/api/buy-boost", requirePlayer, async (req, res) => {
       .single();
 
     if (error) throw error;
-    syncTapCache(userId, data);
+    await syncTapCache(userId, data);
 
     res.json({ ok: true, boost, user: toClientUser(data) });
   } catch (error) {
@@ -3001,7 +3007,7 @@ app.post("/api/casino-spin", requirePlayer, async (req, res) => {
       .single();
 
     if (error) throw error;
-    syncTapCache(userId, data);
+    await syncTapCache(userId, data);
 
     res.json({
       ok: true,
@@ -3159,7 +3165,7 @@ app.post(
 
       if (error) throw error;
       saved = data;
-      syncTapCache(userId, saved);
+      await syncTapCache(userId, saved);
     }
 
     res.json({
@@ -3196,7 +3202,7 @@ app.post("/api/reset", requirePlayer, async (req, res) => {
         .single();
 
       if (error) throw error;
-      syncTapCache(userId, data);
+      await syncTapCache(userId, data);
 
       res.json({ ok: true, user: toClientUser(data) });
       return;
@@ -3251,7 +3257,7 @@ app.post("/api/reset", requirePlayer, async (req, res) => {
         .single();
 
       if (error) throw error;
-      syncTapCache(userId, data);
+      await syncTapCache(userId, data);
 
       res.json({ ok: true, user: toClientUser(data) });
       return;
@@ -3308,7 +3314,7 @@ app.post("/api/reset", requirePlayer, async (req, res) => {
       .single();
 
     if (saveError) throw saveError;
-    syncTapCache(userId, saved);
+    await syncTapCache(userId, saved);
 
     res.json({ ok: true, user: toClientUser(saved) });
   } catch (error) {
@@ -3737,7 +3743,7 @@ app.post("/api/admin/grant-coins", async (req, res) => {
       .single();
 
     if (error) throw error;
-    syncTapCache(userId, data);
+    await syncTapCache(userId, data);
 
     await logMetric("manual_grant", amount, "Admin coin grant", { userId });
 
@@ -3920,7 +3926,7 @@ async function distributeTournamentPrizes(tournament) {
       .select("*")
       .single();
 
-    syncTapCache(entry.user_id, data);
+    await syncTapCache(entry.user_id, data);
 
     await supabase
       .from("tournament_entries")
@@ -4318,7 +4324,7 @@ app.post("/api/admin/give-reward", async (req, res) => {
       .single();
 
     if (error) throw error;
-    syncTapCache(userId, data);
+    await syncTapCache(userId, data);
 
     await logMetric("manual_grant", amount, `Admin ${rewardType} reward`, { userId, rewardType });
 
@@ -4455,7 +4461,7 @@ app.post("/api/admin/user-profile", async (req, res) => {
     }
 
     if (shouldUpdateGame) {
-      syncTapCache(userId, game);
+      await syncTapCache(userId, game);
     }
 
     let updatedUser = user;
@@ -4693,7 +4699,7 @@ app.post("/api/promo/redeem", requirePlayer, async (req, res) => {
       .single();
 
     if (gameError) throw gameError;
-    syncTapCache(userId, game);
+    await syncTapCache(userId, game);
 
     res.json({
       ok: true,
