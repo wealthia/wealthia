@@ -10,6 +10,7 @@ const UPGRADE_BASES = { shop: 50, bank: 120, factory: 200, casino: 300 };
 const UPGRADE_GROWTH = 1.75;
 const OFFLINE_CAP_SECONDS = 4 * 60 * 60;
 const DEFAULT_MAX_ENERGY = 1000;
+const BASE_ENERGY_REGEN_RATE = 3;
 const TICKETS_PER_SCORE = 1000;
 const AUTO_BUY_MIN_BANK_LEVEL = 7;
 const AUTO_BUY_BUDGET_RATIO = 0.2;
@@ -36,8 +37,54 @@ function totalHourlyProfit(row, incomeMultiplier = 1) {
   ) * mult;
 }
 
-function factoryEnergyRegenPerSecond(level) {
-  return number(level) * 0.5;
+function energyRegenRate(row) {
+  const stored = number(row.energy_regen_rate);
+  return stored > 0 ? stored : BASE_ENERGY_REGEN_RATE;
+}
+
+function lastEnergyUpdatedAtMs(row, fallbackMs = Date.now()) {
+  const ts = number(row.last_energy_updated_at);
+  if (ts > 0) return ts;
+
+  if (row.last_seen_at) {
+    const parsed = new Date(row.last_seen_at).getTime();
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+
+  return fallbackMs;
+}
+
+function touchEnergyTimestamp(row, nowMs = Date.now()) {
+  row.last_energy_updated_at = nowMs;
+  return row;
+}
+
+function applyEnergyRegen(row, options = {}) {
+  const now = options.nowMs || Date.now();
+  const cap = maxEnergy(row);
+  const current = number(row.energy);
+  const rate = energyRegenRate(row);
+  const lastMs = lastEnergyUpdatedAtMs(row, now);
+  const maxElapsedSeconds = Number.isFinite(Number(options.maxElapsedSeconds))
+    ? Math.max(0, Math.floor(Number(options.maxElapsedSeconds)))
+    : null;
+  const elapsedSeconds = maxElapsedSeconds === null
+    ? Math.floor(Math.max(0, now - lastMs) / 1000)
+    : Math.min(Math.floor(Math.max(0, now - lastMs) / 1000), maxElapsedSeconds);
+  const earnedEnergy = elapsedSeconds * rate;
+  const newEnergy = Math.min(cap, current + earnedEnergy);
+
+  row.energy = newEnergy;
+  row.max_energy = cap;
+  row.energy_regen_rate = rate;
+  row.last_energy_updated_at = now;
+
+  return {
+    earnedEnergy,
+    elapsedSeconds,
+    newEnergy,
+    energyRegenRate: rate
+  };
 }
 
 function maxEnergy(row) {
@@ -145,15 +192,14 @@ function applyOfflineProgress(row, options = {}) {
   const offlineEarnings = cappedSeconds > 0
     ? Math.floor((hourlyProfit / 3600) * cappedSeconds)
     : 0;
-  const energyCap = maxEnergy(row);
-  const energyGain = cappedSeconds > 0
-    ? Math.floor(factoryEnergyRegenPerSecond(row.factory_level) * cappedSeconds)
-    : 0;
-
   const autoBuy = applyAutoBuy(row, offlineEarnings);
 
-  row.energy = Math.min(energyCap, number(row.energy) + energyGain);
-  row.max_energy = energyCap;
+  const energyResult = applyEnergyRegen(row, {
+    nowMs: current,
+    maxElapsedSeconds: cappedSeconds
+  });
+  const energyGain = energyResult.earnedEnergy;
+
   row.last_seen_at = new Date(current).toISOString();
   row.__offlineEarnings = offlineEarnings;
   row.__offlineCashAdded = autoBuy.coinsAdded;
@@ -172,17 +218,21 @@ function applyOfflineProgress(row, options = {}) {
 
 module.exports = {
   AUTO_BUY_MIN_BANK_LEVEL,
+  BASE_ENERGY_REGEN_RATE,
   BUILDING_BASES,
   BUILDING_GROWTH,
   DEFAULT_MAX_ENERGY,
   OFFLINE_CAP_SECONDS,
   TICKETS_PER_SCORE,
   applyAutoBuy,
+  applyEnergyRegen,
   applyOfflineProgress,
   buildingHourlyProfit,
   computeTickets,
-  factoryEnergyRegenPerSecond,
+  energyRegenRate,
+  lastEnergyUpdatedAtMs,
   maxEnergy,
+  touchEnergyTimestamp,
   nextUpgradeCost,
   scoreProgressToNextTicket,
   tapValue,

@@ -165,6 +165,13 @@ function createTapPipeline({ supabase }) {
     return { allowed: true };
   }
 
+  function regenOptions(helpers, now) {
+    return {
+      nowMs: now,
+      maxElapsedSeconds: helpers.economy.OFFLINE_CAP_SECONDS
+    };
+  }
+
   async function applyBatchUnlocked(userId, rawCount, helpers) {
     const count = Math.min(MAX_TAPS_PER_REQUEST, Math.max(1, Math.floor(number(rawCount) || 1)));
     const state = await readState(userId);
@@ -179,11 +186,16 @@ function createTapPipeline({ supabase }) {
     const tapCost = helpers.economy.tapValue(row);
     const amount = helpers.tapPower(row);
 
+    helpers.economy.applyEnergyRegen(row, regenOptions(helpers, now));
+
     let applied = count;
     if (!endless) {
       const maxByEnergy = Math.floor(number(row.energy) / tapCost);
       if (maxByEnergy <= 0) {
-        return { ok: false, error: "NO_ENERGY" };
+        state.dirty = true;
+        state.lastActivity = now;
+        await writeState(userId, state);
+        return { ok: false, error: "NO_ENERGY", row: cloneRow(row) };
       }
       applied = Math.min(count, maxByEnergy);
     }
@@ -215,6 +227,9 @@ function createTapPipeline({ supabase }) {
 
     row.coins = number(row.coins) + totalCoins;
     row.energy = endless ? number(row.energy) : Math.max(0, number(row.energy) - totalEnergyCost);
+    if (!endless && totalEnergyCost > 0) {
+      helpers.economy.touchEnergyTimestamp(row, now);
+    }
     row.taps = number(row.taps) + applied;
     row.daily_contest_score = dailyScore + totalCoins;
     row.contest_date = today;
@@ -270,6 +285,8 @@ function createTapPipeline({ supabase }) {
       tap_window_start: number(state.row.tap_window_start),
       tap_window_count: number(state.row.tap_window_count),
       tap_violations: number(state.row.tap_violations),
+      energy_regen_rate: helpers.economy.energyRegenRate(state.row),
+      last_energy_updated_at: number(state.row.last_energy_updated_at),
       updated_at: new Date().toISOString()
     };
 
@@ -358,14 +375,27 @@ function createTapPipeline({ supabase }) {
     };
   }
 
-  async function getLiveRow(userId, fallbackRow) {
+  async function getLiveRowUnlocked(userId, fallbackRow, helpers) {
     const state = await readState(userId);
-    if (state?.row) return cloneRow(state.row);
+    if (state?.row) {
+      if (helpers?.economy?.applyEnergyRegen) {
+        const now = typeof helpers.nowMs === "function" ? helpers.nowMs() : Date.now();
+        helpers.economy.applyEnergyRegen(state.row, regenOptions(helpers, now));
+        state.dirty = true;
+        state.lastActivity = now;
+        await writeState(userId, state);
+      }
+      return cloneRow(state.row);
+    }
     if (fallbackRow) {
       hydrate(userId, fallbackRow);
       return cloneRow(fallbackRow);
     }
     return null;
+  }
+
+  async function getLiveRow(userId, fallbackRow, helpers) {
+    return withUserLock(userId, () => getLiveRowUnlocked(userId, fallbackRow, helpers));
   }
 
   return {

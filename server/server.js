@@ -690,6 +690,7 @@ function applyStarProduct(row, productId) {
 
   if (productId === "refill_energy") {
     updated.energy = economy.maxEnergy(row);
+    updated.last_energy_updated_at = nowMs();
     return updated;
   }
 
@@ -701,6 +702,7 @@ function applyStarProduct(row, productId) {
   if (productId === "endless_energy_30") {
     updated.endless_energy_until = extendBoostUntil(row.endless_energy_until);
     updated.energy = economy.maxEnergy(row);
+    updated.last_energy_updated_at = nowMs();
     return updated;
   }
 
@@ -1593,6 +1595,8 @@ function passiveDbPatch(row, contest) {
     coins: row.coins,
     energy: row.energy,
     max_energy: economy.maxEnergy(row),
+    energy_regen_rate: economy.energyRegenRate(row),
+    last_energy_updated_at: economy.lastEnergyUpdatedAtMs(row),
     spent: number(row.spent),
     shop_level: number(row.shop_level),
     bank_level: number(row.bank_level),
@@ -1631,6 +1635,8 @@ function toClientUser(row, extra = {}) {
       energy: number(row.energy),
       currentEnergy: number(row.energy),
       maxEnergy: economy.maxEnergy(row),
+      energyRegenRate: economy.energyRegenRate(row),
+      lastEnergyUpdatedAt: economy.lastEnergyUpdatedAtMs(row),
       taps: number(row.taps),
       spent: number(row.spent),
       cityValue: buildCityValue(row),
@@ -2157,6 +2163,8 @@ async function ensureUserProfile(telegramUser) {
     coins: NEW_PLAYER_BONUS,
     energy: MAX_ENERGY,
     max_energy: MAX_ENERGY,
+    energy_regen_rate: economy.BASE_ENERGY_REGEN_RATE,
+    last_energy_updated_at: nowMs(),
     taps: 0,
     spent: 0,
     city_value: NEW_PLAYER_BONUS,
@@ -2342,9 +2350,11 @@ app.post("/api/session", async (req, res) => {
     let row;
     let isNewPlayer = false;
     try {
-      const profile = await ensureUserProfile(telegramUser);
-      row = profile.row;
-      isNewPlayer = Boolean(profile.isNew);
+      row = await tapPipeline.reload(telegramUser.id, async () => {
+        const profile = await ensureUserProfile(telegramUser);
+        isNewPlayer = Boolean(profile.isNew);
+        return profile.row;
+      }, tapHelpers);
     } catch (profileError) {
       console.error("ENSURE_USER_PROFILE_FAILED:", profileError);
       if (profileError.code === "BOTS_NOT_ALLOWED") {
@@ -2402,7 +2412,7 @@ app.post("/api/session", async (req, res) => {
       console.warn("REFERRAL_COUNT_FAILED:", countError.message);
     }
 
-    const responseRow = await tapPipeline.getLiveRow(telegramUser.id, row);
+    const responseRow = await tapPipeline.getLiveRow(telegramUser.id, row, tapHelpers);
 
     res.json({
       ...toClientUser(responseRow || row, {
@@ -2494,7 +2504,7 @@ app.post("/api/tap", requirePlayer, async (req, res) => {
       }
 
       if (result.error === "NO_ENERGY") {
-        res.status(400).json({ error: "NO_ENERGY" });
+        res.status(400).json({ error: "NO_ENERGY", user: toClientUser(result.row) });
         return;
       }
 
@@ -2762,6 +2772,7 @@ app.post("/api/buy-boost", requirePlayer, async (req, res) => {
 
     if (option.type === "energy") {
       updated.energy = economy.maxEnergy(row);
+      updated.last_energy_updated_at = nowMs();
     }
 
     if (option.type === "tap") {
@@ -3263,6 +3274,8 @@ app.post("/api/reset", requirePlayer, async (req, res) => {
         coins: NEW_PLAYER_BONUS,
         energy: MAX_ENERGY,
         max_energy: MAX_ENERGY,
+        energy_regen_rate: economy.BASE_ENERGY_REGEN_RATE,
+        last_energy_updated_at: nowMs(),
         taps: 0,
         spent: 0,
         city_value: NEW_PLAYER_BONUS,
@@ -4433,6 +4446,8 @@ app.post("/api/admin/user-profile", async (req, res) => {
             city_value: gamePatch.city_value ?? 0,
             energy: MAX_ENERGY,
             max_energy: MAX_ENERGY,
+            energy_regen_rate: economy.BASE_ENERGY_REGEN_RATE,
+            last_energy_updated_at: nowMs(),
             taps: 0,
             spent: 0,
             shop_level: 1,

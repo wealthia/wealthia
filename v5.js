@@ -71,6 +71,8 @@ const defaultState = {
   coins: 0,
   energy: 1000,
   maxEnergy: 1000,
+  energyRegenRate: 3,
+  lastEnergyUpdatedAt: Date.now(),
   taps: 0,
   spent: 0,
   lastSeen: Date.now(),
@@ -226,6 +228,11 @@ function loadState() {
 function saveState() {
   state.lastSeen = Date.now();
   localStorage.setItem(storageKey, JSON.stringify(state));
+}
+
+function safeNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 function format(value) {
@@ -925,28 +932,88 @@ async function startGoldRush() {
   await applyBackendUser(result.user, `Gold Rush! ${state.goldRush.multiplier || 2}x tap for ${state.goldRush.durationMinutes || 15} min`);
 }
 
-function render() {
-  if (els.coins) els.coins.textContent = format(state.coins);
-  if (els.energy) els.energy.textContent = Math.floor(state.energy);
-  const maxEnergy = Math.max(1, Number(state.maxEnergy || 1000));
+function renderEnergyUi() {
+  const energy = safeNumber(state.energy, 0);
+  const maxEnergy = Math.max(1, safeNumber(state.maxEnergy, 1000));
+
+  if (els.energy) els.energy.textContent = Math.floor(energy);
+
   const energyMaxEl = document.getElementById("energyMax");
   if (energyMaxEl) energyMaxEl.textContent = `/ ${format(maxEnergy)}`;
 
   if (els.energyBar) {
-    const energyRatio = state.energy / maxEnergy;
-    els.energyBar.style.width = `${Math.max(0, Math.min(100, energyRatio * 100))}%`;
+    const energyRatio = energy / maxEnergy;
+    const width = Number.isFinite(energyRatio)
+      ? Math.max(0, Math.min(100, energyRatio * 100))
+      : 0;
+    els.energyBar.style.width = `${width}%`;
     els.energyBar.classList.toggle("is-low", energyRatio < 0.2);
   }
 
-  if (els.tapPower) els.tapPower.textContent = tapPower();
   if (els.tapLabel) {
     if (isEndlessEnergy()) {
       els.tapLabel.textContent = isBoostActive(state.boosts.tapUntil) ? "2x · ∞" : "∞ Energy";
     } else {
-      els.tapLabel.textContent = state.energy < tapValue() ? "No Energy" : isBoostActive(state.boosts.tapUntil) ? "2x Tap" : "Tap";
+      els.tapLabel.textContent = energy < tapValue()
+        ? "No Energy"
+        : isBoostActive(state.boosts.tapUntil)
+          ? "2x Tap"
+          : "Tap";
     }
   }
-  if (els.tapButton) els.tapButton.classList.toggle("no-energy", !isEndlessEnergy() && state.energy < tapValue());
+
+  if (els.tapButton) {
+    els.tapButton.classList.toggle("no-energy", !isEndlessEnergy() && energy < tapValue());
+  }
+}
+
+function applyElapsedEnergyRegen(currentEnergy, maxEnergy, regenRate, lastUpdatedAt, now = Date.now()) {
+  const lastUpdated = safeNumber(lastUpdatedAt, now);
+  const elapsedSeconds = Math.floor(Math.max(0, now - lastUpdated) / 1000);
+
+  if (elapsedSeconds <= 0) {
+    return {
+      energy: Math.min(maxEnergy, safeNumber(currentEnergy, 0)),
+      lastEnergyUpdatedAt: lastUpdated
+    };
+  }
+
+  return {
+    energy: Math.min(maxEnergy, safeNumber(currentEnergy, 0) + elapsedSeconds * regenRate),
+    lastEnergyUpdatedAt: now
+  };
+}
+
+function tickEnergyRegen() {
+  if (!backendReady || isEndlessEnergy()) return;
+
+  const maxEnergy = Math.max(1, safeNumber(state.maxEnergy, 1000));
+  const current = safeNumber(state.energy, 0);
+  if (current >= maxEnergy) return;
+
+  const rate = Math.max(0, safeNumber(state.energyRegenRate, BASE_ENERGY_REGEN_RATE));
+  const updated = applyElapsedEnergyRegen(current, maxEnergy, rate, state.lastEnergyUpdatedAt);
+  state.energy = updated.energy;
+  state.lastEnergyUpdatedAt = updated.lastEnergyUpdatedAt;
+  renderEnergyUi();
+}
+
+function startEnergyRegenLoop() {
+  if (energyRegenTimer) return;
+  energyRegenTimer = window.setInterval(tickEnergyRegen, ENERGY_REGEN_INTERVAL_MS);
+}
+
+function stopEnergyRegenLoop() {
+  if (!energyRegenTimer) return;
+  window.clearInterval(energyRegenTimer);
+  energyRegenTimer = null;
+}
+
+function render() {
+  if (els.coins) els.coins.textContent = format(state.coins);
+  renderEnergyUi();
+
+  if (els.tapPower) els.tapPower.textContent = tapPower();
 
   if (els.cityValue) els.cityValue.textContent = format(cityValue());
 
@@ -2781,14 +2848,37 @@ function coinPop(x, y, amount) {
   }, 720);
 }
 
-function syncFromBackend(user) {
+function syncFromBackend(user, options = {}) {
   if (!user || !user.game) return;
 
   const game = user.game;
 
-  state.coins = Number(game.coins || 0);
-  state.energy = Number(game.energy || game.currentEnergy || 0);
-  state.maxEnergy = Number(game.maxEnergy || 1000);
+  state.coins = safeNumber(game.coins, 0);
+  state.maxEnergy = Math.max(1, safeNumber(game.maxEnergy, 1000));
+  state.energyRegenRate = Math.max(1, safeNumber(game.energyRegenRate, BASE_ENERGY_REGEN_RATE));
+  const backendEnergy = applyElapsedEnergyRegen(
+    game.energy ?? game.currentEnergy,
+    state.maxEnergy,
+    state.energyRegenRate,
+    game.lastEnergyUpdatedAt
+  );
+  const localEnergy = Math.min(state.maxEnergy, safeNumber(state.energy, backendEnergy.energy));
+  const localEnergyUpdatedAt = safeNumber(state.lastEnergyUpdatedAt, backendEnergy.lastEnergyUpdatedAt);
+  const backendEnergyUpdatedAt = safeNumber(game.lastEnergyUpdatedAt, backendEnergy.lastEnergyUpdatedAt);
+  const preserveLocalEnergy =
+    (options.preservePendingEnergy && (tapBatchCount > 0 || tapBatchFlushing)) ||
+    (options.preserveLocalRegen && localEnergyUpdatedAt >= backendEnergyUpdatedAt && localEnergy > backendEnergy.energy);
+
+  if (preserveLocalEnergy) {
+    state.energy = localEnergy;
+    state.lastEnergyUpdatedAt = Math.max(
+      localEnergyUpdatedAt,
+      backendEnergy.lastEnergyUpdatedAt
+    );
+  } else {
+    state.energy = backendEnergy.energy;
+    state.lastEnergyUpdatedAt = backendEnergy.lastEnergyUpdatedAt;
+  }
   state.dailyScore = Number(game.dailyScore || game.dailyContest?.score || 0);
   state.taps = Number(game.taps || 0);
   state.spent = Number(game.spent || 0);
@@ -3035,12 +3125,15 @@ const API_FETCH_TIMEOUT_MS = 25000;
 const INVOICE_FETCH_TIMEOUT_MS = 15000;
 const TAP_BATCH_FLUSH_MS = 2000;
 const TAP_BATCH_MAX = 15;
+const ENERGY_REGEN_INTERVAL_MS = 1000;
+const BASE_ENERGY_REGEN_RATE = 3;
 const STARS_INVOICE_CACHE_TTL_MS = 4 * 60 * 1000;
 const starsInvoiceCache = new Map();
 
 let tapBatchCount = 0;
 let tapBatchTimer = null;
 let tapBatchFlushing = false;
+let energyRegenTimer = null;
 
 function shouldShowSyncErrorToast(silent) {
   return !silent && !paymentInProgress;
@@ -3910,7 +4003,8 @@ function tapLocal(event) {
   if (state.dailyContest) state.dailyContest.score = state.dailyScore;
   dailyContestScore = state.dailyScore;
   if (!isEndlessEnergy()) {
-    state.energy = Math.max(0, Number(state.energy || 0) - cost);
+    state.energy = Math.max(0, safeNumber(state.energy, 0) - cost);
+    state.lastEnergyUpdatedAt = Date.now();
   }
 
   saveState();
@@ -3946,15 +4040,28 @@ async function flushTapBatch() {
   const snapshot = {
     coins: state.coins,
     taps: state.taps,
-    energy: state.energy
+    energy: state.energy,
+    lastEnergyUpdatedAt: state.lastEnergyUpdatedAt
   };
 
   try {
     const { ok, result } = await apiPost("/api/tap", { count });
     if (!ok || !result || !result.user) {
+      if (result && result.user) {
+        syncFromBackend(result.user);
+        saveState();
+        render();
+
+        if (result.error === "NO_ENERGY") {
+          showToast("No energy.");
+        }
+        return;
+      }
+
       state.coins = snapshot.coins;
       state.taps = snapshot.taps;
       state.energy = snapshot.energy;
+      state.lastEnergyUpdatedAt = snapshot.lastEnergyUpdatedAt;
       saveState();
       render();
 
@@ -4461,7 +4568,7 @@ async function refreshBackendState() {
     backendSessionToken = result.token;
   }
 
-  syncFromBackend(result);
+  syncFromBackend(result, { preservePendingEnergy: true, preserveLocalRegen: true });
   saveState();
   render();
   await loadLeaderboard();
@@ -4665,17 +4772,25 @@ function bootApp() {
 
   document.addEventListener("visibilitychange", () => {
     if (paymentInProgress) return;
-    if (document.visibilityState === "hidden" && tapBatchCount > 0) {
-      void flushTapBatch();
+    if (document.visibilityState === "hidden") {
+      if (tapBatchCount > 0) {
+        void flushTapBatch();
+      }
+      stopEnergyRegenLoop();
       return;
     }
-    if (document.visibilityState === "visible" && !backendReady && isTelegramWebApp()) {
+    startEnergyRegenLoop();
+    if (backendReady) {
+      void refreshBackendState();
+    } else if (isTelegramWebApp()) {
       connectBackend(4);
     }
   });
 }
 
 bootApp();
+startEnergyRegenLoop();
+window.addEventListener("pagehide", stopEnergyRegenLoop);
 
 window.setInterval(refreshBackendState, 10000);
 
@@ -4689,4 +4804,3 @@ window.setInterval(() => {
   }
 }, 1000);
 
-// Energy recovery is server-side only (1 per 10s via /api/session sync).
