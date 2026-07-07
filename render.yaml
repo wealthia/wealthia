@@ -41,6 +41,12 @@ services:
         value: "10"
       - key: OWNER_TELEGRAM_ID
         sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: TAP_FLUSH_INTERVAL_MS
+        value: "25000"
+      - key: MAX_TAPS_PER_SECOND
+        value: "15"
 
   - type: worker
     name: wealthia-bot

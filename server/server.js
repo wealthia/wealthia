@@ -23,6 +23,7 @@ const gameSettings = require("./game-settings");
 const macroGuard = require("./macro-guard");
 const telegramStars = require("./telegram-stars");
 const economy = require("./economy");
+const { createTapPipeline } = require("./tap-pipeline");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -38,6 +39,17 @@ if (!supabaseUrl || !supabaseServiceKey) {
 }
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const tapPipeline = createTapPipeline({ supabase });
+const tapHelpers = {
+  economy,
+  nowMs,
+  todayKey,
+  buildCityValue,
+  syncDailyContest,
+  hasEndlessEnergy,
+  tapPower,
+  incrementTournamentScore: null
+};
 
 app.use(cors());
 app.use(express.json());
@@ -90,7 +102,7 @@ const CHANNEL_MEMBER_STATUSES = new Set([
   "restricted"
 ]);
 const TAP_RATE_WINDOW_MS = 1000;
-const MAX_TAPS_PER_WINDOW = 10;
+const MAX_TAPS_PER_WINDOW = Number(process.env.MAX_TAPS_PER_SECOND || 15);
 const TAP_VIOLATION_ALERT_THRESHOLD = 25;
 const IP_RATE_WINDOW_MS = 60 * 1000;
 const IP_MAX_HITS = 240;
@@ -1366,6 +1378,8 @@ async function incrementTournamentScore(userId, amount = 1) {
     .eq("id", entry.id);
 }
 
+tapHelpers.incrementTournamentScore = incrementTournamentScore;
+
 async function logMetric(metricType, amount, notes = "", extra = {}) {
   await supabase.from("admin_metrics").insert({
     metric_type: metricType,
@@ -2193,7 +2207,7 @@ async function getOrCreatePlayer(telegramUser, referrerId = "") {
   return row;
 }
 
-async function loadGame(userId) {
+async function loadGameRow(userId) {
   const { data, error } = await supabase
     .from("game_states")
     .select("*")
@@ -2214,6 +2228,13 @@ async function loadGame(userId) {
 
   if (saveError) throw saveError;
   return attachPassiveMeta(saved, row);
+}
+
+async function loadGame(userId) {
+  await tapPipeline.flushUser(userId, tapHelpers);
+  const row = await loadGameRow(userId);
+  tapPipeline.hydrate(userId, row);
+  return row;
 }
 
 app.get("/", (_req, res) => {
@@ -2281,6 +2302,7 @@ app.get("/health", async (_req, res) => {
     telegram,
     officialChannel,
     stars,
+    tap: tapPipeline.stats(),
     session: {
       configured: Boolean(TELEGRAM_BOT_TOKEN || process.env.SESSION_SECRET || ADMIN_SECRET)
     },
@@ -2371,8 +2393,10 @@ app.post("/api/session", async (req, res) => {
       console.warn("REFERRAL_COUNT_FAILED:", countError.message);
     }
 
+    const responseRow = await tapPipeline.getLiveRow(telegramUser.id, row);
+
     res.json({
-      ...toClientUser(row, {
+      ...toClientUser(responseRow || row, {
         referralCount,
         offlineEarnings: number(row.__offlineEarnings || 0),
         offlineCashAdded: number(row.__offlineCashAdded || 0),
@@ -2434,6 +2458,7 @@ app.post("/api/gold-rush/start", requirePlayer, async (req, res) => {
 app.post("/api/tap", requirePlayer, async (req, res) => {
   try {
     const userId = req.playerId;
+    const count = Math.min(20, Math.max(1, Math.floor(number(req.body?.count) || 1)));
 
     const macro = await macroGuard.enforceMacroGuard(supabase, userId, "tap");
     if (macro.blocked) {
@@ -2444,67 +2469,35 @@ app.post("/api/tap", requirePlayer, async (req, res) => {
       return;
     }
 
-    const row = await loadGame(userId);
-    const endless = hasEndlessEnergy(row);
-    const rate = nextTapRateState(row);
+    await tapPipeline.ensureHydrated(userId, async () => loadGameRow(userId));
 
-    if (!rate.allowed) {
-      await supabase
-        .from("game_states")
-        .update({
-          tap_window_start: rate.windowStart,
-          tap_window_count: rate.count,
-          tap_violations: rate.violations,
-          updated_at: new Date().toISOString()
-        })
-        .eq("user_id", userId);
+    const result = await tapPipeline.applyBatch(userId, count, tapHelpers);
+    if (!result.ok) {
+      if (result.error === "TOO_FAST") {
+        await tapPipeline.flushUser(userId, tapHelpers);
+        await logTapViolation(userId, result.violations || 0);
+        res.status(429).json({
+          error: "TOO_FAST",
+          retryAfterMs: result.retryAfterMs || TAP_RATE_WINDOW_MS
+        });
+        return;
+      }
 
-      await logTapViolation(userId, rate.violations);
-      res.status(429).json({ error: "TOO_FAST", retryAfterMs: TAP_RATE_WINDOW_MS });
+      if (result.error === "NO_ENERGY") {
+        res.status(400).json({ error: "NO_ENERGY" });
+        return;
+      }
+
+      res.status(400).json({ error: result.error || "TAP_FAILED" });
       return;
     }
 
-    if (!endless && number(row.energy) < economy.tapValue(row)) {
-      res.status(400).json({ error: "NO_ENERGY" });
-      return;
-    }
-
-    const amount = tapPower(row);
-    const tapCost = economy.tapValue(row);
-    const today = todayKey();
-    let dailyScore = number(row.daily_contest_score);
-    if (row.contest_date !== today) {
-      dailyScore = 0;
-    }
-
-    const updated = {
-      coins: number(row.coins) + amount,
-      energy: endless ? number(row.energy) : Math.max(0, number(row.energy) - tapCost),
-      taps: number(row.taps) + 1,
-      daily_contest_score: dailyScore + amount,
-      contest_date: today,
-      contest_baseline_city: row.contest_date === today
-        ? number(row.contest_baseline_city)
-        : buildCityValue(row),
-      city_value: number(row.coins) + amount + number(row.spent),
-      tap_window_start: rate.windowStart,
-      tap_window_count: rate.count,
-      tap_violations: rate.violations,
-      updated_at: new Date().toISOString()
-    };
-
-    const { data, error } = await supabase
-      .from("game_states")
-      .update(updated)
-      .eq("user_id", userId)
-      .select("*")
-      .single();
-
-    if (error) throw error;
-
-    await incrementTournamentScore(userId, 1);
-
-    res.json({ amount, user: toClientUser(data) });
+    res.json({
+      amount: result.amount,
+      applied: result.applied,
+      count: result.count,
+      user: toClientUser(result.row)
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -4967,6 +4960,29 @@ app.post("/api/cron/daily-push", async (req, res) => {
 
 app.listen(port, () => {
   console.log(`Wealthia backend running on port ${port}`);
+
+  tapPipeline.initRedis().then(() => {
+    tapPipeline.startFlushLoop(tapHelpers);
+    console.log("Tap pipeline flush loop started");
+  }).catch((error) => {
+    console.warn("Tap pipeline init failed:", error.message);
+    tapPipeline.startFlushLoop(tapHelpers);
+  });
+
+  const shutdownFlush = async () => {
+    try {
+      await tapPipeline.flushAll(tapHelpers);
+    } catch (error) {
+      console.error("TAP_SHUTDOWN_FLUSH_FAILED:", error.message);
+    }
+  };
+
+  process.once("SIGTERM", () => {
+    shutdownFlush().finally(() => process.exit(0));
+  });
+  process.once("SIGINT", () => {
+    shutdownFlush().finally(() => process.exit(0));
+  });
 
   gameSettings.loadSettings(supabase, { force: true }).then((settings) => {
     STAR_PRODUCTS.premium_spin.stars = settings.premium_spin_stars;
