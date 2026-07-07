@@ -195,7 +195,7 @@ function createTapPipeline({ supabase }) {
         state.dirty = true;
         state.lastActivity = now;
         await writeState(userId, state);
-        return { ok: false, error: "NO_ENERGY" };
+        return { ok: false, error: "NO_ENERGY", row: cloneRow(row) };
       }
       applied = Math.min(count, maxByEnergy);
     }
@@ -375,7 +375,7 @@ function createTapPipeline({ supabase }) {
     };
   }
 
-  async function getLiveRow(userId, fallbackRow, helpers) {
+  async function getLiveRowUnlocked(userId, fallbackRow, helpers) {
     const state = await readState(userId);
     if (state?.row) {
       if (helpers?.economy?.applyEnergyRegen) {
@@ -392,6 +392,10 @@ function createTapPipeline({ supabase }) {
       return cloneRow(fallbackRow);
     }
     return null;
+  }
+
+  async function getLiveRow(userId, fallbackRow, helpers) {
+    return withUserLock(userId, () => getLiveRowUnlocked(userId, fallbackRow, helpers));
   }
 
   return {

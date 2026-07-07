@@ -967,6 +967,23 @@ function renderEnergyUi() {
   }
 }
 
+function applyElapsedEnergyRegen(currentEnergy, maxEnergy, regenRate, lastUpdatedAt, now = Date.now()) {
+  const lastUpdated = safeNumber(lastUpdatedAt, now);
+  const elapsedSeconds = Math.floor(Math.max(0, now - lastUpdated) / 1000);
+
+  if (elapsedSeconds <= 0) {
+    return {
+      energy: Math.min(maxEnergy, safeNumber(currentEnergy, 0)),
+      lastEnergyUpdatedAt: lastUpdated
+    };
+  }
+
+  return {
+    energy: Math.min(maxEnergy, safeNumber(currentEnergy, 0) + elapsedSeconds * regenRate),
+    lastEnergyUpdatedAt: now
+  };
+}
+
 function tickEnergyRegen() {
   if (!backendReady || isEndlessEnergy()) return;
 
@@ -975,8 +992,9 @@ function tickEnergyRegen() {
   if (current >= maxEnergy) return;
 
   const rate = Math.max(0, safeNumber(state.energyRegenRate, BASE_ENERGY_REGEN_RATE));
-  state.energy = Math.min(maxEnergy, current + rate);
-  state.lastEnergyUpdatedAt = Date.now();
+  const updated = applyElapsedEnergyRegen(current, maxEnergy, rate, state.lastEnergyUpdatedAt);
+  state.energy = updated.energy;
+  state.lastEnergyUpdatedAt = updated.lastEnergyUpdatedAt;
   renderEnergyUi();
 }
 
@@ -2830,16 +2848,37 @@ function coinPop(x, y, amount) {
   }, 720);
 }
 
-function syncFromBackend(user) {
+function syncFromBackend(user, options = {}) {
   if (!user || !user.game) return;
 
   const game = user.game;
 
   state.coins = safeNumber(game.coins, 0);
-  state.energy = safeNumber(game.energy ?? game.currentEnergy, 0);
   state.maxEnergy = Math.max(1, safeNumber(game.maxEnergy, 1000));
   state.energyRegenRate = Math.max(1, safeNumber(game.energyRegenRate, BASE_ENERGY_REGEN_RATE));
-  state.lastEnergyUpdatedAt = safeNumber(game.lastEnergyUpdatedAt, Date.now());
+  const backendEnergy = applyElapsedEnergyRegen(
+    game.energy ?? game.currentEnergy,
+    state.maxEnergy,
+    state.energyRegenRate,
+    game.lastEnergyUpdatedAt
+  );
+  const localEnergy = Math.min(state.maxEnergy, safeNumber(state.energy, backendEnergy.energy));
+  const localEnergyUpdatedAt = safeNumber(state.lastEnergyUpdatedAt, backendEnergy.lastEnergyUpdatedAt);
+  const backendEnergyUpdatedAt = safeNumber(game.lastEnergyUpdatedAt, backendEnergy.lastEnergyUpdatedAt);
+  const preserveLocalEnergy =
+    (options.preservePendingEnergy && (tapBatchCount > 0 || tapBatchFlushing)) ||
+    (options.preserveLocalRegen && localEnergyUpdatedAt >= backendEnergyUpdatedAt && localEnergy > backendEnergy.energy);
+
+  if (preserveLocalEnergy) {
+    state.energy = localEnergy;
+    state.lastEnergyUpdatedAt = Math.max(
+      localEnergyUpdatedAt,
+      backendEnergy.lastEnergyUpdatedAt
+    );
+  } else {
+    state.energy = backendEnergy.energy;
+    state.lastEnergyUpdatedAt = backendEnergy.lastEnergyUpdatedAt;
+  }
   state.dailyScore = Number(game.dailyScore || game.dailyContest?.score || 0);
   state.taps = Number(game.taps || 0);
   state.spent = Number(game.spent || 0);
@@ -4008,6 +4047,17 @@ async function flushTapBatch() {
   try {
     const { ok, result } = await apiPost("/api/tap", { count });
     if (!ok || !result || !result.user) {
+      if (result && result.user) {
+        syncFromBackend(result.user);
+        saveState();
+        render();
+
+        if (result.error === "NO_ENERGY") {
+          showToast("No energy.");
+        }
+        return;
+      }
+
       state.coins = snapshot.coins;
       state.taps = snapshot.taps;
       state.energy = snapshot.energy;
@@ -4518,7 +4568,7 @@ async function refreshBackendState() {
     backendSessionToken = result.token;
   }
 
-  syncFromBackend(result);
+  syncFromBackend(result, { preservePendingEnergy: true, preserveLocalRegen: true });
   saveState();
   render();
   await loadLeaderboard();
@@ -4730,7 +4780,9 @@ function bootApp() {
       return;
     }
     startEnergyRegenLoop();
-    if (!backendReady && isTelegramWebApp()) {
+    if (backendReady) {
+      void refreshBackendState();
+    } else if (isTelegramWebApp()) {
       connectBackend(4);
     }
   });
