@@ -4,6 +4,8 @@ const MAX_TAPS_PER_WINDOW = Number(process.env.MAX_TAPS_PER_SECOND || 15);
 const MAX_TAPS_PER_REQUEST = Number(process.env.MAX_TAPS_PER_REQUEST || 20);
 const TAP_CACHE_TTL_SEC = Number(process.env.TAP_CACHE_TTL_SEC || 3600);
 
+const { updateGameState } = require("./game-state-update");
+
 function number(value) {
   return Number(value || 0);
 }
@@ -290,12 +292,7 @@ function createTapPipeline({ supabase }) {
       updated_at: new Date().toISOString()
     };
 
-    const { error } = await supabase
-      .from("game_states")
-      .update(patch)
-      .eq("user_id", String(userId));
-
-    if (error) throw error;
+    await updateGameState(supabase, userId, patch);
 
     const tournamentTaps = number(state.pendingTournamentTaps);
     state.pendingTournamentTaps = 0;
@@ -380,10 +377,18 @@ function createTapPipeline({ supabase }) {
     if (state?.row) {
       if (helpers?.economy?.applyEnergyRegen) {
         const now = typeof helpers.nowMs === "function" ? helpers.nowMs() : Date.now();
+        const beforeEnergy = number(state.row.energy);
+        const beforeLastEnergyUpdatedAt = number(state.row.last_energy_updated_at);
         helpers.economy.applyEnergyRegen(state.row, regenOptions(helpers, now));
-        state.dirty = true;
-        state.lastActivity = now;
-        await writeState(userId, state);
+        const energyChanged = number(state.row.energy) !== beforeEnergy;
+        const timestampChanged = number(state.row.last_energy_updated_at) !== beforeLastEnergyUpdatedAt;
+        if (energyChanged) {
+          state.dirty = true;
+        }
+        if (energyChanged || timestampChanged) {
+          state.lastActivity = now;
+          await writeState(userId, state);
+        }
       }
       return cloneRow(state.row);
     }

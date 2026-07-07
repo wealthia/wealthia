@@ -24,6 +24,7 @@ const macroGuard = require("./macro-guard");
 const telegramStars = require("./telegram-stars");
 const economy = require("./economy");
 const { createTapPipeline } = require("./tap-pipeline");
+const { insertGameState, updateGameState } = require("./game-state-update");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -2144,14 +2145,13 @@ async function ensureUserProfile(telegramUser) {
     let row = refreshDailyTasks(applyPassive(existing));
     const contest = syncDailyContest(row);
 
-    const { data: saved, error } = await supabase
-      .from("game_states")
-      .update(passiveDbPatch(row, contest))
-      .eq("user_id", telegramId)
-      .select("*")
-      .single();
+    const saved = await updateGameState(
+      supabase,
+      telegramId,
+      passiveDbPatch(row, contest),
+      { select: "*" }
+    );
 
-    if (error) throw error;
     return {
       row: attachPassiveMeta(saved, row),
       isNew: false
@@ -2177,13 +2177,8 @@ async function ensureUserProfile(telegramUser) {
     updated_at: new Date().toISOString()
   });
 
-  const { data, error } = await supabase
-    .from("game_states")
-    .insert(fresh)
-    .select("*")
-    .single();
+  const data = await insertGameState(supabase, fresh, { select: "*" });
 
-  if (error) throw error;
   return {
     row: data,
     isNew: true
@@ -2234,14 +2229,13 @@ async function loadGameRow(userId) {
   let row = refreshDailyTasks(applyPassive(data));
   const contest = syncDailyContest(row);
 
-  const { data: saved, error: saveError } = await supabase
-    .from("game_states")
-    .update(passiveDbPatch(row, contest))
-    .eq("user_id", String(userId))
-    .select("*")
-    .single();
+  const saved = await updateGameState(
+    supabase,
+    userId,
+    passiveDbPatch(row, contest),
+    { select: "*" }
+  );
 
-  if (saveError) throw saveError;
   return attachPassiveMeta(saved, row);
 }
 
