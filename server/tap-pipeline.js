@@ -378,9 +378,14 @@ function createTapPipeline({ supabase }) {
       if (helpers?.economy?.applyEnergyRegen) {
         const now = typeof helpers.nowMs === "function" ? helpers.nowMs() : Date.now();
         const beforeEnergy = number(state.row.energy);
+        const beforeLastEnergyUpdatedAt = number(state.row.last_energy_updated_at);
         helpers.economy.applyEnergyRegen(state.row, regenOptions(helpers, now));
-        if (number(state.row.energy) !== beforeEnergy) {
+        const energyChanged = number(state.row.energy) !== beforeEnergy;
+        const timestampChanged = number(state.row.last_energy_updated_at) !== beforeLastEnergyUpdatedAt;
+        if (energyChanged) {
           state.dirty = true;
+        }
+        if (energyChanged || timestampChanged) {
           state.lastActivity = now;
           await writeState(userId, state);
         }
