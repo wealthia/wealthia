@@ -102,6 +102,13 @@ const CHANNEL_MEMBER_STATUSES = new Set([
   "member",
   "restricted"
 ]);
+const VERIFIED_CHANNEL_STATUSES = new Set([
+  "creator",
+  "administrator",
+  "member"
+]);
+const CHANNEL_SUBSCRIPTION_REQUIRED_MESSAGE =
+  "Subscription not found! Please join the channel first.";
 const TAP_RATE_WINDOW_MS = 1000;
 const MAX_TAPS_PER_WINDOW = Number(process.env.MAX_TAPS_PER_SECOND || 15);
 const TAP_VIOLATION_ALERT_THRESHOLD = 25;
@@ -411,6 +418,49 @@ async function checkOfficialChannelMembership(telegramId) {
 
   result.isMember = CHANNEL_MEMBER_STATUSES.has(String(lookup.result?.status || ""));
   return result;
+}
+
+function isChannelJoinTask(task) {
+  return Boolean(
+    task &&
+    task.type === "social" &&
+    (task.action === "join_telegram" || task.id === "social-join-telegram")
+  );
+}
+
+async function verifyChannelSubscriptionStrict(telegramId) {
+  if (!TELEGRAM_BOT_TOKEN || !telegramId) {
+    return { ok: false, message: CHANNEL_SUBSCRIPTION_REQUIRED_MESSAGE };
+  }
+
+  const chatId = await getOfficialChannelChatId();
+  if (!chatId) {
+    return { ok: false, message: CHANNEL_SUBSCRIPTION_REQUIRED_MESSAGE };
+  }
+
+  const lookup = await telegramApiSafe("getChatMember", {
+    chat_id: chatId,
+    user_id: Number(telegramId)
+  });
+
+  if (!lookup.ok) {
+    return { ok: false, message: CHANNEL_SUBSCRIPTION_REQUIRED_MESSAGE };
+  }
+
+  const status = String(lookup.result?.status || "");
+  if (!VERIFIED_CHANNEL_STATUSES.has(status)) {
+    return { ok: false, message: CHANNEL_SUBSCRIPTION_REQUIRED_MESSAGE, status };
+  }
+
+  return { ok: true, status };
+}
+
+function rejectChannelSubscription(res) {
+  res.status(400).json({
+    success: false,
+    error: "CHANNEL_NOT_SUBSCRIBED",
+    message: CHANNEL_SUBSCRIPTION_REQUIRED_MESSAGE
+  });
 }
 
 async function hasPendingChannelReferral(userId) {
@@ -1559,6 +1609,7 @@ function taskProgress(row, task) {
 }
 
 function taskReady(row, task) {
+  if (isChannelJoinTask(task)) return false;
   if (task.type === "social") return true;
   return taskProgress(row, task) >= number(task.target);
 }
@@ -2561,6 +2612,20 @@ app.post("/api/upgrade", requirePlayer, async (req, res) => {
   }
 });
 
+app.post("/api/verify-channel-subscription", requirePlayer, async (req, res) => {
+  try {
+    const check = await verifyChannelSubscriptionStrict(req.playerId);
+    if (!check.ok) {
+      rejectChannelSubscription(res);
+      return;
+    }
+
+    res.json({ success: true, status: check.status });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post("/api/claim-task", requirePlayer, async (req, res) => {
   try {
     const userId = req.playerId;
@@ -2581,7 +2646,13 @@ app.post("/api/claim-task", requirePlayer, async (req, res) => {
       return;
     }
 
-    if (!taskReady(row, task)) {
+    if (isChannelJoinTask(task)) {
+      const check = await verifyChannelSubscriptionStrict(userId);
+      if (!check.ok) {
+        rejectChannelSubscription(res);
+        return;
+      }
+    } else if (!taskReady(row, task)) {
       res.status(400).json({ error: "TASK_NOT_READY" });
       return;
     }
@@ -2715,6 +2786,14 @@ app.post("/api/claim-earn", requirePlayer, async (req, res) => {
     if (Boolean(row[earnTask.field])) {
       res.status(400).json({ error: "ALREADY_CLAIMED" });
       return;
+    }
+
+    if (type === "channel") {
+      const check = await verifyChannelSubscriptionStrict(userId);
+      if (!check.ok) {
+        rejectChannelSubscription(res);
+        return;
+      }
     }
 
     const reward = earnTask.reward;

@@ -416,6 +416,17 @@
     </article>
   </div>
 
+  <div class="channel-gate-modal" id="subscriptionAlertModal" hidden>
+    <div class="channel-gate-modal__backdrop" data-close-subscription-alert></div>
+    <article class="channel-gate-modal__card" role="alertdialog" aria-modal="true" aria-labelledby="subscriptionAlertTitle">
+      <span class="channel-gate-modal__badge">&#9888;&#65039; Verification failed</span>
+      <h2 id="subscriptionAlertTitle">Subscription required</h2>
+      <p id="subscriptionAlertMessage">Subscription not found! Please join the channel first.</p>
+      <button class="channel-gate-modal__join" id="subscriptionAlertJoinButton" type="button">Open channel</button>
+      <button class="channel-gate-modal__retry" id="subscriptionAlertCloseButton" type="button" data-close-subscription-alert>OK</button>
+    </article>
+  </div>
+
   <script src="./config.js?v=22"></script>
-  <script src="./v5.js?v=10128"></script></body>
+  <script src="./v5.js?v=10129"></script></body>
 </html>

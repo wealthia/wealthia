@@ -230,6 +230,81 @@ function saveState() {
   localStorage.setItem(storageKey, JSON.stringify(state));
 }
 
+function getOfficialChannelUrl() {
+  return (
+    CONFIG.SOCIAL_TASKS?.joinTelegram ||
+    CONFIG.PARTNER_CHANNEL_URL ||
+    "https://t.me/weathia_official"
+  );
+}
+
+function isChannelJoinTask(task) {
+  return Boolean(
+    task &&
+    task.type === "social" &&
+    (task.action === "join_telegram" || task.id === "social-join-telegram")
+  );
+}
+
+function openOfficialChannelLink(url = getOfficialChannelUrl()) {
+  openPartnerLink(url);
+}
+
+function showSubscriptionAlert(message = CHANNEL_SUBSCRIPTION_REQUIRED_MESSAGE) {
+  const modal = document.getElementById("subscriptionAlertModal");
+  const messageNode = document.getElementById("subscriptionAlertMessage");
+  if (!modal) {
+    showToast(message);
+    return;
+  }
+
+  if (messageNode) messageNode.textContent = message;
+  modal.hidden = false;
+  document.body.classList.add("channel-gate-active");
+}
+
+function hideSubscriptionAlert() {
+  const modal = document.getElementById("subscriptionAlertModal");
+  if (!modal) return;
+  modal.hidden = true;
+  document.body.classList.remove("channel-gate-active");
+}
+
+function bindSubscriptionAlertModal() {
+  const modal = document.getElementById("subscriptionAlertModal");
+  if (!modal || modal.dataset.bound === "1") return;
+
+  modal.dataset.bound = "1";
+  modal.querySelectorAll("[data-close-subscription-alert]").forEach((node) => {
+    node.addEventListener("click", hideSubscriptionAlert);
+  });
+
+  const joinButton = document.getElementById("subscriptionAlertJoinButton");
+  if (joinButton) {
+    joinButton.addEventListener("click", () => {
+      openOfficialChannelLink();
+    });
+  }
+}
+
+async function verifyChannelSubscriptionLive() {
+  if (!(await ensureBackend())) {
+    showToast("Server not connected. Tap Retry at top.");
+    return false;
+  }
+
+  const { ok, result, status } = await apiPostSecure("/api/verify-channel-subscription", {});
+
+  if (ok && result && result.success) {
+    return true;
+  }
+
+  showSubscriptionAlert(
+    result?.message || CHANNEL_SUBSCRIPTION_REQUIRED_MESSAGE
+  );
+  return false;
+}
+
 function safeNumber(value, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -1655,18 +1730,24 @@ function renderDailyTaskCard(task) {
   const target = Number(task.target || 1);
   const claimed = Boolean(task.claimed);
   const isSocial = task.type === "social";
-  const ready = !claimed && (isSocial || task.ready || progress >= target);
+  const isChannelJoin = isChannelJoinTask(task);
+  const awaitingVerify = isChannelJoin && channelVerifyAwaiting.has(task.id);
+  const ready = !claimed && (
+    isChannelJoin
+      ? awaitingVerify
+      : (isSocial || task.ready || progress >= target)
+  );
   const buttonText = claimed
     ? "Claimed"
-    : isSocial
-      ? `+${reward}`
+    : isChannelJoin
+      ? (awaitingVerify ? "Verify Subscription" : "Join")
       : ready
         ? `+${reward}`
         : `${format(progress)} / ${format(target)}`;
   const statusText = claimed
     ? "Reward collected"
-    : isSocial
-      ? "Tap to open link"
+    : isChannelJoin
+      ? (awaitingVerify ? "Confirm your subscription" : "Tap to open channel")
       : ready
         ? "Ready to claim"
         : "Progress";
@@ -1937,10 +2018,10 @@ function renderEarnPanel() {
   const panel = els.earnPanel;
   if (!panel) return;
 
-  const earnRow = (id, title, subtitle, reward, done, doneLabel) => `
+  const earnRow = (id, title, subtitle, reward, done, doneLabel, actionLabel) => `
     <button class="task earn-task earn-task--compact ${done ? "completed" : ""}" type="button" data-earn="${id}" ${done ? "disabled" : ""}>
       <span><b>${title}</b><small>${subtitle}</small></span>
-      <strong class="${done ? "completed" : ""}">${done ? (doneLabel || "Claimed") : `+${reward}`}</strong>
+      <strong class="${done ? "completed" : ""}">${done ? (doneLabel || "Claimed") : (actionLabel || `+${reward}`)}</strong>
     </button>
   `;
 
@@ -1963,7 +2044,7 @@ function renderEarnPanel() {
     <div class="earn-rows">
       ${renderBonusAdEarnRow()}
       ${renderAdEarnRow()}
-      ${earnRow("channel", "Join Channel", "Subscribe for bonus coins", 500, state.tasks.channel)}
+      ${renderChannelEarnRow()}
     </div>
     <section class="earn-boosts">
       <div class="earn-boosts__head">
@@ -1992,6 +2073,28 @@ function renderEarnPanel() {
   scheduleBoostRefresh();
   bindPromoRedeemForm();
   prefetchEarnBoostInvoices();
+}
+
+function renderChannelEarnRow() {
+  const reward = 500;
+  const done = Boolean(state.tasks.channel);
+  const awaitingVerify = channelVerifyAwaiting.has(EARN_CHANNEL_VERIFY_KEY);
+
+  if (done) {
+    return `
+      <button class="task earn-task earn-task--compact completed" type="button" data-earn="channel" disabled>
+        <span><b>Join Channel</b><small>Subscribe for bonus coins</small></span>
+        <strong class="completed">Claimed</strong>
+      </button>
+    `;
+  }
+
+  return `
+    <button class="task earn-task earn-task--compact" type="button" data-earn="channel">
+      <span><b>Join Channel</b><small>${awaitingVerify ? "Confirm your subscription" : "Subscribe for bonus coins"}</small></span>
+      <strong>${awaitingVerify ? "Verify Subscription" : "Join"}</strong>
+    </button>
+  `;
 }
 
 function bindPromoRedeemForm() {
@@ -3134,6 +3237,10 @@ let tapBatchCount = 0;
 let tapBatchTimer = null;
 let tapBatchFlushing = false;
 let energyRegenTimer = null;
+const channelVerifyAwaiting = new Set();
+const EARN_CHANNEL_VERIFY_KEY = "earn-channel";
+const CHANNEL_SUBSCRIPTION_REQUIRED_MESSAGE =
+  "Subscription not found! Please join the channel first.";
 
 function shouldShowSyncErrorToast(silent) {
   return !silent && !paymentInProgress;
@@ -4176,17 +4283,27 @@ async function handleDailyTaskClick(taskId) {
   const task = tasks.find((item) => item.id === taskId);
   if (!task || task.claimed) return;
 
+  if (isChannelJoinTask(task)) {
+    if (!channelVerifyAwaiting.has(taskId)) {
+      openOfficialChannelLink(task.url || getOfficialChannelUrl());
+      channelVerifyAwaiting.add(taskId);
+      renderDailyTasks();
+      return;
+    }
+
+    if (!(await verifyChannelSubscriptionLive())) return;
+    await claimBackendTask(taskId);
+    channelVerifyAwaiting.delete(taskId);
+    renderDailyTasks();
+    return;
+  }
+
   const isSocial = task.type === "social";
   const ready = isSocial || task.ready || Number(task.progress || 0) >= Number(task.target || 1);
   if (!ready) return;
 
   if (isSocial && task.url) {
-    const tg = window.Telegram?.WebApp;
-    if (tg && typeof tg.openLink === "function") {
-      tg.openLink(task.url);
-    } else {
-      window.open(task.url, "_blank", "noopener,noreferrer");
-    }
+    openOfficialChannelLink(task.url);
   }
 
   await claimBackendTask(taskId);
@@ -4205,6 +4322,10 @@ async function claimBackendTask(taskId) {
 
   if (!ok) {
     const error = result && result.error;
+    if (error === "CHANNEL_NOT_SUBSCRIBED" || result?.success === false) {
+      showSubscriptionAlert(result?.message || CHANNEL_SUBSCRIPTION_REQUIRED_MESSAGE);
+      return;
+    }
     if (error === "TASK_NOT_READY") showToast("Task is not ready yet.");
     else if (error === "TASK_ALREADY_CLAIMED") showToast("Task already claimed.");
     else showToast("Task locked.");
@@ -4258,8 +4379,17 @@ async function handleEarnClick(type) {
   }
 
   if (type === "channel") {
-    openPartnerLink(CONFIG.PARTNER_CHANNEL_URL || "https://t.me/wealthia_channel");
-    showToast("Join channel, then reward is added.");
+    if (!channelVerifyAwaiting.has(EARN_CHANNEL_VERIFY_KEY)) {
+      openOfficialChannelLink();
+      channelVerifyAwaiting.add(EARN_CHANNEL_VERIFY_KEY);
+      renderEarnPanel();
+      return;
+    }
+
+    if (!(await verifyChannelSubscriptionLive())) return;
+    await claimEarnTask(type);
+    channelVerifyAwaiting.delete(EARN_CHANNEL_VERIFY_KEY);
+    return;
   }
 
   await claimEarnTask(type);
@@ -4277,6 +4407,10 @@ async function claimEarnTask(type) {
   });
 
   if (!ok) {
+    if (result && (result.error === "CHANNEL_NOT_SUBSCRIBED" || result.success === false)) {
+      showSubscriptionAlert(result.message || CHANNEL_SUBSCRIPTION_REQUIRED_MESSAGE);
+      return;
+    }
     if (result && result.error === "ALREADY_CLAIMED") showToast("Already claimed.");
     else if (result && result.error === "AD_COOLDOWN") {
       state.adCooldownUntil = Number(result.nextAt || state.adCooldownUntil);
@@ -4292,7 +4426,12 @@ async function claimEarnTask(type) {
     return;
   }
 
+  if (type === "channel") {
+    channelVerifyAwaiting.delete(EARN_CHANNEL_VERIFY_KEY);
+  }
+
   await applyBackendUser(result.user, `Reward: +${format(result.reward)}`);
+  renderEarnPanel();
 }
 
 const STAR_SUCCESS_LABELS = {
@@ -4743,6 +4882,7 @@ function bootApp() {
   bindCoinStoreModal();
   bindResetConfirmModal();
   bindChannelGateModal();
+  bindSubscriptionAlertModal();
   bindPremiumSpinUi();
 
   window.addEventListener("unhandledrejection", (event) => {
