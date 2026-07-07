@@ -2344,10 +2344,11 @@ app.post("/api/session", async (req, res) => {
     let row;
     let isNewPlayer = false;
     try {
-      const profile = await ensureUserProfile(telegramUser);
-      row = profile.row;
-      isNewPlayer = Boolean(profile.isNew);
-      syncTapCache(telegramUser.id, row);
+      row = await tapPipeline.reload(telegramUser.id, async () => {
+        const profile = await ensureUserProfile(telegramUser);
+        isNewPlayer = Boolean(profile.isNew);
+        return profile.row;
+      }, tapHelpers);
     } catch (profileError) {
       console.error("ENSURE_USER_PROFILE_FAILED:", profileError);
       if (profileError.code === "BOTS_NOT_ALLOWED") {
