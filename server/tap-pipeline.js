@@ -14,6 +14,7 @@ function cloneRow(row) {
 
 function createTapPipeline({ supabase }) {
   const memory = new Map();
+  const locks = new Map();
   let redis = null;
   let redisReady = false;
 
@@ -71,12 +72,29 @@ function createTapPipeline({ supabase }) {
     if (!redisReady) return;
 
     try {
-      await redis.set(redisKey(userId), JSON.stringify(state), "EX", TAP_CACHE_TTL_SEC);
       if (state.dirty) {
+        await redis.set(redisKey(userId), JSON.stringify(state));
         await redis.sadd("wealthia:tap:dirty", userId);
+      } else {
+        await redis.set(redisKey(userId), JSON.stringify(state), "EX", TAP_CACHE_TTL_SEC);
       }
     } catch (error) {
       console.warn("TAP_CACHE_WRITE_FAILED:", userId, error.message);
+    }
+  }
+
+  async function withUserLock(userId, task) {
+    const key = String(userId);
+    const previous = locks.get(key) || Promise.resolve();
+    const current = previous.catch(() => {}).then(task);
+    locks.set(key, current);
+
+    try {
+      return await current;
+    } finally {
+      if (locks.get(key) === current) {
+        locks.delete(key);
+      }
     }
   }
 
@@ -147,7 +165,7 @@ function createTapPipeline({ supabase }) {
     return { allowed: true };
   }
 
-  async function applyBatch(userId, rawCount, helpers) {
+  async function applyBatchUnlocked(userId, rawCount, helpers) {
     const count = Math.min(MAX_TAPS_PER_REQUEST, Math.max(1, Math.floor(number(rawCount) || 1)));
     const state = await readState(userId);
 
@@ -156,21 +174,6 @@ function createTapPipeline({ supabase }) {
     }
 
     const now = helpers.nowMs();
-    const rate = checkRate(state, count, now);
-    if (!rate.allowed) {
-      state.row.tap_window_start = state.rateWindowStart;
-      state.row.tap_window_count = state.rateWindowCount;
-      state.row.tap_violations = state.tapViolations;
-      state.dirty = true;
-      await writeState(userId, state);
-      return {
-        ok: false,
-        error: "TOO_FAST",
-        retryAfterMs: rate.retryAfterMs,
-        violations: state.tapViolations
-      };
-    }
-
     const row = state.row;
     const endless = helpers.hasEndlessEnergy(row);
     const tapCost = helpers.economy.tapValue(row);
@@ -185,12 +188,28 @@ function createTapPipeline({ supabase }) {
       applied = Math.min(count, maxByEnergy);
     }
 
+    const rate = checkRate(state, applied, now);
+    if (!rate.allowed) {
+      state.row.tap_window_start = state.rateWindowStart;
+      state.row.tap_window_count = state.rateWindowCount;
+      state.row.tap_violations = state.tapViolations;
+      state.dirty = true;
+      await writeState(userId, state);
+      return {
+        ok: false,
+        error: "TOO_FAST",
+        retryAfterMs: rate.retryAfterMs,
+        violations: state.tapViolations
+      };
+    }
+
     const totalCoins = amount * applied;
     const totalEnergyCost = endless ? 0 : tapCost * applied;
     const today = helpers.todayKey();
+    const contestDate = String(row.contest_date || "");
     let dailyScore = number(row.daily_contest_score);
 
-    if (String(row.contest_date || "") !== today) {
+    if (contestDate !== today) {
       dailyScore = 0;
     }
 
@@ -199,7 +218,7 @@ function createTapPipeline({ supabase }) {
     row.taps = number(row.taps) + applied;
     row.daily_contest_score = dailyScore + totalCoins;
     row.contest_date = today;
-    row.contest_baseline_city = String(row.contest_date || "") === today
+    row.contest_baseline_city = contestDate === today
       ? number(row.contest_baseline_city)
       : helpers.buildCityValue(row);
     row.city_value = number(row.coins) + number(row.spent);
@@ -224,9 +243,20 @@ function createTapPipeline({ supabase }) {
     };
   }
 
-  async function flushUser(userId, helpers) {
+  async function applyBatch(userId, rawCount, helpers) {
+    return withUserLock(userId, () => applyBatchUnlocked(userId, rawCount, helpers));
+  }
+
+  async function flushUserUnlocked(userId, helpers) {
     const state = await readState(userId);
-    if (!state || !state.dirty || !state.row) return false;
+    if (!state || !state.row) {
+      if (redisReady) {
+        await redis.srem("wealthia:tap:dirty", String(userId));
+      }
+      return false;
+    }
+
+    if (!state.dirty) return false;
 
     const contest = helpers.syncDailyContest(state.row);
     const patch = {
@@ -266,6 +296,19 @@ function createTapPipeline({ supabase }) {
     }
 
     return true;
+  }
+
+  async function flushUser(userId, helpers) {
+    return withUserLock(userId, () => flushUserUnlocked(userId, helpers));
+  }
+
+  async function reload(userId, loadRow, helpers) {
+    return withUserLock(userId, async () => {
+      await flushUserUnlocked(userId, helpers);
+      const row = await loadRow();
+      hydrate(userId, row);
+      return row;
+    });
   }
 
   async function flushAll(helpers) {
@@ -333,6 +376,7 @@ function createTapPipeline({ supabase }) {
     getLiveRow,
     has,
     applyBatch,
+    reload,
     flushUser,
     flushAll,
     startFlushLoop,

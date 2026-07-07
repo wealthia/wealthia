@@ -863,6 +863,7 @@ async function fulfillStarPaymentRecord({
       .single();
 
     if (error) throw error;
+    syncTapCache(userId, data);
 
     const { data: buyer } = await supabase
       .from("users")
@@ -1734,6 +1735,8 @@ async function creditReferrerCoins(referrerId) {
   const referrer = String(referrerId || "");
   if (!referrer) return;
 
+  await tapPipeline.flushUser(referrer, tapHelpers);
+
   const { data: refRow } = await supabase
     .from("game_states")
     .select("*")
@@ -1744,7 +1747,7 @@ async function creditReferrerCoins(referrerId) {
 
   const bonus = REFERRAL_BONUS;
 
-  await supabase
+  const { data } = await supabase
     .from("game_states")
     .update({
       coins: number(refRow.coins) + bonus,
@@ -1752,7 +1755,11 @@ async function creditReferrerCoins(referrerId) {
       invite_done: true,
       updated_at: new Date().toISOString()
     })
-    .eq("user_id", referrer);
+    .eq("user_id", referrer)
+    .select("*")
+    .single();
+
+  syncTapCache(referrer, data);
 }
 
 async function registerPendingReferral(referrerId, newUserId, options = {}) {
@@ -2231,9 +2238,11 @@ async function loadGameRow(userId) {
 }
 
 async function loadGame(userId) {
-  await tapPipeline.flushUser(userId, tapHelpers);
-  const row = await loadGameRow(userId);
-  tapPipeline.hydrate(userId, row);
+  return tapPipeline.reload(userId, async () => loadGameRow(userId), tapHelpers);
+}
+
+function syncTapCache(userId, row) {
+  if (row) tapPipeline.hydrate(userId, row);
   return row;
 }
 
@@ -2448,6 +2457,7 @@ app.post("/api/gold-rush/start", requirePlayer, async (req, res) => {
       .single();
 
     if (error) throw error;
+    syncTapCache(userId, data);
 
     res.json({ ok: true, until, user: toClientUser(data) });
   } catch (error) {
@@ -2539,6 +2549,7 @@ app.post("/api/upgrade", requirePlayer, async (req, res) => {
       .single();
 
     if (error) throw error;
+    syncTapCache(userId, data);
 
     res.json({ cost, user: toClientUser(data) });
   } catch (error) {
@@ -2587,6 +2598,7 @@ app.post("/api/claim-task", requirePlayer, async (req, res) => {
       .single();
 
     if (error) throw error;
+    syncTapCache(userId, data);
 
     res.json({ ok: true, reward, user: toClientUser(data) });
   } catch (error) {
@@ -2621,6 +2633,7 @@ app.post("/api/claim-daily", requirePlayer, async (req, res) => {
       .single();
 
     if (error) throw error;
+    syncTapCache(userId, data);
 
     res.json({ ok: true, reward, streak, user: toClientUser(data) });
   } catch (error) {
@@ -2662,6 +2675,7 @@ app.post("/api/claim-earn", requirePlayer, async (req, res) => {
         .single();
 
       if (error) throw error;
+      syncTapCache(userId, data);
 
       res.json({ ok: true, reward, user: toClientUser(data) });
       return;
@@ -2688,6 +2702,7 @@ app.post("/api/claim-earn", requirePlayer, async (req, res) => {
         .single();
 
       if (error) throw error;
+      syncTapCache(userId, data);
 
       res.json({ ok: true, reward, user: toClientUser(data) });
       return;
@@ -2713,6 +2728,7 @@ app.post("/api/claim-earn", requirePlayer, async (req, res) => {
       .single();
 
     if (error) throw error;
+    syncTapCache(userId, data);
 
     res.json({ ok: true, reward, user: toClientUser(data) });
   } catch (error) {
@@ -2764,6 +2780,7 @@ app.post("/api/buy-boost", requirePlayer, async (req, res) => {
       .single();
 
     if (error) throw error;
+    syncTapCache(userId, data);
 
     res.json({ ok: true, boost, user: toClientUser(data) });
   } catch (error) {
@@ -2984,6 +3001,7 @@ app.post("/api/casino-spin", requirePlayer, async (req, res) => {
       .single();
 
     if (error) throw error;
+    syncTapCache(userId, data);
 
     res.json({
       ok: true,
@@ -3141,6 +3159,7 @@ app.post(
 
       if (error) throw error;
       saved = data;
+      syncTapCache(userId, saved);
     }
 
     res.json({
@@ -3177,6 +3196,7 @@ app.post("/api/reset", requirePlayer, async (req, res) => {
         .single();
 
       if (error) throw error;
+      syncTapCache(userId, data);
 
       res.json({ ok: true, user: toClientUser(data) });
       return;
@@ -3231,6 +3251,7 @@ app.post("/api/reset", requirePlayer, async (req, res) => {
         .single();
 
       if (error) throw error;
+      syncTapCache(userId, data);
 
       res.json({ ok: true, user: toClientUser(data) });
       return;
@@ -3287,6 +3308,7 @@ app.post("/api/reset", requirePlayer, async (req, res) => {
       .single();
 
     if (saveError) throw saveError;
+    syncTapCache(userId, saved);
 
     res.json({ ok: true, user: toClientUser(saved) });
   } catch (error) {
@@ -3715,6 +3737,7 @@ app.post("/api/admin/grant-coins", async (req, res) => {
       .single();
 
     if (error) throw error;
+    syncTapCache(userId, data);
 
     await logMetric("manual_grant", amount, "Admin coin grant", { userId });
 
@@ -3886,14 +3909,18 @@ async function distributeTournamentPrizes(tournament) {
 
     const row = await loadGame(entry.user_id);
 
-    await supabase
+    const { data } = await supabase
       .from("game_states")
       .update({
         coins: number(row.coins) + prize,
         city_value: number(row.coins) + prize + number(row.spent),
         updated_at: new Date().toISOString()
       })
-      .eq("user_id", entry.user_id);
+      .eq("user_id", entry.user_id)
+      .select("*")
+      .single();
+
+    syncTapCache(entry.user_id, data);
 
     await supabase
       .from("tournament_entries")
@@ -4291,6 +4318,7 @@ app.post("/api/admin/give-reward", async (req, res) => {
       .single();
 
     if (error) throw error;
+    syncTapCache(userId, data);
 
     await logMetric("manual_grant", amount, `Admin ${rewardType} reward`, { userId, rewardType });
 
@@ -4424,6 +4452,10 @@ app.post("/api/admin/user-profile", async (req, res) => {
         if (gameError) throw gameError;
         game = data;
       }
+    }
+
+    if (shouldUpdateGame) {
+      syncTapCache(userId, game);
     }
 
     let updatedUser = user;
@@ -4661,6 +4693,7 @@ app.post("/api/promo/redeem", requirePlayer, async (req, res) => {
       .single();
 
     if (gameError) throw gameError;
+    syncTapCache(userId, game);
 
     res.json({
       ok: true,

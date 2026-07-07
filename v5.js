@@ -3931,10 +3931,15 @@ async function flushTapBatch() {
     tapBatchTimer = null;
   }
 
+  if (tapBatchFlushing) {
+    scheduleTapBatchFlush();
+    return;
+  }
+
   const count = tapBatchCount;
   tapBatchCount = 0;
 
-  if (count <= 0 || !backendReady || tapBatchFlushing) return;
+  if (count <= 0 || !backendReady) return;
 
   tapBatchFlushing = true;
 
