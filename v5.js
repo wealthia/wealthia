@@ -3033,8 +3033,14 @@ function getReferrerId() {
 
 const API_FETCH_TIMEOUT_MS = 25000;
 const INVOICE_FETCH_TIMEOUT_MS = 15000;
+const TAP_BATCH_FLUSH_MS = 2000;
+const TAP_BATCH_MAX = 15;
 const STARS_INVOICE_CACHE_TTL_MS = 4 * 60 * 1000;
 const starsInvoiceCache = new Map();
+
+let tapBatchCount = 0;
+let tapBatchTimer = null;
+let tapBatchFlushing = false;
 
 function shouldShowSyncErrorToast(silent) {
   return !silent && !paymentInProgress;
@@ -3919,8 +3925,23 @@ function tapLocal(event) {
   return true;
 }
 
-async function backendTap(event) {
-  if (event.cancelable) event.preventDefault();
+async function flushTapBatch() {
+  if (tapBatchTimer) {
+    window.clearTimeout(tapBatchTimer);
+    tapBatchTimer = null;
+  }
+
+  if (tapBatchFlushing) {
+    scheduleTapBatchFlush();
+    return;
+  }
+
+  const count = tapBatchCount;
+  tapBatchCount = 0;
+
+  if (count <= 0 || !backendReady) return;
+
+  tapBatchFlushing = true;
 
   const snapshot = {
     coins: state.coins,
@@ -3928,36 +3949,68 @@ async function backendTap(event) {
     energy: state.energy
   };
 
-  if (!tapLocal(event)) return;
-  if (!backendReady) return;
+  try {
+    const { ok, result } = await apiPost("/api/tap", { count });
+    if (!ok || !result || !result.user) {
+      state.coins = snapshot.coins;
+      state.taps = snapshot.taps;
+      state.energy = snapshot.energy;
+      saveState();
+      render();
 
-  const { ok, result } = await apiPost("/api/tap");
-  if (!ok || !result || !result.user) {
-    state.coins = snapshot.coins;
-    state.taps = snapshot.taps;
-    state.energy = snapshot.energy;
+      if (result && result.error === "TOO_FAST") {
+        showToast("Slow down!");
+      } else if (result && result.error === "NO_ENERGY") {
+        showToast("No energy.");
+      } else if (result && result.error === "SESSION_EXPIRED") {
+        showToast("Session expired. Reconnecting...");
+        await connectBackend();
+      }
+      return;
+    }
+
+    syncFromBackend(result.user);
     saveState();
     render();
 
-    if (result && result.error === "TOO_FAST") {
-      showToast("Slow down!");
-    } else if (result && result.error === "NO_ENERGY") {
-      showToast("No energy.");
-    } else if (result && result.error === "SESSION_EXPIRED") {
-      showToast("Session expired. Reconnecting...");
-      await connectBackend();
+    const applied = Number(result.applied || result.count || count);
+    if (tournamentData && tournamentData.joined && applied > 0) {
+      tournamentData.myScore = Number(tournamentData.myScore || 0) + applied;
+      loadTournament();
     }
+  } catch (error) {
+    console.error("TAP_BATCH_FLUSH_ERROR:", error);
+  } finally {
+    tapBatchFlushing = false;
+    if (tapBatchCount > 0) {
+      scheduleTapBatchFlush();
+    }
+  }
+}
+
+function scheduleTapBatchFlush() {
+  if (tapBatchTimer) return;
+  tapBatchTimer = window.setTimeout(() => {
+    void flushTapBatch();
+  }, TAP_BATCH_FLUSH_MS);
+}
+
+function queueTapBatch() {
+  tapBatchCount += 1;
+  if (tapBatchCount >= TAP_BATCH_MAX) {
+    void flushTapBatch();
     return;
   }
+  scheduleTapBatchFlush();
+}
 
-  syncFromBackend(result.user);
-  saveState();
-  render();
+async function backendTap(event) {
+  if (event.cancelable) event.preventDefault();
 
-  if (tournamentData && tournamentData.joined) {
-    tournamentData.myScore = Number(tournamentData.myScore || 0) + 1;
-    loadTournament();
-  }
+  if (!tapLocal(event)) return;
+  if (!backendReady) return;
+
+  queueTapBatch();
 }
 
 function upgradeLocal(name) {
@@ -4612,6 +4665,10 @@ function bootApp() {
 
   document.addEventListener("visibilitychange", () => {
     if (paymentInProgress) return;
+    if (document.visibilityState === "hidden" && tapBatchCount > 0) {
+      void flushTapBatch();
+      return;
+    }
     if (document.visibilityState === "visible" && !backendReady && isTelegramWebApp()) {
       connectBackend(4);
     }

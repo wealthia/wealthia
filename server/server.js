@@ -23,6 +23,7 @@ const gameSettings = require("./game-settings");
 const macroGuard = require("./macro-guard");
 const telegramStars = require("./telegram-stars");
 const economy = require("./economy");
+const { createTapPipeline } = require("./tap-pipeline");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -38,6 +39,17 @@ if (!supabaseUrl || !supabaseServiceKey) {
 }
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const tapPipeline = createTapPipeline({ supabase });
+const tapHelpers = {
+  economy,
+  nowMs,
+  todayKey,
+  buildCityValue,
+  syncDailyContest,
+  hasEndlessEnergy,
+  tapPower,
+  incrementTournamentScore: null
+};
 
 app.use(cors());
 app.use(express.json());
@@ -90,7 +102,7 @@ const CHANNEL_MEMBER_STATUSES = new Set([
   "restricted"
 ]);
 const TAP_RATE_WINDOW_MS = 1000;
-const MAX_TAPS_PER_WINDOW = 10;
+const MAX_TAPS_PER_WINDOW = Number(process.env.MAX_TAPS_PER_SECOND || 15);
 const TAP_VIOLATION_ALERT_THRESHOLD = 25;
 const IP_RATE_WINDOW_MS = 60 * 1000;
 const IP_MAX_HITS = 240;
@@ -851,6 +863,7 @@ async function fulfillStarPaymentRecord({
       .single();
 
     if (error) throw error;
+    syncTapCache(userId, data);
 
     const { data: buyer } = await supabase
       .from("users")
@@ -1366,6 +1379,8 @@ async function incrementTournamentScore(userId, amount = 1) {
     .eq("id", entry.id);
 }
 
+tapHelpers.incrementTournamentScore = incrementTournamentScore;
+
 async function logMetric(metricType, amount, notes = "", extra = {}) {
   await supabase.from("admin_metrics").insert({
     metric_type: metricType,
@@ -1720,6 +1735,8 @@ async function creditReferrerCoins(referrerId) {
   const referrer = String(referrerId || "");
   if (!referrer) return;
 
+  await tapPipeline.flushUser(referrer, tapHelpers);
+
   const { data: refRow } = await supabase
     .from("game_states")
     .select("*")
@@ -1730,7 +1747,7 @@ async function creditReferrerCoins(referrerId) {
 
   const bonus = REFERRAL_BONUS;
 
-  await supabase
+  const { data } = await supabase
     .from("game_states")
     .update({
       coins: number(refRow.coins) + bonus,
@@ -1738,7 +1755,11 @@ async function creditReferrerCoins(referrerId) {
       invite_done: true,
       updated_at: new Date().toISOString()
     })
-    .eq("user_id", referrer);
+    .eq("user_id", referrer)
+    .select("*")
+    .single();
+
+  syncTapCache(referrer, data);
 }
 
 async function registerPendingReferral(referrerId, newUserId, options = {}) {
@@ -2193,7 +2214,7 @@ async function getOrCreatePlayer(telegramUser, referrerId = "") {
   return row;
 }
 
-async function loadGame(userId) {
+async function loadGameRow(userId) {
   const { data, error } = await supabase
     .from("game_states")
     .select("*")
@@ -2214,6 +2235,15 @@ async function loadGame(userId) {
 
   if (saveError) throw saveError;
   return attachPassiveMeta(saved, row);
+}
+
+async function loadGame(userId) {
+  return tapPipeline.reload(userId, async () => loadGameRow(userId), tapHelpers);
+}
+
+function syncTapCache(userId, row) {
+  if (row) tapPipeline.hydrate(userId, row);
+  return row;
 }
 
 app.get("/", (_req, res) => {
@@ -2281,6 +2311,7 @@ app.get("/health", async (_req, res) => {
     telegram,
     officialChannel,
     stars,
+    tap: tapPipeline.stats(),
     session: {
       configured: Boolean(TELEGRAM_BOT_TOKEN || process.env.SESSION_SECRET || ADMIN_SECRET)
     },
@@ -2371,8 +2402,10 @@ app.post("/api/session", async (req, res) => {
       console.warn("REFERRAL_COUNT_FAILED:", countError.message);
     }
 
+    const responseRow = await tapPipeline.getLiveRow(telegramUser.id, row);
+
     res.json({
-      ...toClientUser(row, {
+      ...toClientUser(responseRow || row, {
         referralCount,
         offlineEarnings: number(row.__offlineEarnings || 0),
         offlineCashAdded: number(row.__offlineCashAdded || 0),
@@ -2424,6 +2457,7 @@ app.post("/api/gold-rush/start", requirePlayer, async (req, res) => {
       .single();
 
     if (error) throw error;
+    syncTapCache(userId, data);
 
     res.json({ ok: true, until, user: toClientUser(data) });
   } catch (error) {
@@ -2434,6 +2468,7 @@ app.post("/api/gold-rush/start", requirePlayer, async (req, res) => {
 app.post("/api/tap", requirePlayer, async (req, res) => {
   try {
     const userId = req.playerId;
+    const count = Math.min(20, Math.max(1, Math.floor(number(req.body?.count) || 1)));
 
     const macro = await macroGuard.enforceMacroGuard(supabase, userId, "tap");
     if (macro.blocked) {
@@ -2444,67 +2479,35 @@ app.post("/api/tap", requirePlayer, async (req, res) => {
       return;
     }
 
-    const row = await loadGame(userId);
-    const endless = hasEndlessEnergy(row);
-    const rate = nextTapRateState(row);
+    await tapPipeline.ensureHydrated(userId, async () => loadGameRow(userId));
 
-    if (!rate.allowed) {
-      await supabase
-        .from("game_states")
-        .update({
-          tap_window_start: rate.windowStart,
-          tap_window_count: rate.count,
-          tap_violations: rate.violations,
-          updated_at: new Date().toISOString()
-        })
-        .eq("user_id", userId);
+    const result = await tapPipeline.applyBatch(userId, count, tapHelpers);
+    if (!result.ok) {
+      if (result.error === "TOO_FAST") {
+        await tapPipeline.flushUser(userId, tapHelpers);
+        await logTapViolation(userId, result.violations || 0);
+        res.status(429).json({
+          error: "TOO_FAST",
+          retryAfterMs: result.retryAfterMs || TAP_RATE_WINDOW_MS
+        });
+        return;
+      }
 
-      await logTapViolation(userId, rate.violations);
-      res.status(429).json({ error: "TOO_FAST", retryAfterMs: TAP_RATE_WINDOW_MS });
+      if (result.error === "NO_ENERGY") {
+        res.status(400).json({ error: "NO_ENERGY" });
+        return;
+      }
+
+      res.status(400).json({ error: result.error || "TAP_FAILED" });
       return;
     }
 
-    if (!endless && number(row.energy) < economy.tapValue(row)) {
-      res.status(400).json({ error: "NO_ENERGY" });
-      return;
-    }
-
-    const amount = tapPower(row);
-    const tapCost = economy.tapValue(row);
-    const today = todayKey();
-    let dailyScore = number(row.daily_contest_score);
-    if (row.contest_date !== today) {
-      dailyScore = 0;
-    }
-
-    const updated = {
-      coins: number(row.coins) + amount,
-      energy: endless ? number(row.energy) : Math.max(0, number(row.energy) - tapCost),
-      taps: number(row.taps) + 1,
-      daily_contest_score: dailyScore + amount,
-      contest_date: today,
-      contest_baseline_city: row.contest_date === today
-        ? number(row.contest_baseline_city)
-        : buildCityValue(row),
-      city_value: number(row.coins) + amount + number(row.spent),
-      tap_window_start: rate.windowStart,
-      tap_window_count: rate.count,
-      tap_violations: rate.violations,
-      updated_at: new Date().toISOString()
-    };
-
-    const { data, error } = await supabase
-      .from("game_states")
-      .update(updated)
-      .eq("user_id", userId)
-      .select("*")
-      .single();
-
-    if (error) throw error;
-
-    await incrementTournamentScore(userId, 1);
-
-    res.json({ amount, user: toClientUser(data) });
+    res.json({
+      amount: result.amount,
+      applied: result.applied,
+      count: result.count,
+      user: toClientUser(result.row)
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -2546,6 +2549,7 @@ app.post("/api/upgrade", requirePlayer, async (req, res) => {
       .single();
 
     if (error) throw error;
+    syncTapCache(userId, data);
 
     res.json({ cost, user: toClientUser(data) });
   } catch (error) {
@@ -2594,6 +2598,7 @@ app.post("/api/claim-task", requirePlayer, async (req, res) => {
       .single();
 
     if (error) throw error;
+    syncTapCache(userId, data);
 
     res.json({ ok: true, reward, user: toClientUser(data) });
   } catch (error) {
@@ -2628,6 +2633,7 @@ app.post("/api/claim-daily", requirePlayer, async (req, res) => {
       .single();
 
     if (error) throw error;
+    syncTapCache(userId, data);
 
     res.json({ ok: true, reward, streak, user: toClientUser(data) });
   } catch (error) {
@@ -2669,6 +2675,7 @@ app.post("/api/claim-earn", requirePlayer, async (req, res) => {
         .single();
 
       if (error) throw error;
+      syncTapCache(userId, data);
 
       res.json({ ok: true, reward, user: toClientUser(data) });
       return;
@@ -2695,6 +2702,7 @@ app.post("/api/claim-earn", requirePlayer, async (req, res) => {
         .single();
 
       if (error) throw error;
+      syncTapCache(userId, data);
 
       res.json({ ok: true, reward, user: toClientUser(data) });
       return;
@@ -2720,6 +2728,7 @@ app.post("/api/claim-earn", requirePlayer, async (req, res) => {
       .single();
 
     if (error) throw error;
+    syncTapCache(userId, data);
 
     res.json({ ok: true, reward, user: toClientUser(data) });
   } catch (error) {
@@ -2771,6 +2780,7 @@ app.post("/api/buy-boost", requirePlayer, async (req, res) => {
       .single();
 
     if (error) throw error;
+    syncTapCache(userId, data);
 
     res.json({ ok: true, boost, user: toClientUser(data) });
   } catch (error) {
@@ -2991,6 +3001,7 @@ app.post("/api/casino-spin", requirePlayer, async (req, res) => {
       .single();
 
     if (error) throw error;
+    syncTapCache(userId, data);
 
     res.json({
       ok: true,
@@ -3148,6 +3159,7 @@ app.post(
 
       if (error) throw error;
       saved = data;
+      syncTapCache(userId, saved);
     }
 
     res.json({
@@ -3184,6 +3196,7 @@ app.post("/api/reset", requirePlayer, async (req, res) => {
         .single();
 
       if (error) throw error;
+      syncTapCache(userId, data);
 
       res.json({ ok: true, user: toClientUser(data) });
       return;
@@ -3238,6 +3251,7 @@ app.post("/api/reset", requirePlayer, async (req, res) => {
         .single();
 
       if (error) throw error;
+      syncTapCache(userId, data);
 
       res.json({ ok: true, user: toClientUser(data) });
       return;
@@ -3294,6 +3308,7 @@ app.post("/api/reset", requirePlayer, async (req, res) => {
       .single();
 
     if (saveError) throw saveError;
+    syncTapCache(userId, saved);
 
     res.json({ ok: true, user: toClientUser(saved) });
   } catch (error) {
@@ -3722,6 +3737,7 @@ app.post("/api/admin/grant-coins", async (req, res) => {
       .single();
 
     if (error) throw error;
+    syncTapCache(userId, data);
 
     await logMetric("manual_grant", amount, "Admin coin grant", { userId });
 
@@ -3893,14 +3909,18 @@ async function distributeTournamentPrizes(tournament) {
 
     const row = await loadGame(entry.user_id);
 
-    await supabase
+    const { data } = await supabase
       .from("game_states")
       .update({
         coins: number(row.coins) + prize,
         city_value: number(row.coins) + prize + number(row.spent),
         updated_at: new Date().toISOString()
       })
-      .eq("user_id", entry.user_id);
+      .eq("user_id", entry.user_id)
+      .select("*")
+      .single();
+
+    syncTapCache(entry.user_id, data);
 
     await supabase
       .from("tournament_entries")
@@ -4298,6 +4318,7 @@ app.post("/api/admin/give-reward", async (req, res) => {
       .single();
 
     if (error) throw error;
+    syncTapCache(userId, data);
 
     await logMetric("manual_grant", amount, `Admin ${rewardType} reward`, { userId, rewardType });
 
@@ -4431,6 +4452,10 @@ app.post("/api/admin/user-profile", async (req, res) => {
         if (gameError) throw gameError;
         game = data;
       }
+    }
+
+    if (shouldUpdateGame) {
+      syncTapCache(userId, game);
     }
 
     let updatedUser = user;
@@ -4668,6 +4693,7 @@ app.post("/api/promo/redeem", requirePlayer, async (req, res) => {
       .single();
 
     if (gameError) throw gameError;
+    syncTapCache(userId, game);
 
     res.json({
       ok: true,
@@ -4967,6 +4993,29 @@ app.post("/api/cron/daily-push", async (req, res) => {
 
 app.listen(port, () => {
   console.log(`Wealthia backend running on port ${port}`);
+
+  tapPipeline.initRedis().then(() => {
+    tapPipeline.startFlushLoop(tapHelpers);
+    console.log("Tap pipeline flush loop started");
+  }).catch((error) => {
+    console.warn("Tap pipeline init failed:", error.message);
+    tapPipeline.startFlushLoop(tapHelpers);
+  });
+
+  const shutdownFlush = async () => {
+    try {
+      await tapPipeline.flushAll(tapHelpers);
+    } catch (error) {
+      console.error("TAP_SHUTDOWN_FLUSH_FAILED:", error.message);
+    }
+  };
+
+  process.once("SIGTERM", () => {
+    shutdownFlush().finally(() => process.exit(0));
+  });
+  process.once("SIGINT", () => {
+    shutdownFlush().finally(() => process.exit(0));
+  });
 
   gameSettings.loadSettings(supabase, { force: true }).then((settings) => {
     STAR_PRODUCTS.premium_spin.stars = settings.premium_spin_stars;
