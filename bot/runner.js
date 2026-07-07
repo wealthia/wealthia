@@ -10,7 +10,8 @@ const telegramStars = require("../server/telegram-stars");
 const {
   apiSafe,
   handleBotMessage,
-  setupBotProfile
+  setupBotProfile,
+  PLAY_BUTTON_TEXT
 } = require("./commands");
 
 const STAR_PRODUCT_IDS = new Set([

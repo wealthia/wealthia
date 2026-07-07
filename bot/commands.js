@@ -3,8 +3,17 @@ const BOT_USERNAME = process.env.BOT_USERNAME || "WealthiaGameBot";
 const CHANNEL_URL = process.env.CHANNEL_URL || "";
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 
-const START_WELCOME_TEXT =
-  "Welcome to the game! Please press the Play button below to start.";
+const START_WELCOME_TEXT = `🏰 Welcome to Wealthia! 🏰
+
+Your journey to building an unstoppable empire starts right here, right now. 🚀
+
+⚡️ Energy Refilled & Ready!
+🎲 Spin the Lucky Wheel!
+🏗️ Build, Upgrade, and Dominate!
+
+Are you ready to become the ultimate ruler? Tap the button below to launch the game and claim your daily rewards! 👇`;
+
+const PLAY_BUTTON_TEXT = "🎮  Play Wealthia  🎮";
 
 const BOT_DESCRIPTION = process.env.BOT_DESCRIPTION || [
   "🏙️ Wealthia — Build your wealth empire in Telegram!",
@@ -59,7 +68,7 @@ function startKeyboard(userId, startParam) {
   const rows = [
     [
       {
-        text: "Play",
+        text: PLAY_BUTTON_TEXT,
         web_app: { url: gameUrl(startParam || `ref_${userId}`) }
       }
     ],
@@ -102,7 +111,7 @@ async function setupBotProfile() {
     await api("setChatMenuButton", {
       menu_button: {
         type: "web_app",
-        text: "Play",
+        text: PLAY_BUTTON_TEXT,
         web_app: { url: WEBAPP_URL }
       }
     });
@@ -188,6 +197,7 @@ async function handleBotMessage(message, options = {}) {
 
 module.exports = {
   START_WELCOME_TEXT,
+  PLAY_BUTTON_TEXT,
   apiSafe,
   handleBotMessage,
   handleStart,
