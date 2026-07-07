@@ -1,7 +1,5 @@
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const WEBAPP_URL = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2102";
-const BOT_USERNAME = process.env.BOT_USERNAME || "WealthiaGameBot";
-const CHANNEL_URL = process.env.CHANNEL_URL || "";
 const BACKEND_URL = process.env.BACKEND_URL || "https://wealthia-backend.onrender.com";
 const STARS_WEBHOOK_SECRET = process.env.STARS_WEBHOOK_SECRET || process.env.ADMIN_SECRET || "";
 const CRON_SECRET = process.env.CRON_SECRET || STARS_WEBHOOK_SECRET || "";
@@ -9,6 +7,11 @@ const ENABLE_DAILY_PUSH = process.env.ENABLE_DAILY_PUSH === "true";
 const DAILY_PUSH_HOUR_UTC = Number(process.env.DAILY_PUSH_HOUR_UTC || 10);
 const DISABLE_BOT_POLLING = process.env.DISABLE_BOT_POLLING === "true";
 const telegramStars = require("../server/telegram-stars");
+const {
+  apiSafe,
+  handleBotMessage,
+  setupBotProfile
+} = require("./commands");
 
 const STAR_PRODUCT_IDS = new Set([
   "refill_energy",
@@ -76,18 +79,6 @@ const STAR_PRODUCTS = Object.fromEntries(
   ])
 );
 
-const BOT_DESCRIPTION = process.env.BOT_DESCRIPTION || [
-  "🏙️ Wealthia — Build your wealth empire in Telegram!",
-  "",
-  "Tap for coins, upgrade your city, complete daily missions and climb the leaderboard.",
-  "Invite friends for +500 bonus coins.",
-  "",
-  "Press Start to play free."
-].join("\n");
-
-const BOT_SHORT_DESCRIPTION = process.env.BOT_SHORT_DESCRIPTION ||
-  "Tap. Build. Earn. Free city-building clicker game in Telegram.";
-
 let offset = 0;
 let started = false;
 
@@ -97,21 +88,6 @@ function getApiBase() {
   }
 
   return `https://api.telegram.org/bot${TOKEN}`;
-}
-
-async function apiSafe(method, body) {
-  const response = await fetch(`${getApiBase()}/${method}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  });
-
-  const data = await response.json();
-  if (!data.ok) {
-    return { ok: false, error: data.description || "Telegram API error", result: null };
-  }
-
-  return { ok: true, error: "", result: data.result };
 }
 
 async function api(method, body) {
@@ -154,93 +130,6 @@ async function fulfillStarPayment(userId, productId, chargeId, stars, invoicePay
   return result;
 }
 
-async function setupBotProfile() {
-  try {
-    await api("setMyDescription", { description: BOT_DESCRIPTION });
-    await api("setMyShortDescription", { short_description: BOT_SHORT_DESCRIPTION });
-    await api("setChatMenuButton", {
-      menu_button: {
-        type: "web_app",
-        text: "Play Wealthia",
-        web_app: { url: WEBAPP_URL }
-      }
-    });
-    console.log("Bot profile updated (description + menu button).");
-  } catch (error) {
-    console.warn("Bot profile setup skipped:", error.message);
-  }
-}
-
-function gameUrl(startParam) {
-  if (!startParam) return WEBAPP_URL;
-  return `${WEBAPP_URL}?tgWebAppStartParam=${encodeURIComponent(startParam)}`;
-}
-
-function welcomeText(firstName, referral) {
-  const name = firstName || "Builder";
-  const channelLine = CHANNEL_URL
-    ? `\n📢 Join our channel for updates: ${CHANNEL_URL}\n`
-    : "";
-
-  if (referral) {
-    return (
-      `🏙️ Welcome to Wealthia, ${name}!\n\n` +
-      `Your friend invited you to build a wealth empire.\n` +
-      `Subscribe to our official Telegram channel, then open the game to unlock play.\n` +
-      `Your friend earns +500 coins when you join and play.\n\n` +
-      `🎁 New players get a welcome bonus!\n` +
-      channelLine +
-      `👇 Press Play to start`
-    );
-  }
-
-  return (
-    `🏙️ Welcome to Wealthia, ${name}!\n\n` +
-    `Build your empire, tap for Wealth Coins, upgrade Shop, Bank and Factory.\n\n` +
-    `✨ Daily missions refresh every 12 hours\n` +
-    `👥 Invite friends → +500 coins each\n` +
-    `📺 Watch ads in Earn tab for bonus coins\n` +
-    `⭐ Premium boosts available with Telegram Stars\n` +
-    `🏆 Compete on the global leaderboard\n` +
-    channelLine +
-    `👇 Press Play to start your empire`
-  );
-}
-
-function startKeyboard(userId, startParam) {
-  const ref = startParam && startParam.startsWith("ref_") ? startParam : `ref_${userId}`;
-  const rows = [
-    [
-      {
-        text: "🎮 Play Wealthia",
-        web_app: { url: gameUrl(startParam || `ref_${userId}`) }
-      }
-    ],
-    [
-      {
-        text: "👥 Invite Friends",
-        url: `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${BOT_USERNAME}?start=${ref}`)}&text=${encodeURIComponent("Join my Wealthia empire!")}`
-      }
-    ]
-  ];
-
-  if (CHANNEL_URL) {
-    rows.push([{ text: "📢 Official Channel", url: CHANNEL_URL }]);
-  }
-
-  return { inline_keyboard: rows };
-}
-
-async function handleStart(chatId, user, startParam) {
-  const referral = startParam && startParam.startsWith("ref_");
-
-  await api("sendMessage", {
-    chat_id: chatId,
-    text: welcomeText(user.first_name, referral),
-    reply_markup: startKeyboard(user.id, startParam)
-  });
-}
-
 async function handlePreCheckout(query) {
   await telegramStars.answerPreCheckoutQuery(apiSafe, query, {
     starProducts: STAR_PRODUCTS,
@@ -268,60 +157,15 @@ async function handleMessage(message) {
     return;
   }
 
-  const text = message.text || "";
+  const handled = await handleBotMessage(message, { telegramApiSafe: apiSafe });
+  if (handled) return;
+
   const chatId = message.chat.id;
-  const user = message.from;
-
-  if (text.startsWith("/start")) {
-    const parts = text.split(" ");
-    const startParam = parts[1] || "";
-    await handleStart(chatId, user, startParam);
-    return;
-  }
-
-  if (text === "/play") {
-    await handleStart(chatId, user, "");
-    return;
-  }
-
-  if (text === "/channel") {
-    if (!CHANNEL_URL) {
-      await api("sendMessage", {
-        chat_id: chatId,
-        text: "Channel link is not configured yet."
-      });
-      return;
-    }
-
-    await api("sendMessage", {
-      chat_id: chatId,
-      text: `📢 Join the official Wealthia channel:\n${CHANNEL_URL}`,
-      reply_markup: {
-        inline_keyboard: [[{ text: "📢 Join Channel", url: CHANNEL_URL }]]
-      }
-    });
-    return;
-  }
-
-  if (text === "/help") {
-    await api("sendMessage", {
-      chat_id: chatId,
-      text:
-        "Wealthia Commands:\n" +
-        "/start — Open the game\n" +
-        "/play — Play Wealthia\n" +
-        "/channel — Official channel\n" +
-        "/help — This message\n\n" +
-        `Game: ${WEBAPP_URL}`
-    });
-    return;
-  }
-
   await api("sendMessage", {
     chat_id: chatId,
-    text: "Use /start to play Wealthia 🏙️",
+    text: "Use /start to play Wealthia.",
     reply_markup: {
-      inline_keyboard: [[{ text: "🎮 Play", web_app: { url: WEBAPP_URL } }]]
+      inline_keyboard: [[{ text: "Play", web_app: { url: WEBAPP_URL } }]]
     }
   });
 }
@@ -373,8 +217,6 @@ function startBotPolling() {
 
   console.log("Telegram bot polling started.");
   console.log("WebApp:", WEBAPP_URL);
-  if (CHANNEL_URL) console.log("Channel:", CHANNEL_URL);
-  if (ENABLE_DAILY_PUSH) console.log("Daily push enabled at UTC hour", DAILY_PUSH_HOUR_UTC);
 
   setupBotProfile().finally(() => {
     poll();

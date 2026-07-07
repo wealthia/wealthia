@@ -267,6 +267,17 @@ async function processTelegramUpdate(update, options = {}) {
     return handleSuccessfulPayment(update.message, options);
   }
 
+  if (update?.message && typeof options.handleBotMessage === "function") {
+    try {
+      const handled = await options.handleBotMessage(update.message, {
+        telegramApiSafe: options.telegramApiSafe
+      });
+      if (handled) return { ok: true, handled: true };
+    } catch (error) {
+      console.error("BOT_MESSAGE_HANDLER_ERROR:", error.message);
+    }
+  }
+
   return null;
 }
 

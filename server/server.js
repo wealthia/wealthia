@@ -25,6 +25,7 @@ const telegramStars = require("./telegram-stars");
 const economy = require("./economy");
 const { createTapPipeline } = require("./tap-pipeline");
 const { insertGameState, updateGameState } = require("./game-state-update");
+const { handleBotMessage, setupBotProfile } = require("../bot/commands");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -2997,6 +2998,12 @@ app.post("/api/telegram/webhook/:secret", paymentSecurity.createTelegramWebhookG
       res.json({ ok: true, settled: Boolean(result?.ok), duplicate: Boolean(result?.duplicate) });
       return;
     }
+
+    if (update.message) {
+      await handleBotMessage(update.message, { telegramApiSafe });
+      res.json({ ok: true });
+      return;
+    }
   } catch (error) {
     console.error("TELEGRAM_WEBHOOK_ERROR:", error.message);
   }
@@ -5113,12 +5120,17 @@ app.listen(port, () => {
   });
 
   if (TELEGRAM_BOT_TOKEN) {
+    setupBotProfile().catch((error) => {
+      console.warn("Bot profile setup failed:", error.message);
+    });
+
     telegramStars.startStarsPaymentListener(telegramApiSafe, {
       secret: TELEGRAM_WEBHOOK_SECRET,
       baseUrl: WEBHOOK_BASE_URL,
       starProducts: getStarProductsMap(),
       parseStarPayload,
       fulfillPayment: fulfillStarPaymentRecord,
+      handleBotMessage,
       sendBotMessage: async (chatId, text) => {
         await telegramApiSafe("sendMessage", { chat_id: chatId, text });
       }
