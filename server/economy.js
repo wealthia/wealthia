@@ -65,7 +65,12 @@ function applyEnergyRegen(row, options = {}) {
   const current = number(row.energy);
   const rate = energyRegenRate(row);
   const lastMs = lastEnergyUpdatedAtMs(row, now);
-  const elapsedSeconds = Math.floor(Math.max(0, now - lastMs) / 1000);
+  const maxElapsedSeconds = Number.isFinite(Number(options.maxElapsedSeconds))
+    ? Math.max(0, Math.floor(Number(options.maxElapsedSeconds)))
+    : null;
+  const elapsedSeconds = maxElapsedSeconds === null
+    ? Math.floor(Math.max(0, now - lastMs) / 1000)
+    : Math.min(Math.floor(Math.max(0, now - lastMs) / 1000), maxElapsedSeconds);
   const earnedEnergy = elapsedSeconds * rate;
   const newEnergy = Math.min(cap, current + earnedEnergy);
 
@@ -189,7 +194,10 @@ function applyOfflineProgress(row, options = {}) {
     : 0;
   const autoBuy = applyAutoBuy(row, offlineEarnings);
 
-  const energyResult = applyEnergyRegen(row, { nowMs: current });
+  const energyResult = applyEnergyRegen(row, {
+    nowMs: current,
+    maxElapsedSeconds: cappedSeconds
+  });
   const energyGain = energyResult.earnedEnergy;
 
   row.last_seen_at = new Date(current).toISOString();

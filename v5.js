@@ -4001,7 +4001,8 @@ async function flushTapBatch() {
   const snapshot = {
     coins: state.coins,
     taps: state.taps,
-    energy: state.energy
+    energy: state.energy,
+    lastEnergyUpdatedAt: state.lastEnergyUpdatedAt
   };
 
   try {
@@ -4010,6 +4011,7 @@ async function flushTapBatch() {
       state.coins = snapshot.coins;
       state.taps = snapshot.taps;
       state.energy = snapshot.energy;
+      state.lastEnergyUpdatedAt = snapshot.lastEnergyUpdatedAt;
       saveState();
       render();
 

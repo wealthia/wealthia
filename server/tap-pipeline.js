@@ -179,12 +179,21 @@ function createTapPipeline({ supabase }) {
     const tapCost = helpers.economy.tapValue(row);
     const amount = helpers.tapPower(row);
 
+    const energySnapshot = {
+      energy: row.energy,
+      max_energy: row.max_energy,
+      energy_regen_rate: row.energy_regen_rate,
+      last_energy_updated_at: row.last_energy_updated_at
+    };
     helpers.economy.applyEnergyRegen(row, { nowMs: now });
 
     let applied = count;
     if (!endless) {
       const maxByEnergy = Math.floor(number(row.energy) / tapCost);
       if (maxByEnergy <= 0) {
+        state.dirty = true;
+        state.lastActivity = now;
+        await writeState(userId, state);
         return { ok: false, error: "NO_ENERGY" };
       }
       applied = Math.min(count, maxByEnergy);
@@ -192,6 +201,7 @@ function createTapPipeline({ supabase }) {
 
     const rate = checkRate(state, applied, now);
     if (!rate.allowed) {
+      Object.assign(row, energySnapshot);
       state.row.tap_window_start = state.rateWindowStart;
       state.row.tap_window_count = state.rateWindowCount;
       state.row.tap_violations = state.tapViolations;
