@@ -293,10 +293,21 @@ async function verifyChannelSubscriptionLive() {
     return false;
   }
 
-  const { ok, result, status } = await apiPostSecure("/api/verify-channel-subscription", {});
+  const { ok, result, status } = await apiPost("/api/verify-channel-subscription", {});
 
   if (ok && result && result.success) {
     return true;
+  }
+
+  const error = result?.error;
+  if (status === 401 || error === "SESSION_EXPIRED") {
+    showToast("Session expired. Reconnecting...");
+    await connectBackend();
+    return false;
+  }
+  if (error !== "CHANNEL_NOT_SUBSCRIBED" && result?.success !== false) {
+    showToast(result?.message || "Could not verify subscription. Try again.");
+    return false;
   }
 
   showSubscriptionAlert(
@@ -1733,9 +1744,7 @@ function renderDailyTaskCard(task) {
   const isChannelJoin = isChannelJoinTask(task);
   const awaitingVerify = isChannelJoin && channelVerifyAwaiting.has(task.id);
   const ready = !claimed && (
-    isChannelJoin
-      ? awaitingVerify
-      : (isSocial || task.ready || progress >= target)
+    isChannelJoin || isSocial || task.ready || progress >= target
   );
   const buttonText = claimed
     ? "Claimed"
@@ -4292,8 +4301,8 @@ async function handleDailyTaskClick(taskId) {
     }
 
     if (!(await verifyChannelSubscriptionLive())) return;
-    await claimBackendTask(taskId);
-    channelVerifyAwaiting.delete(taskId);
+    const claimed = await claimBackendTask(taskId);
+    if (claimed) channelVerifyAwaiting.delete(taskId);
     renderDailyTasks();
     return;
   }
@@ -4312,7 +4321,7 @@ async function handleDailyTaskClick(taskId) {
 async function claimBackendTask(taskId) {
   if (!(await ensureBackend())) {
     showToast("Server not connected. Tap Retry at top.");
-    return;
+    return false;
   }
 
   const { ok, result } = await apiPost("/api/claim-task", {
@@ -4324,15 +4333,15 @@ async function claimBackendTask(taskId) {
     const error = result && result.error;
     if (error === "CHANNEL_NOT_SUBSCRIBED" || result?.success === false) {
       showSubscriptionAlert(result?.message || CHANNEL_SUBSCRIPTION_REQUIRED_MESSAGE);
-      return;
+      return false;
     }
     if (error === "TASK_NOT_READY") showToast("Task is not ready yet.");
     else if (error === "TASK_ALREADY_CLAIMED") showToast("Task already claimed.");
     else showToast("Task locked.");
-    return;
+    return false;
   }
 
-  await applyBackendUser(result.user, `Reward claimed: +${format(result.reward)}`);
+  return applyBackendUser(result.user, `Reward claimed: +${format(result.reward)}`);
 }
 
 async function claimDailyReward() {
@@ -4388,7 +4397,6 @@ async function handleEarnClick(type) {
 
     if (!(await verifyChannelSubscriptionLive())) return;
     await claimEarnTask(type);
-    channelVerifyAwaiting.delete(EARN_CHANNEL_VERIFY_KEY);
     return;
   }
 
@@ -4398,7 +4406,7 @@ async function handleEarnClick(type) {
 async function claimEarnTask(type) {
   if (!(await ensureBackend())) {
     showToast("Server not connected. Tap Retry at top.");
-    return;
+    return false;
   }
 
   const { ok, result } = await apiPost("/api/claim-earn", {
@@ -4409,7 +4417,7 @@ async function claimEarnTask(type) {
   if (!ok) {
     if (result && (result.error === "CHANNEL_NOT_SUBSCRIBED" || result.success === false)) {
       showSubscriptionAlert(result.message || CHANNEL_SUBSCRIPTION_REQUIRED_MESSAGE);
-      return;
+      return false;
     }
     if (result && result.error === "ALREADY_CLAIMED") showToast("Already claimed.");
     else if (result && result.error === "AD_COOLDOWN") {
@@ -4423,15 +4431,15 @@ async function claimEarnTask(type) {
       renderEarnPanel();
       showToast(`Refreshing in ${bonusAdRefreshMinutesLeft()}`);
     } else showToast("Task unavailable.");
-    return;
+    return false;
   }
 
-  if (type === "channel") {
+  const claimed = await applyBackendUser(result.user, `Reward: +${format(result.reward)}`);
+  if (claimed && type === "channel") {
     channelVerifyAwaiting.delete(EARN_CHANNEL_VERIFY_KEY);
   }
-
-  await applyBackendUser(result.user, `Reward: +${format(result.reward)}`);
   renderEarnPanel();
+  return claimed;
 }
 
 const STAR_SUCCESS_LABELS = {
