@@ -179,6 +179,8 @@ function createTapPipeline({ supabase }) {
     const tapCost = helpers.economy.tapValue(row);
     const amount = helpers.tapPower(row);
 
+    helpers.economy.applyEnergyRegen(row, { nowMs: now });
+
     let applied = count;
     if (!endless) {
       const maxByEnergy = Math.floor(number(row.energy) / tapCost);
@@ -215,6 +217,9 @@ function createTapPipeline({ supabase }) {
 
     row.coins = number(row.coins) + totalCoins;
     row.energy = endless ? number(row.energy) : Math.max(0, number(row.energy) - totalEnergyCost);
+    if (!endless && totalEnergyCost > 0) {
+      helpers.economy.touchEnergyTimestamp(row, now);
+    }
     row.taps = number(row.taps) + applied;
     row.daily_contest_score = dailyScore + totalCoins;
     row.contest_date = today;
@@ -270,6 +275,8 @@ function createTapPipeline({ supabase }) {
       tap_window_start: number(state.row.tap_window_start),
       tap_window_count: number(state.row.tap_window_count),
       tap_violations: number(state.row.tap_violations),
+      energy_regen_rate: helpers.economy.energyRegenRate(state.row),
+      last_energy_updated_at: number(state.row.last_energy_updated_at),
       updated_at: new Date().toISOString()
     };
 
