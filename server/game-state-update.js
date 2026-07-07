@@ -16,12 +16,19 @@ function isMissingColumnError(error) {
   );
 }
 
-function stripOptionalColumns(patch) {
+function stripOptionalColumns(patch, error) {
   const next = { ...patch };
   let removed = false;
+  const msg = error ? String([
+    error?.message,
+    error?.details,
+    error?.hint,
+    error
+  ].filter(Boolean).join(" ")).toLowerCase() : "";
 
   for (const key of Object.keys(next)) {
     if (OPTIONAL_GAME_STATE_COLUMNS.has(key)) {
+      if (msg && !msg.includes(key)) continue;
       delete next[key];
       removed = true;
     }
@@ -48,7 +55,7 @@ async function updateGameState(supabase, userId, patch, options = {}) {
 
     if (!isMissingColumnError(error)) throw error;
 
-    const stripped = stripOptionalColumns(current);
+    const stripped = stripOptionalColumns(current, error);
     if (!stripped.removed) throw error;
     current = stripped.patch;
   }
@@ -71,7 +78,7 @@ async function insertGameState(supabase, row, options = {}) {
 
     if (!isMissingColumnError(error)) throw error;
 
-    const stripped = stripOptionalColumns(current);
+    const stripped = stripOptionalColumns(current, error);
     if (!stripped.removed) throw error;
     current = stripped.patch;
   }
