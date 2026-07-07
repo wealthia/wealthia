@@ -3251,6 +3251,30 @@ const EARN_CHANNEL_VERIFY_KEY = "earn-channel";
 const CHANNEL_SUBSCRIPTION_REQUIRED_MESSAGE =
   "Subscription not found! Please join the channel first.";
 
+function markDailyTaskClaimedLocally(taskId) {
+  channelVerifyAwaiting.delete(taskId);
+  if (!Array.isArray(state.dailyTasks)) return;
+
+  state.dailyTasks = state.dailyTasks.map((task) =>
+    task.id === taskId ? { ...task, claimed: true } : task
+  );
+  saveState();
+  renderDailyTasks();
+}
+
+function markEarnTaskClaimedLocally(type) {
+  if (type !== "channel") return;
+
+  state.tasks = {
+    ...defaultState.tasks,
+    ...(state.tasks || {}),
+    channel: true
+  };
+  channelVerifyAwaiting.delete(EARN_CHANNEL_VERIFY_KEY);
+  saveState();
+  renderEarnPanel();
+}
+
 function shouldShowSyncErrorToast(silent) {
   return !silent && !paymentInProgress;
 }
@@ -4336,12 +4360,23 @@ async function claimBackendTask(taskId) {
       return false;
     }
     if (error === "TASK_NOT_READY") showToast("Task is not ready yet.");
-    else if (error === "TASK_ALREADY_CLAIMED") showToast("Task already claimed.");
-    else showToast("Task locked.");
+    else if (error === "TASK_ALREADY_CLAIMED") {
+      markDailyTaskClaimedLocally(taskId);
+      showToast("Task already claimed.");
+      return true;
+    } else showToast("Task locked.");
     return false;
   }
 
-  return applyBackendUser(result.user, `Reward claimed: +${format(result.reward)}`);
+  let claimed = false;
+  try {
+    claimed = await applyBackendUser(result.user, `Reward claimed: +${format(result.reward)}`);
+  } catch (error) {
+    console.error("CLAIM_TASK_APPLY_ERROR:", error);
+  }
+
+  if (!claimed) markDailyTaskClaimedLocally(taskId);
+  return true;
 }
 
 async function claimDailyReward() {
@@ -4419,8 +4454,11 @@ async function claimEarnTask(type) {
       showSubscriptionAlert(result.message || CHANNEL_SUBSCRIPTION_REQUIRED_MESSAGE);
       return false;
     }
-    if (result && result.error === "ALREADY_CLAIMED") showToast("Already claimed.");
-    else if (result && result.error === "AD_COOLDOWN") {
+    if (result && result.error === "ALREADY_CLAIMED") {
+      markEarnTaskClaimedLocally(type);
+      showToast("Already claimed.");
+      return type === "channel";
+    } else if (result && result.error === "AD_COOLDOWN") {
       state.adCooldownUntil = Number(result.nextAt || state.adCooldownUntil);
       scheduleAdCooldownRefresh();
       renderEarnPanel();
@@ -4434,12 +4472,19 @@ async function claimEarnTask(type) {
     return false;
   }
 
-  const claimed = await applyBackendUser(result.user, `Reward: +${format(result.reward)}`);
-  if (claimed && type === "channel") {
+  let claimed = false;
+  try {
+    claimed = await applyBackendUser(result.user, `Reward: +${format(result.reward)}`);
+  } catch (error) {
+    console.error("CLAIM_EARN_APPLY_ERROR:", error);
+  }
+
+  if (type === "channel") {
     channelVerifyAwaiting.delete(EARN_CHANNEL_VERIFY_KEY);
+    if (!claimed) markEarnTaskClaimedLocally(type);
   }
   renderEarnPanel();
-  return claimed;
+  return claimed || type === "channel";
 }
 
 const STAR_SUCCESS_LABELS = {
