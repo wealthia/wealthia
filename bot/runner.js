@@ -10,7 +10,8 @@ const telegramStars = require("../server/telegram-stars");
 const {
   apiSafe,
   handleBotMessage,
-  setupBotProfile
+  setupBotProfile,
+  PLAY_BUTTON_TEXT
 } = require("./commands");
 
 const STAR_PRODUCT_IDS = new Set([
@@ -165,7 +166,7 @@ async function handleMessage(message) {
     chat_id: chatId,
     text: "Use /start to play Wealthia.",
     reply_markup: {
-      inline_keyboard: [[{ text: "Play", web_app: { url: WEBAPP_URL } }]]
+      inline_keyboard: [[{ text: PLAY_BUTTON_TEXT, web_app: { url: WEBAPP_URL } }]]
     }
   });
 }
