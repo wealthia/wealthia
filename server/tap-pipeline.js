@@ -165,6 +165,13 @@ function createTapPipeline({ supabase }) {
     return { allowed: true };
   }
 
+  function regenOptions(helpers, now) {
+    return {
+      nowMs: now,
+      maxElapsedSeconds: helpers.economy.OFFLINE_CAP_SECONDS
+    };
+  }
+
   async function applyBatchUnlocked(userId, rawCount, helpers) {
     const count = Math.min(MAX_TAPS_PER_REQUEST, Math.max(1, Math.floor(number(rawCount) || 1)));
     const state = await readState(userId);
@@ -179,13 +186,7 @@ function createTapPipeline({ supabase }) {
     const tapCost = helpers.economy.tapValue(row);
     const amount = helpers.tapPower(row);
 
-    const energySnapshot = {
-      energy: row.energy,
-      max_energy: row.max_energy,
-      energy_regen_rate: row.energy_regen_rate,
-      last_energy_updated_at: row.last_energy_updated_at
-    };
-    helpers.economy.applyEnergyRegen(row, { nowMs: now });
+    helpers.economy.applyEnergyRegen(row, regenOptions(helpers, now));
 
     let applied = count;
     if (!endless) {
@@ -201,7 +202,6 @@ function createTapPipeline({ supabase }) {
 
     const rate = checkRate(state, applied, now);
     if (!rate.allowed) {
-      Object.assign(row, energySnapshot);
       state.row.tap_window_start = state.rateWindowStart;
       state.row.tap_window_count = state.rateWindowCount;
       state.row.tap_violations = state.tapViolations;
@@ -375,9 +375,18 @@ function createTapPipeline({ supabase }) {
     };
   }
 
-  async function getLiveRow(userId, fallbackRow) {
+  async function getLiveRow(userId, fallbackRow, helpers) {
     const state = await readState(userId);
-    if (state?.row) return cloneRow(state.row);
+    if (state?.row) {
+      if (helpers?.economy?.applyEnergyRegen) {
+        const now = typeof helpers.nowMs === "function" ? helpers.nowMs() : Date.now();
+        helpers.economy.applyEnergyRegen(state.row, regenOptions(helpers, now));
+        state.dirty = true;
+        state.lastActivity = now;
+        await writeState(userId, state);
+      }
+      return cloneRow(state.row);
+    }
     if (fallbackRow) {
       hydrate(userId, fallbackRow);
       return cloneRow(fallbackRow);

@@ -2410,7 +2410,7 @@ app.post("/api/session", async (req, res) => {
       console.warn("REFERRAL_COUNT_FAILED:", countError.message);
     }
 
-    const responseRow = await tapPipeline.getLiveRow(telegramUser.id, row);
+    const responseRow = await tapPipeline.getLiveRow(telegramUser.id, row, tapHelpers);
 
     res.json({
       ...toClientUser(responseRow || row, {
