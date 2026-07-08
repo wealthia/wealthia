@@ -232,10 +232,22 @@ function saveState() {
 
 function getOfficialChannelUrl() {
   return (
+    serverOfficialChannelUrl ||
     CONFIG.SOCIAL_TASKS?.joinTelegram ||
     CONFIG.PARTNER_CHANNEL_URL ||
     "https://t.me/weathia_official"
   );
+}
+
+function rememberServerChannelMeta(result) {
+  if (!result) return;
+  if (result.officialChannelUrl || result.channelUrl) {
+    serverOfficialChannelUrl = String(result.officialChannelUrl || result.channelUrl);
+    channelGateUrl = serverOfficialChannelUrl;
+  }
+  if (result.officialChannelUsername || result.channelUsername) {
+    serverOfficialChannelUsername = String(result.officialChannelUsername || result.channelUsername);
+  }
 }
 
 function isChannelJoinTask(task) {
@@ -509,7 +521,7 @@ function getInviteLink() {
   if (!userId || userId === "guest" || userId === "web_demo") {
     return `https://t.me/${botName}`;
   }
-  return `https://t.me/${botName}?startapp=ref_${userId}`;
+  return `https://t.me/${botName}?start=ref_${userId}`;
 }
 
 async function copyTextToClipboard(text) {
@@ -708,6 +720,8 @@ const REFERRER_STORAGE_KEY = "wealthia_referrer_id";
 const PAYMENT_OPENING_TOAST = "Opening Stars payment...";
 
 let channelGateUrl = "";
+let serverOfficialChannelUrl = "";
+let serverOfficialChannelUsername = "";
 let starsInvoiceStatusHandler = null;
 
 function showConnectionErrorToast() {
@@ -724,7 +738,7 @@ function showChannelGate(url, message) {
   const messageNode = document.getElementById("channelGateMessage");
   if (!modal) return;
 
-  channelGateUrl = String(url || CONFIG.PARTNER_CHANNEL_URL || "https://t.me/weathia_official");
+  channelGateUrl = String(url || getOfficialChannelUrl());
   if (messageNode) {
     messageNode.textContent = message || "Please subscribe to our official channel to unlock the game";
   }
@@ -750,7 +764,7 @@ function bindChannelGateModal() {
   const joinButton = document.getElementById("channelGateJoinButton");
   if (joinButton) {
     joinButton.addEventListener("click", () => {
-      openPartnerLink(channelGateUrl || CONFIG.PARTNER_CHANNEL_URL || "https://t.me/weathia_official");
+      openPartnerLink(channelGateUrl || getOfficialChannelUrl());
     });
   }
 
@@ -3274,11 +3288,12 @@ function getReferrerId() {
 
 async function applySessionResponse(result, options = {}) {
   const silent = Boolean(options.silent);
+  rememberServerChannelMeta(result);
 
   if (result && result.channelRequired) {
     captureReferrerId(getReferrerId());
     showChannelGate(
-      result.channelUrl,
+      result.channelUrl || getOfficialChannelUrl(),
       result.channelMessage || "Please subscribe to our official channel to unlock the game"
     );
     backendReady = false;
@@ -3308,18 +3323,50 @@ async function applySessionResponse(result, options = {}) {
 async function referralContinue(options = {}) {
   captureReferrerId(getReferrerId());
 
-  const { ok, result } = await apiPost("/api/referral/continue", {
-    initData: getTelegramInitData(),
-    telegramUser: getTelegramUser(),
-    referrerId: getReferrerId()
-  });
+  const retryButton = document.getElementById("channelGateRetryButton");
+  const previousLabel = retryButton ? retryButton.textContent : "";
+  if (retryButton) {
+    retryButton.disabled = true;
+    retryButton.textContent = "Checking channel...";
+  }
 
-  if (!ok || !result) return false;
+  try {
+    const { ok, result } = await apiPost("/api/referral/continue", {
+      initData: getTelegramInitData(),
+      telegramUser: getTelegramUser(),
+      referrerId: getReferrerId()
+    });
 
-  return applySessionResponse(result, {
-    silent: Boolean(options.silent),
-    successMessage: options.successMessage || ""
-  });
+    if (!ok || !result) {
+      if (!options.silent) showConnectionErrorToast();
+      return false;
+    }
+
+    if (result.channelRequired) {
+      rememberServerChannelMeta(result);
+      const channelLabel = result.channelUsername || serverOfficialChannelUsername || "the official channel";
+      if (!options.silent) {
+        showToast(`Not subscribed yet. Join ${channelLabel}, wait a few seconds, then tap continue again.`);
+      }
+      return applySessionResponse(result, { silent: true });
+    }
+
+    const connected = await applySessionResponse(result, {
+      silent: Boolean(options.silent),
+      successMessage: options.successMessage || ""
+    });
+
+    if (connected && !options.silent) {
+      showToast(result.referralQualified ? "Welcome! You're in." : "Welcome back!");
+    }
+
+    return connected;
+  } finally {
+    if (retryButton) {
+      retryButton.disabled = false;
+      retryButton.textContent = previousLabel || "I subscribed — continue";
+    }
+  }
 }
 
 async function syncReferralProgress(options = {}) {
