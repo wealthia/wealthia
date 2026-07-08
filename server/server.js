@@ -1910,7 +1910,15 @@ async function registerQualifiedReferral(referrerId, newUserId, options = {}) {
 }
 
 async function registerPendingReferral(referrerId, newUserId, options = {}) {
-  return registerQualifiedReferral(referrerId, newUserId, options);
+  const referrer = String(referrerId || "");
+  const newbie = String(newUserId || "");
+
+  if (!referrer || !newbie || referrer === newbie) return false;
+
+  return recordReferral(referrer, newbie, {
+    ...options,
+    status: REFERRAL_STATUS_PENDING_CHANNEL
+  });
 }
 
 async function qualifyReferralIfPending(referredUserId) {
@@ -1929,6 +1937,11 @@ async function qualifyReferralIfPending(referredUserId) {
 
   const referrer = String(pending.referrer_id || "");
   if (!referrer || referrer === referred) return false;
+
+  const channelCheck = await checkOfficialChannelMembership(referred);
+  if (!channelCheck.skipped && !channelCheck.isMember) {
+    return false;
+  }
 
   const { data: updatedRows, error: updateError } = await supabase
     .from("referrals")
@@ -2436,7 +2449,7 @@ async function registerReferralIfNew(telegramUser, referrerId) {
     return false;
   }
 
-  return registerQualifiedReferral(referrer, telegramId, {
+  return registerPendingReferral(referrer, telegramId, {
     isBot: Boolean(telegramUser?.is_bot)
   });
 }
@@ -2584,10 +2597,29 @@ async function completePlayerSession(telegramUser, referrerId = "") {
     try {
       referralRegistered = await registerReferralIfNew(telegramUser, parsedReferrer);
       if (referralRegistered) {
-        console.log("REFERRAL_QUALIFIED_INSTANT:", parsedReferrer, "->", telegramId);
+        console.log("REFERRAL_PENDING:", parsedReferrer, "->", telegramId);
+      } else if (parsedReferrer) {
+        console.warn("REFERRAL_NOT_REGISTERED:", `referred=${telegramId}`, `referrer=${parsedReferrer}`);
       }
     } catch (referralError) {
       console.warn("REFERRAL_REGISTER_FAILED:", referralError.message);
+    }
+  }
+
+  const enforceChannelGate = isNewPlayer || await hasPendingChannelReferral(telegramId);
+  if (enforceChannelGate) {
+    const channelCheck = await checkOfficialChannelMembership(telegramId);
+
+    if (channelCheck.skipped) {
+      console.warn("OFFICIAL_CHANNEL_CHECK_SKIPPED:", channelCheck.error);
+    } else if (!channelCheck.isMember) {
+      return {
+        userId: telegramId,
+        channelRequired: true,
+        channelUrl: officialChannelUrl,
+        channelUsername: officialChannelUsername,
+        channelMessage: "Please subscribe to our official channel to unlock the game"
+      };
     }
   }
 

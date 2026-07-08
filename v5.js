@@ -3250,6 +3250,26 @@ function getTelegramUser() {
   };
 }
 
+function readTelegramStartParam() {
+  const tg = window.Telegram && window.Telegram.WebApp;
+  const fromInitData = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param;
+  if (fromInitData) return String(fromInitData);
+
+  try {
+    const search = new URLSearchParams(window.location.search || "");
+    const fromQuery = search.get("tgWebAppStartParam") || search.get("startapp") || "";
+    if (fromQuery) return fromQuery;
+
+    const hash = String(window.location.hash || "").replace(/^#/, "");
+    if (!hash) return "";
+
+    const hashParams = new URLSearchParams(hash);
+    return hashParams.get("tgWebAppStartParam") || hashParams.get("startapp") || "";
+  } catch {
+    return "";
+  }
+}
+
 function captureReferrerId(raw) {
   const value = String(raw || "").trim();
   if (!value) return "";
@@ -3268,21 +3288,21 @@ function captureReferrerId(raw) {
 }
 
 function getReferrerId() {
-  const tg = window.Telegram && window.Telegram.WebApp;
-  const fromInit = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param;
-  if (fromInit) return captureReferrerId(fromInit);
-
-  try {
-    const urlParam = new URLSearchParams(window.location.search).get("tgWebAppStartParam");
-    if (urlParam) return captureReferrerId(urlParam);
-  } catch {
-    // ignore URL parse errors
-  }
+  const fromStart = readTelegramStartParam();
+  if (fromStart) return captureReferrerId(fromStart);
 
   try {
     return localStorage.getItem(REFERRER_STORAGE_KEY) || "";
   } catch {
     return "";
+  }
+}
+
+function clearStoredReferrerId() {
+  try {
+    localStorage.removeItem(REFERRER_STORAGE_KEY);
+  } catch {
+    // ignore storage failures
   }
 }
 
@@ -3305,6 +3325,9 @@ async function applySessionResponse(result, options = {}) {
 
   if (result && !result.error && result.game) {
     hideChannelGate();
+    if (result.referralQualified) {
+      clearStoredReferrerId();
+    }
     backendUserId = result.userId;
     backendSessionToken = result.token || "";
     backendReconnectAttempts = 0;
@@ -3389,6 +3412,9 @@ async function syncReferralProgress(options = {}) {
   }
 
   if (result.user) {
+    if (result.referralQualified) {
+      clearStoredReferrerId();
+    }
     syncFromBackend(result.user, { preservePendingEnergy: true, preserveLocalRegen: true });
     saveState();
     render();

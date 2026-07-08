@@ -72,7 +72,11 @@ function parseStartParam(text) {
 
 function gameUrl(startParam) {
   if (!startParam) return WEBAPP_URL;
-  return `${WEBAPP_URL}?tgWebAppStartParam=${encodeURIComponent(startParam)}`;
+
+  const encoded = encodeURIComponent(startParam);
+  const base = String(WEBAPP_URL || "").split("#")[0];
+  const joiner = base.includes("?") ? "&" : "?";
+  return `${base}${joiner}tgWebAppStartParam=${encoded}#tgWebAppStartParam=${encoded}`;
 }
 
 function startKeyboard(userId, startParam) {
