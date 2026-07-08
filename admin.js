@@ -56,6 +56,9 @@ const els = {
   promoCodesTable: document.getElementById("promoCodesTable"),
   referralSummaryCards: document.getElementById("referralSummaryCards"),
   referralAnalyticsTable: document.getElementById("referralAnalyticsTable"),
+  dailyRaceSummaryCards: document.getElementById("dailyRaceSummaryCards"),
+  dailyRaceTable: document.getElementById("dailyRaceTable"),
+  dailyRaceContestDate: document.getElementById("dailyRaceContestDate"),
   toast: document.getElementById("toast")
 };
 
@@ -447,6 +450,93 @@ async function loadReferralAnalytics() {
   renderReferralAnalyticsTable(result.leaderboard || []);
 }
 
+function renderDailyRaceSummary(data) {
+  if (!els.dailyRaceSummaryCards || !data) return;
+
+  const cards = [
+    {
+      label: "Participants Today",
+      value: formatNumber(data.totalParticipants || 0),
+      hint: "Players with daily score > 0",
+      accent: "hero-stat--violet"
+    },
+    {
+      label: "Eligible for Draw",
+      value: formatNumber(data.eligibleCount || 0),
+      hint: `Min ${formatNumber(data.minReferrals || 1)} referral + 1 ticket`,
+      accent: "hero-stat--green"
+    },
+    {
+      label: "Total Tickets",
+      value: formatNumber((data.rows || []).reduce((sum, row) => sum + number(row.tickets), 0)),
+      hint: "Combined ticket pool today",
+      accent: "hero-stat--gold"
+    }
+  ];
+
+  els.dailyRaceSummaryCards.innerHTML = cards.map((card) => `
+    <article class="hero-stat ${card.accent}">
+      <span class="hero-stat__label">${card.label}</span>
+      <strong class="hero-stat__value">${card.value}</strong>
+      <small class="hero-stat__hint">${card.hint}</small>
+    </article>
+  `).join("");
+
+  if (els.dailyRaceContestDate) {
+    els.dailyRaceContestDate.textContent = data.contestDate || "Today";
+  }
+}
+
+function renderDailyRaceTable(rows) {
+  if (!els.dailyRaceTable) return;
+
+  if (!rows.length) {
+    els.dailyRaceTable.innerHTML = '<tr><td colspan="6" class="empty">No participants yet today.</td></tr>';
+    return;
+  }
+
+  els.dailyRaceTable.innerHTML = rows.map((row, index) => {
+    const username = row.username ? `@${row.username}` : "";
+    const statusClass = row.eligible ? "badge--active" : "badge--ended";
+    const statusLabel = row.eligible ? "Eligible" : "Not eligible";
+
+    return `
+      <tr>
+        <td>${index + 1}</td>
+        <td><strong>${formatNumber(row.referralCount)}</strong></td>
+        <td><strong>${formatNumber(row.tickets)}</strong></td>
+        <td>
+          <button class="table-link" type="button" data-view-profile="${row.userId}">
+            <strong>${row.name}</strong><br />
+            <small>${username || row.userId}</small>
+          </button>
+        </td>
+        <td>${formatNumber(row.dailyScore)}</td>
+        <td><span class="badge ${statusClass}">${statusLabel}</span></td>
+      </tr>
+    `;
+  }).join("");
+}
+
+async function loadDailyRace() {
+  const { ok, result, status } = await api("/api/admin/daily-participants?limit=200");
+
+  if (status === 401) {
+    showLogin("Session expired.");
+    return;
+  }
+
+  if (!ok) {
+    showToast(result.error || "Could not load daily race participants.");
+    renderDailyRaceSummary({ totalParticipants: 0, eligibleCount: 0, rows: [] });
+    renderDailyRaceTable([]);
+    return;
+  }
+
+  renderDailyRaceSummary(result);
+  renderDailyRaceTable(result.rows || []);
+}
+
 async function sendBroadcast(event) {
   event.preventDefault();
 
@@ -646,6 +736,7 @@ function switchView(view) {
     promoCodes: "Promo Codes",
     players: "User Management",
     referralAnalytics: "Referral Analytics",
+    dailyRace: "Daily Race",
     tournaments: "Tournaments",
     revenue: "Revenue",
     payouts: "Payouts"
@@ -664,6 +755,7 @@ async function loadCurrentView(view = getActiveView()) {
   if (view === "fraud") await loadFraudAlerts();
   if (view === "players") await loadPlayers();
   if (view === "referralAnalytics") await loadReferralAnalytics();
+  if (view === "dailyRace") await loadDailyRace();
   if (view === "tournaments") await loadTournaments();
   if (view === "revenue") await loadRevenue();
   if (view === "payouts") await loadPayouts();
@@ -1547,6 +1639,14 @@ if (els.playersTable) {
     const button = event.target.closest("[data-grant]");
     if (!button) return;
     grantCoins(button.dataset.grant);
+  });
+}
+
+if (els.dailyRaceTable) {
+  els.dailyRaceTable.addEventListener("click", (event) => {
+    const profileButton = event.target.closest("[data-view-profile]");
+    if (!profileButton) return;
+    openUserProfile(profileButton.dataset.viewProfile).catch(() => showToast("Could not open profile."));
   });
 }
 

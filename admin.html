@@ -45,6 +45,7 @@
         <button class="nav-item" type="button" data-view="promoCodes">Promo Codes</button>
         <button class="nav-item" type="button" data-view="players">User Management</button>
         <button class="nav-item" type="button" data-view="referralAnalytics">Referral Analytics</button>
+        <button class="nav-item" type="button" data-view="dailyRace">Daily Race</button>
         <button class="nav-item" type="button" data-view="tournaments">Tournaments</button>
         <button class="nav-item" type="button" data-view="revenue">Revenue</button>
         <button class="nav-item" type="button" data-view="payouts">Payouts</button>
@@ -251,6 +252,32 @@
                 </tr>
               </thead>
               <tbody id="referralAnalyticsTable"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="view" id="dailyRaceView">
+        <div class="hero-stats" id="dailyRaceSummaryCards"></div>
+        <article class="card">
+          <div class="view-toolbar">
+            <h2>Today's Participants</h2>
+            <span class="badge badge--active" id="dailyRaceContestDate"></span>
+          </div>
+          <p class="empty">Players earning tickets today. Referrals and tickets are shown before each player name.</p>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Referrals</th>
+                  <th>Tickets</th>
+                  <th>Player</th>
+                  <th>Daily Score</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="dailyRaceTable"></tbody>
             </table>
           </div>
         </article>
@@ -471,6 +498,6 @@
   <div class="toast" id="toast"></div>
 
   <script src="./config.js?v=1"></script>
-  <script src="./admin.js?v=12"></script>
+  <script src="./admin.js?v=13"></script>
 </body>
 </html>
