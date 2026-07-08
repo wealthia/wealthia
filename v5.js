@@ -3402,8 +3402,10 @@ async function referralContinue(options = {}) {
       successMessage: options.successMessage || ""
     });
 
-    if (connected && !options.silent) {
-      showToast(result.referralQualified ? "Welcome! You're in." : "Welcome back!");
+    if (connected && !options.silent && result.referralQualified) {
+      showReferralQualifiedToast("Welcome! You're in.");
+    } else if (connected && !options.silent) {
+      showToast("Welcome back!");
     }
 
     return connected;
@@ -3439,7 +3441,7 @@ async function syncReferralProgress(options = {}) {
     saveState();
     render();
     if (result.referralQualified && !options.silent) {
-      showToast("Referral linked! Your inviter earned +500 coins.");
+      showReferralQualifiedToast("Referral linked! Your inviter earned +500 coins.");
     }
     return true;
   }
@@ -4183,6 +4185,12 @@ async function connectBackend(retries = 6, options = {}) {
   renderSyncBar();
   render();
   return false;
+}
+
+function showReferralQualifiedToast(message) {
+  if (messageShownRecently("referral-qualified")) return;
+  markMessageShown("referral-qualified");
+  showToast(message);
 }
 
 function messageShownRecently(key) {
