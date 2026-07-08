@@ -87,8 +87,8 @@ const BOOST_DURATION_MS = 30 * 60 * 1000;
 const REFERRAL_BONUS = 500;
 const NEW_PLAYER_BONUS = 100;
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
-const AD_REWARD_COOLDOWN_MS = 5 * 60 * 1000;
-const BONUS_AD_REWARD_COOLDOWN_MS = 15 * 60 * 1000;
+const AD_REWARD_COOLDOWN_MS = 60 * 1000;
+const BONUS_AD_REWARD_COOLDOWN_MS = 60 * 1000;
 const GOLD_RUSH_DURATION_MS = 15 * 60 * 1000;
 const GOLD_RUSH_MULTIPLIER = 2;
 const CRON_SECRET = process.env.CRON_SECRET || process.env.ADMIN_SECRET || "";
@@ -119,8 +119,8 @@ const ipRateBuckets = new Map();
 
 const EARN_TASKS = {
   sponsor: { reward: 750, field: "sponsor_done" },
-  ad: { reward: 300, cooldown: true },
-  bonus_ad: { reward: 150, cooldown: true, field: "bonus_ad_last_claimed_at" },
+  ad: { reward: 1500, cooldown: true },
+  bonus_ad: { reward: 800, cooldown: true, field: "bonus_ad_last_claimed_at" },
   channel: { reward: 500, field: "channel_done" }
 };
 

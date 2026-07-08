@@ -1854,9 +1854,12 @@ function starPrice(productId) {
   return Number(prices[productId] || 0);
 }
 
-function earnRefreshMinutesLeft(until) {
+function earnRefreshTimeLeft(until) {
   const diff = Math.max(0, Number(until || 0) - Date.now());
-  return Math.max(1, Math.ceil(diff / 60000));
+  const totalSec = Math.max(0, Math.ceil(diff / 1000));
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min}:${String(sec).padStart(2, "0")}`;
 }
 
 function adRewardAvailable() {
@@ -1867,22 +1870,27 @@ function bonusAdRewardAvailable() {
   return Number(state.bonusAdCooldownUntil || 0) <= Date.now();
 }
 
-function adRefreshMinutesLeft() {
-  return earnRefreshMinutesLeft(state.adCooldownUntil);
+function adRefreshTimeLeft() {
+  return earnRefreshTimeLeft(state.adCooldownUntil);
 }
 
-function bonusAdRefreshMinutesLeft() {
-  return earnRefreshMinutesLeft(state.bonusAdCooldownUntil);
+function bonusAdRefreshTimeLeft() {
+  return earnRefreshTimeLeft(state.bonusAdCooldownUntil);
+}
+
+function adRewardAmount() {
+  return Number(CONFIG.AD_REWARD || 1500);
 }
 
 function bonusAdRewardAmount() {
-  return Number(CONFIG.BONUS_AD_REWARD || 150);
+  return Number(CONFIG.BONUS_AD_REWARD || 800);
 }
 
 function adRewardSubtitle() {
   if (!adRewardAvailable()) return "Reward collected";
 
-  if (adsGramReady()) return "Watch ad for +300 coins";
+  const reward = adRewardAmount();
+  if (adsGramReady()) return `Watch ad for +${reward} coins`;
   if (CONFIG.ADSGRAM_BLOCK_ID) return "Ad loading — open in Telegram";
   return "Connect AdsGram Block ID in config.js";
 }
@@ -1898,7 +1906,7 @@ function bonusAdRewardSubtitle() {
   return "Add AdsGram Bonus Block ID in config.js";
 }
 
-function renderCooldownAdRow(type, title, subtitle, reward, onCooldown, refreshMinutes, timerId) {
+function renderCooldownAdRow(type, title, subtitle, reward, onCooldown, refreshTime, timerId) {
   const button = `
     <button class="task earn-task earn-task--ad ${onCooldown ? "completed" : ""}" type="button" data-earn="${type}" ${onCooldown ? "disabled" : ""}>
       <span><b>${title}</b><small>${subtitle}</small></span>
@@ -1911,19 +1919,20 @@ function renderCooldownAdRow(type, title, subtitle, reward, onCooldown, refreshM
   return `
     <div class="earn-ad-wrap">
       ${button}
-      <p class="ad-refresh-timer" id="${timerId}">Refreshing in <span>${refreshMinutes}</span></p>
+      <p class="ad-refresh-timer" id="${timerId}">Refreshing in <span>${refreshTime}</span></p>
     </div>
   `;
 }
 
 function renderAdEarnRow() {
+  const reward = adRewardAmount();
   return renderCooldownAdRow(
     "ad",
-    "Premium Video Ad (+300 coins)",
+    `Premium Video Ad (+${reward} coins)`,
     adRewardSubtitle(),
-    300,
+    reward,
     !adRewardAvailable(),
-    adRefreshMinutesLeft(),
+    adRefreshTimeLeft(),
     "adRefreshTimer"
   );
 }
@@ -1936,7 +1945,7 @@ function renderBonusAdEarnRow() {
     bonusAdRewardSubtitle(),
     reward,
     !bonusAdRewardAvailable(),
-    bonusAdRefreshMinutesLeft(),
+    bonusAdRefreshTimeLeft(),
     "bonusAdRefreshTimer"
   );
 }
@@ -1949,11 +1958,11 @@ function scheduleAdCooldownRefresh() {
     const bonusTimer = document.getElementById("bonusAdRefreshTimer");
 
     if (adTimer && !adRewardAvailable()) {
-      adTimer.innerHTML = `Refreshing in <span>${adRefreshMinutesLeft()}</span>`;
+      adTimer.innerHTML = `Refreshing in <span>${adRefreshTimeLeft()}</span>`;
     }
 
     if (bonusTimer && !bonusAdRewardAvailable()) {
-      bonusTimer.innerHTML = `Refreshing in <span>${bonusAdRefreshMinutesLeft()}</span>`;
+      bonusTimer.innerHTML = `Refreshing in <span>${bonusAdRefreshTimeLeft()}</span>`;
     }
 
     const adReady = adRewardAvailable();
@@ -4369,7 +4378,7 @@ async function handleEarnClick(type) {
 
   if (type === "ad") {
     if (!adRewardAvailable()) {
-      showToast(`Refreshing in ${adRefreshMinutesLeft()}`);
+      showToast(`Refreshing in ${adRefreshTimeLeft()}`);
       return;
     }
 
@@ -4379,7 +4388,7 @@ async function handleEarnClick(type) {
 
   if (type === "bonus_ad") {
     if (!bonusAdRewardAvailable()) {
-      showToast(`Refreshing in ${bonusAdRefreshMinutesLeft()}`);
+      showToast(`Refreshing in ${bonusAdRefreshTimeLeft()}`);
       return;
     }
 
@@ -4424,12 +4433,12 @@ async function claimEarnTask(type) {
       state.adCooldownUntil = Number(result.nextAt || state.adCooldownUntil);
       scheduleAdCooldownRefresh();
       renderEarnPanel();
-      showToast(`Refreshing in ${adRefreshMinutesLeft()}`);
+      showToast(`Refreshing in ${adRefreshTimeLeft()}`);
     } else if (result && result.error === "BONUS_AD_COOLDOWN") {
       state.bonusAdCooldownUntil = Number(result.nextAt || state.bonusAdCooldownUntil);
       scheduleAdCooldownRefresh();
       renderEarnPanel();
-      showToast(`Refreshing in ${bonusAdRefreshMinutesLeft()}`);
+      showToast(`Refreshing in ${bonusAdRefreshTimeLeft()}`);
     } else showToast("Task unavailable.");
     return false;
   }

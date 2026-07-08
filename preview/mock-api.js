@@ -99,14 +99,14 @@ export function buildMockSession() {
         channel: false
       },
       adReward: {
-        nextAt: Date.now() + 3 * 60 * 1000,
-        reward: 100,
-        cooldownMs: 5 * 60 * 1000
+        nextAt: Date.now() + 45 * 1000,
+        reward: 1500,
+        cooldownMs: 60 * 1000
       },
       bonusAdReward: {
-        nextAt: Date.now() + 10 * 60 * 1000,
-        reward: 150,
-        cooldownMs: 15 * 60 * 1000
+        nextAt: Date.now() + 30 * 1000,
+        reward: 800,
+        cooldownMs: 60 * 1000
       },
       buildings: {
         shop: 12,
