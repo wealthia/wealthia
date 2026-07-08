@@ -15,7 +15,7 @@ let dailyYourRank = 0;
 let dailyContestResetsAt = "";
 let dailyContestScore = 0;
 let dailyReferralCount = 0;
-let dailyReferralsRequired = 3;
+let dailyReferralsRequired = 1;
 let dailyPrizeEligible = false;
 let dailyLastWinner = null;
 let tournamentData = null;
@@ -121,7 +121,7 @@ const defaultState = {
     score: 0,
     date: "",
     resetsAt: "",
-    minReferrals: 3,
+    minReferrals: 1,
     eligible: false,
     tickets: 0,
     ticketProgress: {
@@ -460,7 +460,7 @@ function getDailyPrizeConfig() {
     title: cfg.title || "Daily Prize",
     prize: Number(cfg.prize || 10),
     currency: cfg.currency || "USD",
-    minReferrals: Number(cfg.minReferrals || 3),
+    minReferrals: Number(cfg.minReferrals || 1),
     channelUrl: String(cfg.channelUrl || CONFIG.PARTNER_CHANNEL_URL || "")
   };
 }
@@ -796,7 +796,7 @@ function renderDailyPrizeCardHtml(options = {}) {
   const symbol = prize.currency === "USD" ? "$" : "";
   const score = todayGainScore();
   const referrals = dailyReferralCount || Number(state.referrals?.count || 0);
-  const required = prize.minReferrals || dailyReferralsRequired || 3;
+  const required = prize.minReferrals || dailyReferralsRequired || 1;
   const eligible = dailyPrizeEligible || Boolean(state.referrals?.eligible);
   const timeLeft = dailyPrizeTimeLeft(dailyContestResetsAt || state.dailyContest?.resetsAt);
 
@@ -804,7 +804,7 @@ function renderDailyPrizeCardHtml(options = {}) {
     <article class="grand-prize-card daily-prize-card${fitClass} ${eligible ? "" : "daily-prize-card--locked"}">
       <div class="grand-prize-card__head">
         <span class="grand-prize__badge">⚡ ${prize.title}</span>
-        <h3>${symbol}${format(prize.prize)} · 3 friends required</h3>
+        <h3>${symbol}${format(prize.prize)} · ${required} friend${required === 1 ? "" : "s"} required</h3>
         <p>${timeLeft} left · Friends: ${referrals}/${required}${eligible ? " · Qualified" : " · Not qualified yet"}</p>
       </div>
       <div class="daily-prize__gain-box">
@@ -813,8 +813,8 @@ function renderDailyPrizeCardHtml(options = {}) {
       </div>
       ${renderTicketProgressHtml()}
       ${eligible
-    ? `<p class="daily-prize-card__boost-tip">Only players with 3+ invited friends can win. Use ⭐ boosts to climb.</p>`
-    : `<p class="daily-prize-card__boost-tip">Invite 3 friends from the Friends tab to join today's Daily $10 Race.</p>`}
+    ? `<p class="daily-prize-card__boost-tip">Only players with ${required}+ invited friend${required === 1 ? "" : "s"} can win. Use ⭐ boosts to climb.</p>`
+    : `<p class="daily-prize-card__boost-tip">Invite ${required} friend${required === 1 ? "" : "s"} from the Friends tab to join today's Daily $10 Race.</p>`}
       ${prize.channelUrl ? `<button class="grand-prize-card__channel" type="button" data-channel="${prize.channelUrl}">Winner will be announced on the Telegram channel</button>` : ""}
     </article>
   `;
@@ -2200,7 +2200,7 @@ function renderFriendsPanel() {
 
   const prize = getDailyPrizeConfig();
   const referrals = dailyReferralCount || Number(state.referrals?.count || 0);
-  const required = prize?.minReferrals || dailyReferralsRequired || 3;
+  const required = prize?.minReferrals || dailyReferralsRequired || 1;
   const eligible = dailyPrizeEligible || Boolean(state.referrals?.eligible);
   const referralCoins = referrals * 500;
   const link = getInviteLink();
@@ -3074,14 +3074,14 @@ function syncFromBackend(user, options = {}) {
       score: Number(game.dailyContest.score || game.dailyScore || 0),
       date: game.dailyContest.date || "",
       resetsAt: game.dailyContest.resetsAt || "",
-      minReferrals: Number(game.dailyContest.minReferrals || 3),
+      minReferrals: Number(game.dailyContest.minReferrals || 1),
       eligible: Boolean(game.dailyContest.eligible),
       tickets: Number(game.dailyContest.tickets || game.tickets || 0),
       ticketProgress: game.dailyContest.ticketProgress || game.ticketProgress || null
     };
     dailyContestScore = Number(game.dailyContest.score || game.dailyScore || 0);
     dailyContestResetsAt = game.dailyContest.resetsAt || "";
-    dailyReferralsRequired = Number(game.dailyContest.minReferrals || 3);
+    dailyReferralsRequired = Number(game.dailyContest.minReferrals || 1);
     dailyPrizeEligible = Boolean(game.dailyContest.eligible);
     state.tickets = Number(game.tickets || game.dailyContest.tickets || 0);
     state.ticketProgress = state.dailyContest.ticketProgress;
@@ -3098,11 +3098,11 @@ function syncFromBackend(user, options = {}) {
   if (game.referrals) {
     state.referrals = {
       count: Number(game.referrals.count || 0),
-      required: Number(game.referrals.required || 3),
+      required: Number(game.referrals.required || 1),
       eligible: Boolean(game.referrals.eligible)
     };
     dailyReferralCount = Number(game.referrals.count || 0);
-    dailyReferralsRequired = Number(game.referrals.required || 3);
+    dailyReferralsRequired = Number(game.referrals.required || 1);
     dailyPrizeEligible = Boolean(game.referrals.eligible);
   }
 }
@@ -4029,7 +4029,7 @@ async function loadLeaderboard() {
   dailyLeaderboardYou = result.daily?.you || null;
   dailyYourRank = Number(result.daily?.yourRank || dailyLeaderboardYou?.rank || 0);
   dailyContestResetsAt = result.daily?.resetsAt || state.dailyContest?.resetsAt || "";
-  dailyReferralsRequired = Number(result.daily?.minReferrals || 3);
+  dailyReferralsRequired = Number(result.daily?.minReferrals || 1);
   dailyReferralCount = Number(result.daily?.yourReferrals || state.referrals?.count || 0);
   dailyPrizeEligible = Boolean(result.daily?.eligible);
   dailyLastWinner = result.daily?.lastWinner || null;

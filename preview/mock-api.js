@@ -132,7 +132,7 @@ export function buildMockSession() {
         score: 1372,
         date: new Date().toISOString().slice(0, 10),
         resetsAt: tomorrow.toISOString(),
-        minReferrals: 3,
+        minReferrals: 1,
         eligible: true,
         tickets: 1,
         ticketProgress: { current: 372, target: 1000, percent: 37 }
@@ -189,7 +189,7 @@ export function buildMockLeaderboard() {
     daily: {
       date: new Date().toISOString().slice(0, 10),
       resetsAt: tomorrow.toISOString(),
-      minReferrals: 3,
+      minReferrals: 1,
       yourReferrals: 5,
       eligible: true,
       top3: [
