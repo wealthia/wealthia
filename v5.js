@@ -2278,9 +2278,9 @@ function renderFriendsPanel() {
     </article>
 
     <article class="friends-tips">
-      <p><strong>1.</strong> Friend opens your invite link (game launches directly)</p>
-      <p><strong>2.</strong> They join the official Wealthia Telegram channel</p>
-      <p><strong>3.</strong> They tap <strong>I subscribed — continue</strong> — you get +500 coins</p>
+      <p><strong>1.</strong> Friend opens your invite link in Telegram</p>
+      <p><strong>2.</strong> They tap <strong>Play Wealthia</strong> in the bot</p>
+      <p><strong>3.</strong> You instantly get <strong>+500 coins</strong> — no channel required</p>
     </article>
   `;
 
