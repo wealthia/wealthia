@@ -417,6 +417,7 @@ async function notifyReferrerQualified(referrerId, referredUserId = "") {
   });
 
   if (!safe.ok) {
+    recentReferralNotifies.delete(dedupeKey);
     console.warn("REFERRAL_NOTIFY_FAILED:", referrer, safe.error);
   }
 }
