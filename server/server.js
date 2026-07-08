@@ -2152,6 +2152,65 @@ async function buildReferralsAnalytics() {
   };
 }
 
+async function buildDailyParticipantsAdmin(limit = 200) {
+  const today = todayKey();
+  const maxRows = Math.min(500, Math.max(1, number(limit) || 200));
+
+  const { data: gameRows, error } = await supabase
+    .from("game_states")
+    .select("user_id, daily_contest_score, contest_date")
+    .eq("contest_date", today)
+    .gt("daily_contest_score", 0)
+    .order("daily_contest_score", { ascending: false })
+    .limit(maxRows);
+
+  if (error) throw error;
+
+  const participantRows = (gameRows || []).filter(
+    (row) => row.user_id && !String(row.user_id).startsWith("contest_seed")
+  );
+  const userIds = participantRows.map((row) => row.user_id);
+  const referralCounts = await getReferralCounts(userIds);
+
+  const { data: users, error: usersError } = userIds.length
+    ? await supabase
+      .from("users")
+      .select("id, first_name, username, last_seen_at")
+      .in("id", userIds)
+    : { data: [] };
+
+  if (usersError) throw usersError;
+
+  const userMap = new Map((users || []).map((user) => [user.id, user]));
+
+  const rows = participantRows
+    .map((row) => {
+      const tickets = economy.computeTickets(row.daily_contest_score);
+      const referralCount = referralCounts.get(row.user_id) || 0;
+      const user = userMap.get(row.user_id) || {};
+
+      return {
+        userId: row.user_id,
+        name: user.first_name || user.username || `Player ${String(row.user_id).slice(-4)}`,
+        username: user.username || "",
+        tickets,
+        referralCount,
+        dailyScore: number(row.daily_contest_score),
+        eligible: dailyPrizeEligible(referralCount) && tickets >= 1,
+        lastSeenAt: user.last_seen_at || null
+      };
+    })
+    .sort((a, b) => b.tickets - a.tickets || b.dailyScore - a.dailyScore || b.referralCount - a.referralCount);
+
+  return {
+    contestDate: today,
+    minReferrals: DAILY_PRIZE_MIN_REFERRALS,
+    totalParticipants: rows.length,
+    eligibleCount: rows.filter((row) => row.eligible).length,
+    rows
+  };
+}
+
 async function getReferralCounts(userIds) {
   const ids = [...new Set((userIds || []).map((id) => String(id)).filter(Boolean))];
   const counts = new Map();
@@ -4574,6 +4633,18 @@ app.get("/api/admin/referrals-analytics", async (req, res) => {
   try {
     const analytics = await buildReferralsAnalytics();
     res.json(analytics);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/admin/daily-participants", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const limit = Math.min(500, Math.max(1, number(req.query.limit) || 200));
+    const data = await buildDailyParticipantsAdmin(limit);
+    res.json(data);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
