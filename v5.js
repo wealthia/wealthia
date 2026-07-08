@@ -17,6 +17,25 @@ let dailyContestScore = 0;
 let dailyReferralCount = 0;
 let dailyReferralsRequired = 1;
 let dailyPrizeEligible = false;
+
+function isDailyPrizeEligible() {
+  if (backendReady) return dailyPrizeEligible;
+  return dailyPrizeEligible || Boolean(state.referrals?.eligible);
+}
+
+function resetLocalReferralEligibility() {
+  dailyPrizeEligible = false;
+  dailyReferralCount = 0;
+  const required = dailyReferralsRequired || Number(state.referrals?.required || 1);
+  state.referrals = {
+    count: 0,
+    required,
+    eligible: false
+  };
+  if (state.dailyContest) {
+    state.dailyContest.eligible = false;
+  }
+}
 let dailyLastWinner = null;
 let tournamentData = null;
 let tournamentLeaderboard = [];
@@ -829,7 +848,7 @@ function renderDailyPrizeCardHtml(options = {}) {
   const score = todayGainScore();
   const referrals = dailyReferralCount || Number(state.referrals?.count || 0);
   const required = prize.minReferrals || dailyReferralsRequired || 1;
-  const eligible = dailyPrizeEligible || Boolean(state.referrals?.eligible);
+  const eligible = isDailyPrizeEligible();
   const timeLeft = dailyPrizeTimeLeft(dailyContestResetsAt || state.dailyContest?.resetsAt);
 
   return `
@@ -2242,7 +2261,7 @@ function renderFriendsPanel() {
   const prize = getDailyPrizeConfig();
   const referrals = dailyReferralCount || Number(state.referrals?.count || 0);
   const required = prize?.minReferrals || dailyReferralsRequired || 1;
-  const eligible = dailyPrizeEligible || Boolean(state.referrals?.eligible);
+  const eligible = isDailyPrizeEligible();
   const referralCoins = referrals * 500;
   const link = getInviteLink();
   const progressPct = Math.min(100, Math.round((referrals / required) * 100));
@@ -3355,6 +3374,9 @@ async function applySessionResponse(result, options = {}) {
 
   if (result && !result.error && result.game) {
     hideChannelGate();
+    if (result.accountReset) {
+      resetLocalReferralEligibility();
+    }
     if (result.referralQualified) {
       clearStoredReferrerId();
     }

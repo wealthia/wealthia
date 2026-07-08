@@ -2494,6 +2494,43 @@ async function ensureUserProfile(telegramUser) {
   };
 }
 
+async function syncStoredReferralCount(userId) {
+  const id = String(userId || "");
+  if (!id) return 0;
+
+  const qualifiedCount = await getReferralCount(id);
+  await supabase
+    .from("users")
+    .update({ referral_count: qualifiedCount })
+    .eq("id", id);
+
+  return qualifiedCount;
+}
+
+async function reconcileStaleReferrerLink(referredUserId, staleReferrerId) {
+  const referred = String(referredUserId || "");
+  const referrer = String(staleReferrerId || "");
+  if (!referred || !referrer) return false;
+
+  const { data: referralRow, error } = await supabase
+    .from("referrals")
+    .select("id")
+    .eq("referred_user_id", referred)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (referralRow) return false;
+
+  await revokeReferralReward(referrer);
+  await supabase
+    .from("users")
+    .update({ referred_by: null })
+    .eq("id", referred);
+
+  console.log("REFERRAL_RESET_STALE_LINK:", referred, "referrer=", referrer);
+  return true;
+}
+
 async function prepareDeletedPlayerSession(telegramId) {
   const id = String(telegramId || "");
   if (!id) return false;
@@ -2508,10 +2545,32 @@ async function prepareDeletedPlayerSession(telegramId) {
   if (existingGame) return false;
 
   await tapPipeline.clearState(id);
+
+  const { data: userRow, error: userError } = await supabase
+    .from("users")
+    .select("id, referred_by")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (userError) throw userError;
+
+  const staleReferrerId = String(userRow?.referred_by || "");
   const cleared = await clearReferralForReferredUser(id);
+
   if (cleared) {
     console.log("REFERRAL_RESET_DELETED_ACCOUNT:", id);
+  } else if (staleReferrerId) {
+    const reconciled = await reconcileStaleReferrerLink(id, staleReferrerId);
+    if (reconciled) {
+      console.log("REFERRAL_RESET_DELETED_ACCOUNT:", id);
+    }
+  } else if (userRow) {
+    await supabase
+      .from("users")
+      .update({ referred_by: null })
+      .eq("id", id);
   }
+
   return true;
 }
 
@@ -2769,7 +2828,7 @@ async function completePlayerSession(telegramUser, referrerId = "") {
     try {
       referralRegistered = await registerReferralIfNew(telegramUser, parsedReferrer, {
         isNewPlayer,
-        allowReferralReset: accountWasDeleted
+        allowReferralReset: accountWasDeleted || isNewPlayer
       });
       if (referralRegistered) {
         console.log("REFERRAL_QUALIFIED:", parsedReferrer, "->", telegramId);
@@ -2786,7 +2845,7 @@ async function completePlayerSession(telegramUser, referrerId = "") {
   const session = createSessionToken(telegramId);
   let referralCount = 0;
   try {
-    referralCount = await getReferralCount(telegramId);
+    referralCount = await syncStoredReferralCount(telegramId);
   } catch (countError) {
     console.warn("REFERRAL_COUNT_FAILED:", countError.message);
   }
@@ -2802,6 +2861,7 @@ async function completePlayerSession(telegramUser, referrerId = "") {
     }),
     token: session.token,
     expiresAt: session.expiresAt,
+    accountReset: accountWasDeleted,
     referralQualified: referralQualified || referralRegistered,
     referralRegistered,
     officialChannelUrl,
