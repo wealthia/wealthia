@@ -296,6 +296,9 @@ async function verifyChannelSubscriptionLive() {
   const { ok, result, status } = await apiPost("/api/verify-channel-subscription", {});
 
   if (ok && result && result.success) {
+    if (result.referralQualified) {
+      await syncReferralProgress({ silent: true });
+    }
     return true;
   }
 
@@ -698,7 +701,7 @@ function bindResetConfirmModal() {
 const CONNECTION_ERROR_TOAST =
   "⚠️ Connection error. Please try again or restart the bot.";
 
-const PAYMENT_VERIFYING_TOAST = "Payment is being verified. Please wait...";
+const REFERRER_STORAGE_KEY = "wealthia_referrer_id";
 const PAYMENT_OPENING_TOAST = "Opening Stars payment...";
 
 let channelGateUrl = "";
@@ -753,7 +756,10 @@ function bindChannelGateModal() {
     retryButton.addEventListener("click", async () => {
       try {
         backendReconnectAttempts = 0;
-        await connectBackend(4);
+        const connected = await connectBackend(4);
+        if (connected) {
+          await syncReferralProgress({ silent: true });
+        }
       } catch {
         showConnectionErrorToast();
       }
@@ -3230,16 +3236,69 @@ function getTelegramUser() {
   };
 }
 
-function getReferrerId() {
-  const tg = window.Telegram && window.Telegram.WebApp;
-  const startParam = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param;
-  if (!startParam) return "";
+function captureReferrerId(raw) {
+  const value = String(raw || "").trim();
+  if (!value) return "";
 
-  if (String(startParam).startsWith("ref_")) {
-    return String(startParam).slice(4);
+  const parsed = value.startsWith("ref_") ? value.slice(4) : value;
+  const selfId = String(backendUserId || getTelegramUser().id || "");
+  if (!parsed || (selfId && parsed === selfId)) return "";
+
+  try {
+    localStorage.setItem(REFERRER_STORAGE_KEY, parsed);
+  } catch {
+    // ignore storage errors
   }
 
-  return String(startParam);
+  return parsed;
+}
+
+function getReferrerId() {
+  const tg = window.Telegram && window.Telegram.WebApp;
+  const fromInit = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param;
+  if (fromInit) return captureReferrerId(fromInit);
+
+  try {
+    const urlParam = new URLSearchParams(window.location.search).get("tgWebAppStartParam");
+    if (urlParam) return captureReferrerId(urlParam);
+  } catch {
+    // ignore URL parse errors
+  }
+
+  try {
+    return localStorage.getItem(REFERRER_STORAGE_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+async function syncReferralProgress(options = {}) {
+  if (!(await ensureBackend())) return false;
+
+  const { ok, result } = await apiPost("/api/referral/sync", {});
+  if (!ok || !result) return false;
+
+  if (result.channelRequired) {
+    if (!options.silent) {
+      showChannelGate(
+        result.channelUrl,
+        result.channelMessage || "Please subscribe to our official channel to unlock the game"
+      );
+    }
+    return false;
+  }
+
+  if (result.user) {
+    syncFromBackend(result.user, { preservePendingEnergy: true, preserveLocalRegen: true });
+    saveState();
+    render();
+    if (result.referralQualified && !options.silent) {
+      showToast("Referral linked! Your inviter earned +500 coins.");
+    }
+    return true;
+  }
+
+  return false;
 }
 
 const API_FETCH_TIMEOUT_MS = 25000;
@@ -3877,6 +3936,8 @@ async function connectBackend(retries = 6, options = {}) {
     await waitForTelegramInitData();
   }
 
+  captureReferrerId(getReferrerId());
+
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     const { ok, result, status } = await apiPost("/api/session", {
       initData: getTelegramInitData(),
@@ -3885,6 +3946,7 @@ async function connectBackend(retries = 6, options = {}) {
     });
 
     if (ok && result && result.channelRequired) {
+      captureReferrerId(getReferrerId());
       showChannelGate(
         result.channelUrl,
         result.channelMessage || "Please subscribe to our official channel to unlock the game"
@@ -3898,6 +3960,7 @@ async function connectBackend(retries = 6, options = {}) {
 
     if (ok && result && !result.error && result.game) {
       hideChannelGate();
+      captureReferrerId(getReferrerId());
       backendUserId = result.userId;
       backendSessionToken = result.token || "";
       backendReconnectAttempts = 0;
@@ -4838,6 +4901,10 @@ document.querySelectorAll(".tab").forEach((tab) => {
 
     renderCampaignBanner();
     renderFriendsPanel();
+
+    if (tab.dataset.tab === "friendsPanel") {
+      refreshBackendState();
+    }
 
     if (tab.dataset.tab === "rankPanel") {
       loadLeaderboard();

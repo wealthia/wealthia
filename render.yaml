@@ -33,6 +33,10 @@ services:
         value: https://wealthia.github.io/wealthia/v5.html?v=2108
       - key: CHANNEL_URL
         sync: false
+      - key: OFFICIAL_CHANNEL_USERNAME
+        value: "@weathia_official"
+      - key: OFFICIAL_CHANNEL_URL
+        value: https://t.me/weathia_official
       - key: ALLOW_EARN_RESET
         value: "true"
       - key: ENABLE_DAILY_PUSH
@@ -63,6 +67,10 @@ services:
         value: WealthiaGameBot
       - key: CHANNEL_URL
         sync: false
+      - key: OFFICIAL_CHANNEL_USERNAME
+        value: "@weathia_official"
+      - key: OFFICIAL_CHANNEL_URL
+        value: https://t.me/weathia_official
       - key: BACKEND_URL
         value: https://wealthia-backend.onrender.com
       - key: STARS_WEBHOOK_SECRET
