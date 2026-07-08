@@ -2022,7 +2022,7 @@ async function recordReferral(referrerId, referredUserId, options = {}) {
     .is("referred_by", null);
 
   if (status === REFERRAL_STATUS_QUALIFIED) {
-    await creditReferrerCoins(referrer);
+    const coinsCredited = await creditReferrerCoins(referrer);
 
     const qualifiedCount = await getReferralCount(referrer);
     await supabase
@@ -2032,7 +2032,9 @@ async function recordReferral(referrerId, referredUserId, options = {}) {
       })
       .eq("id", referrer);
 
-    await notifyReferrerQualified(referrer);
+    if (coinsCredited) {
+      await notifyReferrerQualified(referrer);
+    }
   }
 
   return true;
