@@ -375,6 +375,40 @@ function getOfficialChannelUrl() {
   return resolvedOfficialChannelUrl || OFFICIAL_CHANNEL_URL;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function checkOfficialChannelMembershipWithRetry(telegramId, options = {}) {
+  const attempts = Math.max(1, Number(options.attempts || 1));
+  const delayMs = Math.max(0, Number(options.delayMs || 1500));
+
+  let last = await checkOfficialChannelMembership(telegramId);
+  for (let attempt = 1; attempt < attempts; attempt += 1) {
+    if (last.skipped || last.isMember) return last;
+    await sleep(delayMs);
+    last = await checkOfficialChannelMembership(telegramId);
+  }
+
+  return last;
+}
+
+async function notifyReferrerQualified(referrerId) {
+  const referrer = String(referrerId || "");
+  if (!TELEGRAM_BOT_TOKEN || !referrer) return;
+
+  const safe = await telegramApiSafe("sendMessage", {
+    chat_id: Number(referrer),
+    text:
+      "🎉 Your friend joined Wealthia through your invite link!\n\n" +
+      "+500 Wealth Coins added. Open the game → Friends tab to see your progress."
+  });
+
+  if (!safe.ok) {
+    console.warn("REFERRAL_NOTIFY_FAILED:", referrer, safe.error);
+  }
+}
+
 function isChannelMembershipLookupError(errorText) {
   const text = String(errorText || "").toLowerCase();
   return (
@@ -1820,13 +1854,18 @@ async function tryQualifyPendingReferral(referredUserId) {
 }
 
 async function syncReferralAfterChannelJoin(userId) {
-  const channelCheck = await checkOfficialChannelMembership(userId);
+  const channelCheck = await checkOfficialChannelMembershipWithRetry(userId, {
+    attempts: 4,
+    delayMs: 1500
+  });
   if (!channelCheck.skipped && !channelCheck.isMember) {
     return {
       ok: false,
       channelRequired: true,
       channelUrl: getOfficialChannelUrl(),
-      channelMessage: "Please subscribe to our official channel to unlock the game"
+      channelUsername: OFFICIAL_CHANNEL_USERNAME,
+      channelMessage:
+        `Please subscribe to ${OFFICIAL_CHANNEL_USERNAME} to unlock the game and count your invite.`
     };
   }
 
@@ -1921,6 +1960,8 @@ async function qualifyReferralIfPending(referredUserId) {
       referral_count: qualifiedCount
     })
     .eq("id", referrer);
+
+  await notifyReferrerQualified(referrer);
 
   return true;
 }
@@ -2522,9 +2563,12 @@ app.get("/api/adsgram/reward", (_req, res) => {
   res.status(200).send("ok");
 });
 
-async function completePlayerSession(telegramUser, referrerId = "") {
+async function completePlayerSession(telegramUser, referrerId = "", options = {}) {
   const telegramId = String(telegramUser?.id || "");
   const parsedReferrer = parseReferrerId(referrerId || telegramUser?.start_param || "");
+  const channelRetries = Math.max(1, Number(options.channelRetries || 2));
+  const officialChannelUrl = getOfficialChannelUrl();
+  const officialChannelUsername = OFFICIAL_CHANNEL_USERNAME;
 
   let isNewPlayer = false;
   const row = await tapPipeline.reload(telegramId, async () => {
@@ -2546,16 +2590,28 @@ async function completePlayerSession(telegramUser, referrerId = "") {
 
   const enforceChannelGate = isNewPlayer || await hasPendingChannelReferral(telegramId);
   if (enforceChannelGate) {
-    const channelCheck = await checkOfficialChannelMembership(telegramId);
+    const channelCheck = await checkOfficialChannelMembershipWithRetry(telegramId, {
+      attempts: channelRetries,
+      delayMs: 1500
+    });
 
     if (channelCheck.skipped) {
       console.warn("OFFICIAL_CHANNEL_CHECK_SKIPPED:", channelCheck.error);
     } else if (!channelCheck.isMember) {
+      console.warn(
+        "CHANNEL_MEMBER_CHECK_FAILED:",
+        telegramId,
+        officialChannelUsername,
+        officialChannelUrl,
+        channelCheck.error || "not_member"
+      );
       return {
         channelRequired: true,
         userId: telegramId,
-        channelUrl: getOfficialChannelUrl(),
-        channelMessage: "Please subscribe to our official channel to unlock the game",
+        channelUrl: officialChannelUrl,
+        channelUsername: officialChannelUsername,
+        channelMessage:
+          `Please subscribe to ${officialChannelUsername} to unlock the game and count your invite.`,
         pendingReferral: await hasPendingChannelReferral(telegramId),
         pendingRegistered
       };
@@ -2587,7 +2643,9 @@ async function completePlayerSession(telegramUser, referrerId = "") {
     token: session.token,
     expiresAt: session.expiresAt,
     referralQualified,
-    pendingRegistered
+    pendingRegistered,
+    officialChannelUrl,
+    officialChannelUsername
   };
 }
 
@@ -2606,7 +2664,9 @@ app.post("/api/session", async (req, res) => {
       req.body.referrerId || req.body.referralId || telegramUser.start_param
     );
 
-    const result = await completePlayerSession(telegramUser, referrerId);
+    const result = await completePlayerSession(telegramUser, referrerId, {
+      channelRetries: 4
+    });
     res.json(result);
   } catch (error) {
     console.error("SESSION_ERROR:", error);
@@ -2640,7 +2700,9 @@ app.post("/api/referral/continue", async (req, res) => {
       req.body.referrerId || req.body.referralId || telegramUser.start_param
     );
 
-    const result = await completePlayerSession(telegramUser, referrerId);
+    const result = await completePlayerSession(telegramUser, referrerId, {
+      channelRetries: 4
+    });
     res.json(result);
   } catch (error) {
     console.error("REFERRAL_CONTINUE_ERROR:", error);
