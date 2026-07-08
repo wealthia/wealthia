@@ -468,7 +468,9 @@ function renderDailyRaceSummary(data) {
     },
     {
       label: "Total Tickets",
-      value: formatNumber((data.rows || []).reduce((sum, row) => sum + number(row.tickets), 0)),
+      value: formatNumber(
+        data.totalTickets ?? (data.rows || []).reduce((sum, row) => sum + number(row.tickets), 0)
+      ),
       hint: "Combined ticket pool today",
       accent: "hero-stat--gold"
     }
@@ -1646,6 +1648,7 @@ if (els.dailyRaceTable) {
   els.dailyRaceTable.addEventListener("click", (event) => {
     const profileButton = event.target.closest("[data-view-profile]");
     if (!profileButton) return;
+    switchView("players");
     openUserProfile(profileButton.dataset.viewProfile).catch(() => showToast("Could not open profile."));
   });
 }

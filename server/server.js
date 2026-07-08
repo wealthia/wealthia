@@ -2155,35 +2155,49 @@ async function buildReferralsAnalytics() {
 async function buildDailyParticipantsAdmin(limit = 200) {
   const today = todayKey();
   const maxRows = Math.min(500, Math.max(1, number(limit) || 200));
+  const pageSize = 1000;
+  const participantRows = [];
 
-  const { data: gameRows, error } = await supabase
-    .from("game_states")
-    .select("user_id, daily_contest_score, contest_date")
-    .eq("contest_date", today)
-    .gt("daily_contest_score", 0)
-    .order("daily_contest_score", { ascending: false })
-    .limit(maxRows);
+  for (let from = 0; ; from += pageSize) {
+    const { data: gameRows, error } = await supabase
+      .from("game_states")
+      .select("user_id, daily_contest_score, contest_date")
+      .eq("contest_date", today)
+      .gt("daily_contest_score", 0)
+      .order("daily_contest_score", { ascending: false })
+      .range(from, from + pageSize - 1);
 
-  if (error) throw error;
+    if (error) throw error;
 
-  const participantRows = (gameRows || []).filter(
-    (row) => row.user_id && !String(row.user_id).startsWith("contest_seed")
+    const pageRows = gameRows || [];
+    participantRows.push(
+      ...pageRows.filter((row) => row.user_id && !String(row.user_id).startsWith("contest_seed"))
+    );
+
+    if (pageRows.length < pageSize) break;
+  }
+
+  const totalTickets = participantRows.reduce(
+    (sum, row) => sum + economy.computeTickets(row.daily_contest_score),
+    0
   );
   const userIds = participantRows.map((row) => row.user_id);
   const referralCounts = await getReferralCounts(userIds);
+  const visibleRows = participantRows.slice(0, maxRows);
+  const visibleUserIds = visibleRows.map((row) => row.user_id);
 
-  const { data: users, error: usersError } = userIds.length
+  const { data: users, error: usersError } = visibleUserIds.length
     ? await supabase
       .from("users")
       .select("id, first_name, username, last_seen_at")
-      .in("id", userIds)
+      .in("id", visibleUserIds)
     : { data: [] };
 
   if (usersError) throw usersError;
 
   const userMap = new Map((users || []).map((user) => [user.id, user]));
 
-  const rows = participantRows
+  const rows = visibleRows
     .map((row) => {
       const tickets = economy.computeTickets(row.daily_contest_score);
       const referralCount = referralCounts.get(row.user_id) || 0;
@@ -2205,29 +2219,38 @@ async function buildDailyParticipantsAdmin(limit = 200) {
   return {
     contestDate: today,
     minReferrals: DAILY_PRIZE_MIN_REFERRALS,
-    totalParticipants: rows.length,
-    eligibleCount: rows.filter((row) => row.eligible).length,
+    totalParticipants: participantRows.length,
+    eligibleCount: participantRows.filter((row) => {
+      const tickets = economy.computeTickets(row.daily_contest_score);
+      const referralCount = referralCounts.get(row.user_id) || 0;
+      return dailyPrizeEligible(referralCount) && tickets >= 1;
+    }).length,
+    totalTickets,
     rows
   };
 }
 
 async function getReferralCounts(userIds) {
   const ids = [...new Set((userIds || []).map((id) => String(id)).filter(Boolean))];
+  const batchSize = 500;
   const counts = new Map();
 
   for (const id of ids) counts.set(id, 0);
   if (!ids.length) return counts;
 
-  const { data, error } = await supabase
-    .from("referrals")
-    .select("referrer_id")
-    .in("referrer_id", ids)
-    .eq("status", REFERRAL_STATUS_QUALIFIED);
+  for (let index = 0; index < ids.length; index += batchSize) {
+    const batch = ids.slice(index, index + batchSize);
+    const { data, error } = await supabase
+      .from("referrals")
+      .select("referrer_id")
+      .in("referrer_id", batch)
+      .eq("status", REFERRAL_STATUS_QUALIFIED);
 
-  if (error) throw error;
+    if (error) throw error;
 
-  for (const row of data || []) {
-    counts.set(row.referrer_id, (counts.get(row.referrer_id) || 0) + 1);
+    for (const row of data || []) {
+      counts.set(row.referrer_id, (counts.get(row.referrer_id) || 0) + 1);
+    }
   }
 
   return counts;
