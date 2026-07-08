@@ -1938,11 +1938,6 @@ async function qualifyReferralIfPending(referredUserId, options = {}) {
   const referrer = String(pending.referrer_id || "");
   if (!referrer || referrer === referred) return false;
 
-  const channelCheck = options.channelCheck || await checkOfficialChannelMembership(referred);
-  if (!channelCheck.skipped && !channelCheck.isMember) {
-    return false;
-  }
-
   const { data: updatedRows, error: updateError } = await supabase
     .from("referrals")
     .update({
@@ -2449,7 +2444,7 @@ async function registerReferralIfNew(telegramUser, referrerId) {
     return false;
   }
 
-  return registerPendingReferral(referrer, telegramId, {
+  return registerQualifiedReferral(referrer, telegramId, {
     isBot: Boolean(telegramUser?.is_bot)
   });
 }
@@ -2585,10 +2580,8 @@ async function completePlayerSession(telegramUser, referrerId = "") {
   const officialChannelUrl = getOfficialChannelUrl();
   const officialChannelUsername = OFFICIAL_CHANNEL_USERNAME;
 
-  let isNewPlayer = false;
   const row = await tapPipeline.reload(telegramId, async () => {
     const profile = await ensureUserProfile(telegramUser);
-    isNewPlayer = Boolean(profile.isNew);
     return profile.row;
   }, tapHelpers);
   let referralRegistered = false;
@@ -2597,7 +2590,7 @@ async function completePlayerSession(telegramUser, referrerId = "") {
     try {
       referralRegistered = await registerReferralIfNew(telegramUser, parsedReferrer);
       if (referralRegistered) {
-        console.log("REFERRAL_PENDING:", parsedReferrer, "->", telegramId);
+        console.log("REFERRAL_QUALIFIED:", parsedReferrer, "->", telegramId);
       } else if (parsedReferrer) {
         console.warn("REFERRAL_NOT_REGISTERED:", `referred=${telegramId}`, `referrer=${parsedReferrer}`);
       }
@@ -2606,25 +2599,7 @@ async function completePlayerSession(telegramUser, referrerId = "") {
     }
   }
 
-  const enforceChannelGate = isNewPlayer || await hasPendingChannelReferral(telegramId);
-  let channelCheck = null;
-  if (enforceChannelGate) {
-    channelCheck = await checkOfficialChannelMembership(telegramId);
-
-    if (channelCheck.skipped) {
-      console.warn("OFFICIAL_CHANNEL_CHECK_SKIPPED:", channelCheck.error);
-    } else if (!channelCheck.isMember) {
-      return {
-        userId: telegramId,
-        channelRequired: true,
-        channelUrl: officialChannelUrl,
-        channelUsername: officialChannelUsername,
-        channelMessage: "Please subscribe to our official channel to unlock the game"
-      };
-    }
-  }
-
-  const referralQualified = await tryQualifyPendingReferral(telegramId, { channelCheck });
+  const referralQualified = await tryQualifyPendingReferral(telegramId);
 
   const session = createSessionToken(telegramId);
   let referralCount = 0;
