@@ -2460,9 +2460,19 @@ function podiumDisplayScore(row, dailyMode) {
   return format(Number(row.cityValue || 0));
 }
 
+const PODIUM_NAME_MAX = 9;
+
+function truncatePodiumName(name, max = PODIUM_NAME_MAX) {
+  const text = String(name || "").trim();
+  if (!text) return "Player";
+  if (text.length <= max) return text;
+  return text.slice(0, max);
+}
+
 function podiumDisplayName(row) {
   if (!row) return "—";
-  return row.isYou ? "You" : (row.name || "Player");
+  if (row.isYou) return "You";
+  return truncatePodiumName(row.name || "Player");
 }
 
 function normalizePodiumTop3(rows, dailyMode) {
