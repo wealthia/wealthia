@@ -32,7 +32,7 @@ services:
       - key: WEBAPP_URL
         value: https://wealthia.github.io/wealthia/v5.html?v=2108
       - key: CHANNEL_URL
-        sync: false
+        value: https://t.me/weathia_official
       - key: OFFICIAL_CHANNEL_USERNAME
         value: "@weathia_official"
       - key: OFFICIAL_CHANNEL_URL
@@ -66,7 +66,7 @@ services:
       - key: BOT_USERNAME
         value: WealthiaGameBot
       - key: CHANNEL_URL
-        sync: false
+        value: https://t.me/weathia_official
       - key: OFFICIAL_CHANNEL_USERNAME
         value: "@weathia_official"
       - key: OFFICIAL_CHANNEL_URL

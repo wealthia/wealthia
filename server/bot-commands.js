@@ -1,6 +1,9 @@
-const WEBAPP_URL = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2102";
+const WEBAPP_URL = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2108";
 const BOT_USERNAME = process.env.BOT_USERNAME || "WealthiaGameBot";
-const CHANNEL_URL = process.env.CHANNEL_URL || "";
+const CHANNEL_URL =
+  String(process.env.CHANNEL_URL || "").trim() ||
+  String(process.env.OFFICIAL_CHANNEL_URL || "").trim() ||
+  "https://t.me/weathia_official";
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 
 const START_WELCOME_TEXT = `🏰 Welcome to Wealthia! 🏰
@@ -11,7 +14,7 @@ Your journey to building an unstoppable empire starts right here, right now. �
 🎲 Spin the Lucky Wheel!
 🏗️ Build, Upgrade, and Dominate!
 
-Are you ready to become the ultimate ruler? Tap the button below to launch the game and claim your daily rewards! 👇`;
+👇 First join our official channel, then tap Play Wealthia to enter the game.`;
 
 const PLAY_BUTTON_TEXT = "🎮  Play Wealthia  🎮";
 
@@ -75,6 +78,7 @@ function gameUrl(startParam) {
 function startKeyboard(userId, startParam) {
   const ref = startParam && startParam.startsWith("ref_") ? startParam : `ref_${userId}`;
   const rows = [
+    [{ text: "📢 Join the Channel", url: CHANNEL_URL }],
     [
       {
         text: PLAY_BUTTON_TEXT,
@@ -88,10 +92,6 @@ function startKeyboard(userId, startParam) {
       }
     ]
   ];
-
-  if (CHANNEL_URL) {
-    rows.push([{ text: "Official Channel", url: CHANNEL_URL }]);
-  }
 
   return { inline_keyboard: rows };
 }
@@ -171,19 +171,11 @@ async function handleBotMessage(message, options = {}) {
   };
 
   if (text === "/channel") {
-    if (!CHANNEL_URL) {
-      await sendMessage({
-        chat_id: chatId,
-        text: "Channel link is not configured yet."
-      });
-      return true;
-    }
-
     await sendMessage({
       chat_id: chatId,
-      text: `Join the official Wealthia channel:\n${CHANNEL_URL}`,
+      text: `Join the official Wealthia channel first, then open the game:\n${CHANNEL_URL}`,
       reply_markup: {
-        inline_keyboard: [[{ text: "Join Channel", url: CHANNEL_URL }]]
+        inline_keyboard: [[{ text: "📢 Join the Channel", url: CHANNEL_URL }]]
       }
     });
     return true;
