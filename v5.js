@@ -3221,16 +3221,74 @@ function getTelegramUser() {
   };
 }
 
-function getReferrerId() {
-  const tg = window.Telegram && window.Telegram.WebApp;
-  const startParam = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param;
-  if (!startParam) return "";
+const REFERRER_STORAGE_KEY = "wealthia_referrer_id";
 
-  if (String(startParam).startsWith("ref_")) {
-    return String(startParam).slice(4);
+function readTelegramStartParam() {
+  const tg = window.Telegram && window.Telegram.WebApp;
+  const fromInitData = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param;
+  if (fromInitData) return String(fromInitData);
+
+  try {
+    const search = new URLSearchParams(window.location.search || "");
+    const fromQuery = search.get("tgWebAppStartParam") || search.get("startapp") || "";
+    if (fromQuery) return fromQuery;
+
+    const hash = String(window.location.hash || "").replace(/^#/, "");
+    if (!hash) return "";
+
+    const hashParams = new URLSearchParams(hash);
+    return hashParams.get("tgWebAppStartParam") || hashParams.get("startapp") || "";
+  } catch {
+    return "";
+  }
+}
+
+function parseReferrerFromStartParam(startParam) {
+  const raw = String(startParam || "").trim();
+  if (!raw) return "";
+
+  if (raw.startsWith("ref_")) {
+    return raw.slice(4);
   }
 
-  return String(startParam);
+  return raw;
+}
+
+function rememberReferrerId(referrerId) {
+  const id = String(referrerId || "").trim();
+  if (!id) return;
+
+  try {
+    localStorage.setItem(REFERRER_STORAGE_KEY, id);
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function getStoredReferrerId() {
+  try {
+    return String(localStorage.getItem(REFERRER_STORAGE_KEY) || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function clearStoredReferrerId() {
+  try {
+    localStorage.removeItem(REFERRER_STORAGE_KEY);
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function getReferrerId() {
+  const fromStartParam = parseReferrerFromStartParam(readTelegramStartParam());
+  if (fromStartParam) {
+    rememberReferrerId(fromStartParam);
+    return fromStartParam;
+  }
+
+  return getStoredReferrerId();
 }
 
 const API_FETCH_TIMEOUT_MS = 25000;
@@ -3889,6 +3947,9 @@ async function connectBackend(retries = 6, options = {}) {
 
     if (ok && result && !result.error && result.game) {
       hideChannelGate();
+      if (result.referralQualified) {
+        clearStoredReferrerId();
+      }
       backendUserId = result.userId;
       backendSessionToken = result.token || "";
       backendReconnectAttempts = 0;

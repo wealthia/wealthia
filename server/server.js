@@ -1850,6 +1850,11 @@ async function qualifyReferralIfPending(referredUserId) {
   const referrer = String(pending.referrer_id || "");
   if (!referrer || referrer === referred) return false;
 
+  const channelCheck = await checkOfficialChannelMembership(referred);
+  if (!channelCheck.skipped && !channelCheck.isMember) {
+    return false;
+  }
+
   const { error: updateError } = await supabase
     .from("referrals")
     .update({
@@ -2422,7 +2427,17 @@ app.post("/api/session", async (req, res) => {
     }
 
     try {
-      await registerPendingReferralIfNew(telegramUser, referrerId);
+      const referralRegistered = await registerPendingReferralIfNew(telegramUser, referrerId);
+      if (referrerId && !referralRegistered) {
+        console.warn(
+          "REFERRAL_NOT_REGISTERED:",
+          `referred=${telegramUser.id}`,
+          `referrer=${referrerId}`,
+          `isNew=${isNewPlayer}`
+        );
+      } else if (referralRegistered) {
+        console.log("REFERRAL_PENDING:", `referred=${telegramUser.id}`, `referrer=${referrerId}`);
+      }
     } catch (referralError) {
       console.warn("PENDING_REFERRAL_REGISTER_FAILED:", referralError.message);
     }
@@ -2444,8 +2459,9 @@ app.post("/api/session", async (req, res) => {
       }
     }
 
+    let referralQualified = false;
     try {
-      await qualifyReferralIfPending(telegramUser.id);
+      referralQualified = await qualifyReferralIfPending(telegramUser.id);
     } catch (qualifyError) {
       console.warn("QUALIFY_REFERRAL_FAILED:", qualifyError.message);
     }
@@ -2468,7 +2484,8 @@ app.post("/api/session", async (req, res) => {
         autoUpgrades: row.__autoUpgrades || []
       }),
       token: session.token,
-      expiresAt: session.expiresAt
+      expiresAt: session.expiresAt,
+      referralQualified
     });
   } catch (error) {
     console.error("SESSION_ERROR:", error);
