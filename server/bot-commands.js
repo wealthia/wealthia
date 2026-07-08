@@ -1,10 +1,9 @@
 const WEBAPP_URL = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2108";
 const BOT_USERNAME = process.env.BOT_USERNAME || "WealthiaGameBot";
-const CHANNEL_URL = String(
-  process.env.CHANNEL_URL ||
-  process.env.OFFICIAL_CHANNEL_URL ||
-  "https://t.me/weathia_official"
-).trim();
+const CHANNEL_URL =
+  String(process.env.CHANNEL_URL || "").trim() ||
+  String(process.env.OFFICIAL_CHANNEL_URL || "").trim() ||
+  "https://t.me/weathia_official";
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 
 const START_WELCOME_TEXT = `🏰 Welcome to Wealthia! 🏰
