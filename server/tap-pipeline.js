@@ -318,7 +318,20 @@ function createTapPipeline({ supabase }) {
 
   async function reload(userId, loadRow, helpers) {
     return withUserLock(userId, async () => {
-      await flushUserUnlocked(userId, helpers);
+      const { data: dbRow, error } = await supabase
+        .from("game_states")
+        .select("user_id")
+        .eq("user_id", String(userId))
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!dbRow) {
+        await clearState(userId);
+      } else {
+        await flushUserUnlocked(userId, helpers);
+      }
+
       const row = await loadRow();
       hydrate(userId, row);
       return row;

@@ -2423,6 +2423,40 @@ async function ensureUserProfile(telegramUser) {
   };
 }
 
+function isPristineGameRow(row) {
+  if (!row) return false;
+
+  return (
+    number(row.taps) === 0 &&
+    number(row.spent) === 0 &&
+    number(row.shop_level) <= 1 &&
+    number(row.bank_level) === 0 &&
+    number(row.factory_level) === 0 &&
+    number(row.coins) <= number(NEW_PLAYER_BONUS) + 50
+  );
+}
+
+async function prepareDeletedPlayerSession(telegramId) {
+  const id = String(telegramId || "");
+  if (!id) return false;
+
+  const { data: existingGame, error } = await supabase
+    .from("game_states")
+    .select("user_id")
+    .eq("user_id", id)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (existingGame) return false;
+
+  await tapPipeline.clearState(id);
+  const cleared = await clearReferralForReferredUser(id);
+  if (cleared) {
+    console.log("REFERRAL_RESET_DELETED_ACCOUNT:", id);
+  }
+  return true;
+}
+
 async function revokeReferralReward(referrerId) {
   const referrer = String(referrerId || "");
   if (!referrer) return false;
@@ -2501,22 +2535,28 @@ async function registerReferralIfNew(telegramUser, referrerId, options = {}) {
   const telegramId = String(telegramUser?.id || "");
   const referrer = parseReferrerId(referrerId);
   const isNewPlayer = Boolean(options.isNewPlayer);
+  const gameRow = options.gameRow || null;
 
   if (!telegramId || !referrer || referrer === telegramId) return false;
 
   const { data: existingReferral, error: existingError } = await supabase
     .from("referrals")
-    .select("id, status")
+    .select("id, status, referrer_id")
     .eq("referred_user_id", telegramId)
     .maybeSingle();
 
   if (existingError) throw existingError;
 
   if (existingReferral) {
-    if (isNewPlayer) {
+    const sameReferrer = String(existingReferral.referrer_id || "") === referrer;
+    const canReset = isNewPlayer || isPristineGameRow(gameRow);
+
+    if (canReset) {
       await clearReferralForReferredUser(telegramId);
     } else if (String(existingReferral.status || "") === REFERRAL_STATUS_PENDING_CHANNEL) {
       return await tryQualifyPendingReferral(telegramId);
+    } else if (sameReferrer) {
+      return String(existingReferral.status || "") === REFERRAL_STATUS_QUALIFIED;
     } else {
       return false;
     }
@@ -2658,17 +2698,27 @@ async function completePlayerSession(telegramUser, referrerId = "") {
   const officialChannelUrl = getOfficialChannelUrl();
   const officialChannelUsername = OFFICIAL_CHANNEL_USERNAME;
 
+  await prepareDeletedPlayerSession(telegramId);
+
   let isNewPlayer = false;
   const row = await tapPipeline.reload(telegramId, async () => {
     const profile = await ensureUserProfile(telegramUser);
     isNewPlayer = Boolean(profile.isNew);
     return profile.row;
   }, tapHelpers);
+
+  if (isNewPlayer) {
+    await clearReferralForReferredUser(telegramId);
+  }
+
   let referralRegistered = false;
 
   if (parsedReferrer) {
     try {
-      referralRegistered = await registerReferralIfNew(telegramUser, parsedReferrer, { isNewPlayer });
+      referralRegistered = await registerReferralIfNew(telegramUser, parsedReferrer, {
+        isNewPlayer,
+        gameRow: row
+      });
       if (referralRegistered) {
         console.log("REFERRAL_QUALIFIED:", parsedReferrer, "->", telegramId);
       } else if (parsedReferrer) {
