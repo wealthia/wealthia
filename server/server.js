@@ -2521,7 +2521,7 @@ async function reconcileStaleReferrerLink(referredUserId, staleReferrerId) {
   if (error) throw error;
   if (referralRow) return false;
 
-  await revokeReferralReward(referrer);
+  await syncStoredReferralCount(referrer);
   await supabase
     .from("users")
     .update({ referred_by: null })
