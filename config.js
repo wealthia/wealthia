@@ -18,11 +18,12 @@ window.WEALTHIA_CONFIG = {
   // Production bonus block — update when created on Production platform
   ADSGRAM_BONUS_BLOCK_ID: "37148",
   ADSGRAM_DEBUG: false,
-  // Repeatable every 5 minutes (server: AD_REWARD_COOLDOWN_MS)
-  AD_REWARD_COOLDOWN_MINUTES: 5,
-  // Bonus ad: every 15 minutes, +150 coins
-  AD_BONUS_REWARD_COOLDOWN_MINUTES: 15,
-  BONUS_AD_REWARD: 150,
+  // Repeatable every 1 minute (server: AD_REWARD_COOLDOWN_MS)
+  AD_REWARD_COOLDOWN_MINUTES: 1,
+  AD_REWARD: 1500,
+  // Quick ad: every 1 minute, +800 coins
+  AD_BONUS_REWARD_COOLDOWN_MINUTES: 1,
+  BONUS_AD_REWARD: 800,
 
   // Partner monetization links (Earn tab rewards)
   SPONSOR_BOT_URL: "https://t.me/WealthiaGameBot",
