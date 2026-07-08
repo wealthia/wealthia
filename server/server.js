@@ -393,9 +393,21 @@ async function checkOfficialChannelMembershipWithRetry(telegramId, options = {})
   return last;
 }
 
-async function notifyReferrerQualified(referrerId) {
+const recentReferralNotifies = new Map();
+const REFERRAL_NOTIFY_COOLDOWN_MS = 60 * 1000;
+
+async function notifyReferrerQualified(referrerId, referredUserId = "") {
   const referrer = String(referrerId || "");
+  const referred = String(referredUserId || "");
   if (!TELEGRAM_BOT_TOKEN || !referrer) return;
+
+  const dedupeKey = referred ? `${referrer}:${referred}` : referrer;
+  const now = Date.now();
+  const lastSent = recentReferralNotifies.get(dedupeKey);
+  if (lastSent && now - lastSent < REFERRAL_NOTIFY_COOLDOWN_MS) {
+    return;
+  }
+  recentReferralNotifies.set(dedupeKey, now);
 
   const safe = await telegramApiSafe("sendMessage", {
     chat_id: Number(referrer),
@@ -1962,7 +1974,7 @@ async function qualifyReferralIfPending(referredUserId, options = {}) {
     .eq("id", referrer);
 
   if (coinsCredited) {
-    await notifyReferrerQualified(referrer);
+    await notifyReferrerQualified(referrer, referred);
   }
 
   return true;
@@ -2041,7 +2053,7 @@ async function recordReferral(referrerId, referredUserId, options = {}) {
       .eq("id", referrer);
 
     if (coinsCredited) {
-      await notifyReferrerQualified(referrer);
+      await notifyReferrerQualified(referrer, referred);
     }
   }
 
@@ -2423,19 +2435,6 @@ async function ensureUserProfile(telegramUser) {
   };
 }
 
-function isPristineGameRow(row) {
-  if (!row) return false;
-
-  return (
-    number(row.taps) === 0 &&
-    number(row.spent) === 0 &&
-    number(row.shop_level) <= 1 &&
-    number(row.bank_level) === 0 &&
-    number(row.factory_level) === 0 &&
-    number(row.coins) <= number(NEW_PLAYER_BONUS) + 50
-  );
-}
-
 async function prepareDeletedPlayerSession(telegramId) {
   const id = String(telegramId || "");
   if (!id) return false;
@@ -2535,7 +2534,7 @@ async function registerReferralIfNew(telegramUser, referrerId, options = {}) {
   const telegramId = String(telegramUser?.id || "");
   const referrer = parseReferrerId(referrerId);
   const isNewPlayer = Boolean(options.isNewPlayer);
-  const gameRow = options.gameRow || null;
+  const allowReferralReset = Boolean(options.allowReferralReset);
 
   if (!telegramId || !referrer || referrer === telegramId) return false;
 
@@ -2548,15 +2547,13 @@ async function registerReferralIfNew(telegramUser, referrerId, options = {}) {
   if (existingError) throw existingError;
 
   if (existingReferral) {
-    const sameReferrer = String(existingReferral.referrer_id || "") === referrer;
-    const canReset = isNewPlayer || isPristineGameRow(gameRow);
+    const status = String(existingReferral.status || "");
 
-    if (canReset) {
+    if (status === REFERRAL_STATUS_QUALIFIED) {
+      if (!allowReferralReset) return false;
       await clearReferralForReferredUser(telegramId);
-    } else if (String(existingReferral.status || "") === REFERRAL_STATUS_PENDING_CHANNEL) {
+    } else if (status === REFERRAL_STATUS_PENDING_CHANNEL) {
       return await tryQualifyPendingReferral(telegramId);
-    } else if (sameReferrer) {
-      return String(existingReferral.status || "") === REFERRAL_STATUS_QUALIFIED;
     } else {
       return false;
     }
@@ -2698,7 +2695,7 @@ async function completePlayerSession(telegramUser, referrerId = "") {
   const officialChannelUrl = getOfficialChannelUrl();
   const officialChannelUsername = OFFICIAL_CHANNEL_USERNAME;
 
-  await prepareDeletedPlayerSession(telegramId);
+  const accountWasDeleted = await prepareDeletedPlayerSession(telegramId);
 
   let isNewPlayer = false;
   const row = await tapPipeline.reload(telegramId, async () => {
@@ -2707,17 +2704,13 @@ async function completePlayerSession(telegramUser, referrerId = "") {
     return profile.row;
   }, tapHelpers);
 
-  if (isNewPlayer) {
-    await clearReferralForReferredUser(telegramId);
-  }
-
   let referralRegistered = false;
 
   if (parsedReferrer) {
     try {
       referralRegistered = await registerReferralIfNew(telegramUser, parsedReferrer, {
         isNewPlayer,
-        gameRow: row
+        allowReferralReset: accountWasDeleted
       });
       if (referralRegistered) {
         console.log("REFERRAL_QUALIFIED:", parsedReferrer, "->", telegramId);
