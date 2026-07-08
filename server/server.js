@@ -2507,6 +2507,31 @@ async function syncStoredReferralCount(userId) {
   return qualifiedCount;
 }
 
+async function reconcileMissingReferralReward(referrerId) {
+  const referrer = String(referrerId || "");
+  if (!referrer) return false;
+
+  const qualifiedCount = await getReferralCount(referrer);
+  const { data: userRow, error } = await supabase
+    .from("users")
+    .select("referral_count")
+    .eq("id", referrer)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  if (number(userRow?.referral_count) > qualifiedCount) {
+    return await revokeReferralReward(referrer);
+  }
+
+  await supabase
+    .from("users")
+    .update({ referral_count: qualifiedCount })
+    .eq("id", referrer);
+
+  return false;
+}
+
 async function reconcileStaleReferrerLink(referredUserId, staleReferrerId) {
   const referred = String(referredUserId || "");
   const referrer = String(staleReferrerId || "");
@@ -2521,7 +2546,7 @@ async function reconcileStaleReferrerLink(referredUserId, staleReferrerId) {
   if (error) throw error;
   if (referralRow) return false;
 
-  await syncStoredReferralCount(referrer);
+  await reconcileMissingReferralReward(referrer);
   await supabase
     .from("users")
     .update({ referred_by: null })
