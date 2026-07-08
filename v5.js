@@ -15,7 +15,7 @@ let dailyYourRank = 0;
 let dailyContestResetsAt = "";
 let dailyContestScore = 0;
 let dailyReferralCount = 0;
-let dailyReferralsRequired = 3;
+let dailyReferralsRequired = 1;
 let dailyPrizeEligible = false;
 let dailyLastWinner = null;
 let tournamentData = null;
@@ -121,7 +121,7 @@ const defaultState = {
     score: 0,
     date: "",
     resetsAt: "",
-    minReferrals: 3,
+    minReferrals: 1,
     eligible: false,
     tickets: 0,
     ticketProgress: {
@@ -232,10 +232,22 @@ function saveState() {
 
 function getOfficialChannelUrl() {
   return (
+    serverOfficialChannelUrl ||
     CONFIG.SOCIAL_TASKS?.joinTelegram ||
     CONFIG.PARTNER_CHANNEL_URL ||
     "https://t.me/weathia_official"
   );
+}
+
+function rememberServerChannelMeta(result) {
+  if (!result) return;
+  if (result.officialChannelUrl || result.channelUrl) {
+    serverOfficialChannelUrl = String(result.officialChannelUrl || result.channelUrl);
+    channelGateUrl = serverOfficialChannelUrl;
+  }
+  if (result.officialChannelUsername || result.channelUsername) {
+    serverOfficialChannelUsername = String(result.officialChannelUsername || result.channelUsername);
+  }
 }
 
 function isChannelJoinTask(task) {
@@ -296,6 +308,9 @@ async function verifyChannelSubscriptionLive() {
   const { ok, result, status } = await apiPost("/api/verify-channel-subscription", {});
 
   if (ok && result && result.success) {
+    if (result.referralQualified) {
+      await syncReferralProgress({ silent: true });
+    }
     return true;
   }
 
@@ -460,7 +475,7 @@ function getDailyPrizeConfig() {
     title: cfg.title || "Daily Prize",
     prize: Number(cfg.prize || 10),
     currency: cfg.currency || "USD",
-    minReferrals: Number(cfg.minReferrals || 3),
+    minReferrals: Number(cfg.minReferrals || 1),
     channelUrl: String(cfg.channelUrl || CONFIG.PARTNER_CHANNEL_URL || "")
   };
 }
@@ -503,6 +518,9 @@ function switchToFriendsTab() {
 function getInviteLink() {
   const botName = CONFIG.BOT_USERNAME || "WealthiaGameBot";
   const userId = backendUserId || "guest";
+  if (!userId || userId === "guest" || userId === "web_demo") {
+    return `https://t.me/${botName}`;
+  }
   return `https://t.me/${botName}?start=ref_${userId}`;
 }
 
@@ -698,10 +716,12 @@ function bindResetConfirmModal() {
 const CONNECTION_ERROR_TOAST =
   "⚠️ Connection error. Please try again or restart the bot.";
 
-const PAYMENT_VERIFYING_TOAST = "Payment is being verified. Please wait...";
+const REFERRER_STORAGE_KEY = "wealthia_referrer_id";
 const PAYMENT_OPENING_TOAST = "Opening Stars payment...";
 
 let channelGateUrl = "";
+let serverOfficialChannelUrl = "";
+let serverOfficialChannelUsername = "";
 let starsInvoiceStatusHandler = null;
 
 function showConnectionErrorToast() {
@@ -718,7 +738,7 @@ function showChannelGate(url, message) {
   const messageNode = document.getElementById("channelGateMessage");
   if (!modal) return;
 
-  channelGateUrl = String(url || CONFIG.PARTNER_CHANNEL_URL || "https://t.me/weathia_official");
+  channelGateUrl = String(url || getOfficialChannelUrl());
   if (messageNode) {
     messageNode.textContent = message || "Please subscribe to our official channel to unlock the game";
   }
@@ -744,7 +764,7 @@ function bindChannelGateModal() {
   const joinButton = document.getElementById("channelGateJoinButton");
   if (joinButton) {
     joinButton.addEventListener("click", () => {
-      openPartnerLink(channelGateUrl || CONFIG.PARTNER_CHANNEL_URL || "https://t.me/weathia_official");
+      openPartnerLink(channelGateUrl || getOfficialChannelUrl());
     });
   }
 
@@ -753,7 +773,7 @@ function bindChannelGateModal() {
     retryButton.addEventListener("click", async () => {
       try {
         backendReconnectAttempts = 0;
-        await connectBackend(4);
+        await referralContinue({ silent: true });
       } catch {
         showConnectionErrorToast();
       }
@@ -796,7 +816,7 @@ function renderDailyPrizeCardHtml(options = {}) {
   const symbol = prize.currency === "USD" ? "$" : "";
   const score = todayGainScore();
   const referrals = dailyReferralCount || Number(state.referrals?.count || 0);
-  const required = prize.minReferrals || dailyReferralsRequired || 3;
+  const required = prize.minReferrals || dailyReferralsRequired || 1;
   const eligible = dailyPrizeEligible || Boolean(state.referrals?.eligible);
   const timeLeft = dailyPrizeTimeLeft(dailyContestResetsAt || state.dailyContest?.resetsAt);
 
@@ -804,7 +824,7 @@ function renderDailyPrizeCardHtml(options = {}) {
     <article class="grand-prize-card daily-prize-card${fitClass} ${eligible ? "" : "daily-prize-card--locked"}">
       <div class="grand-prize-card__head">
         <span class="grand-prize__badge">⚡ ${prize.title}</span>
-        <h3>${symbol}${format(prize.prize)} · 3 friends required</h3>
+        <h3>${symbol}${format(prize.prize)} · ${required} friend${required === 1 ? "" : "s"} required</h3>
         <p>${timeLeft} left · Friends: ${referrals}/${required}${eligible ? " · Qualified" : " · Not qualified yet"}</p>
       </div>
       <div class="daily-prize__gain-box">
@@ -813,8 +833,8 @@ function renderDailyPrizeCardHtml(options = {}) {
       </div>
       ${renderTicketProgressHtml()}
       ${eligible
-    ? `<p class="daily-prize-card__boost-tip">Only players with 3+ invited friends can win. Use ⭐ boosts to climb.</p>`
-    : `<p class="daily-prize-card__boost-tip">Invite 3 friends from the Friends tab to join today's Daily $10 Race.</p>`}
+    ? `<p class="daily-prize-card__boost-tip">Only players with ${required}+ invited friend${required === 1 ? "" : "s"} can win. Use ⭐ boosts to climb.</p>`
+    : `<p class="daily-prize-card__boost-tip">Invite ${required} friend${required === 1 ? "" : "s"} from the Friends tab to join today's Daily $10 Race.</p>`}
       ${prize.channelUrl ? `<button class="grand-prize-card__channel" type="button" data-channel="${prize.channelUrl}">Winner will be announced on the Telegram channel</button>` : ""}
     </article>
   `;
@@ -1854,9 +1874,12 @@ function starPrice(productId) {
   return Number(prices[productId] || 0);
 }
 
-function earnRefreshMinutesLeft(until) {
+function earnRefreshTimeLeft(until) {
   const diff = Math.max(0, Number(until || 0) - Date.now());
-  return Math.max(1, Math.ceil(diff / 60000));
+  const totalSec = Math.max(0, Math.ceil(diff / 1000));
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min}:${String(sec).padStart(2, "0")}`;
 }
 
 function adRewardAvailable() {
@@ -1867,22 +1890,27 @@ function bonusAdRewardAvailable() {
   return Number(state.bonusAdCooldownUntil || 0) <= Date.now();
 }
 
-function adRefreshMinutesLeft() {
-  return earnRefreshMinutesLeft(state.adCooldownUntil);
+function adRefreshTimeLeft() {
+  return earnRefreshTimeLeft(state.adCooldownUntil);
 }
 
-function bonusAdRefreshMinutesLeft() {
-  return earnRefreshMinutesLeft(state.bonusAdCooldownUntil);
+function bonusAdRefreshTimeLeft() {
+  return earnRefreshTimeLeft(state.bonusAdCooldownUntil);
+}
+
+function adRewardAmount() {
+  return Number(CONFIG.AD_REWARD || 1500);
 }
 
 function bonusAdRewardAmount() {
-  return Number(CONFIG.BONUS_AD_REWARD || 150);
+  return Number(CONFIG.BONUS_AD_REWARD || 800);
 }
 
 function adRewardSubtitle() {
   if (!adRewardAvailable()) return "Reward collected";
 
-  if (adsGramReady()) return "Watch ad for +300 coins";
+  const reward = adRewardAmount();
+  if (adsGramReady()) return `Watch ad for +${reward} coins`;
   if (CONFIG.ADSGRAM_BLOCK_ID) return "Ad loading — open in Telegram";
   return "Connect AdsGram Block ID in config.js";
 }
@@ -1898,7 +1926,7 @@ function bonusAdRewardSubtitle() {
   return "Add AdsGram Bonus Block ID in config.js";
 }
 
-function renderCooldownAdRow(type, title, subtitle, reward, onCooldown, refreshMinutes, timerId) {
+function renderCooldownAdRow(type, title, subtitle, reward, onCooldown, refreshTime, timerId) {
   const button = `
     <button class="task earn-task earn-task--ad ${onCooldown ? "completed" : ""}" type="button" data-earn="${type}" ${onCooldown ? "disabled" : ""}>
       <span><b>${title}</b><small>${subtitle}</small></span>
@@ -1911,19 +1939,20 @@ function renderCooldownAdRow(type, title, subtitle, reward, onCooldown, refreshM
   return `
     <div class="earn-ad-wrap">
       ${button}
-      <p class="ad-refresh-timer" id="${timerId}">Refreshing in <span>${refreshMinutes}</span></p>
+      <p class="ad-refresh-timer" id="${timerId}">Refreshing in <span>${refreshTime}</span></p>
     </div>
   `;
 }
 
 function renderAdEarnRow() {
+  const reward = adRewardAmount();
   return renderCooldownAdRow(
     "ad",
-    "Premium Video Ad (+300 coins)",
+    `Premium Video Ad (+${reward} coins)`,
     adRewardSubtitle(),
-    300,
+    reward,
     !adRewardAvailable(),
-    adRefreshMinutesLeft(),
+    adRefreshTimeLeft(),
     "adRefreshTimer"
   );
 }
@@ -1936,7 +1965,7 @@ function renderBonusAdEarnRow() {
     bonusAdRewardSubtitle(),
     reward,
     !bonusAdRewardAvailable(),
-    bonusAdRefreshMinutesLeft(),
+    bonusAdRefreshTimeLeft(),
     "bonusAdRefreshTimer"
   );
 }
@@ -1949,11 +1978,11 @@ function scheduleAdCooldownRefresh() {
     const bonusTimer = document.getElementById("bonusAdRefreshTimer");
 
     if (adTimer && !adRewardAvailable()) {
-      adTimer.innerHTML = `Refreshing in <span>${adRefreshMinutesLeft()}</span>`;
+      adTimer.innerHTML = `Refreshing in <span>${adRefreshTimeLeft()}</span>`;
     }
 
     if (bonusTimer && !bonusAdRewardAvailable()) {
-      bonusTimer.innerHTML = `Refreshing in <span>${bonusAdRefreshMinutesLeft()}</span>`;
+      bonusTimer.innerHTML = `Refreshing in <span>${bonusAdRefreshTimeLeft()}</span>`;
     }
 
     const adReady = adRewardAvailable();
@@ -2200,7 +2229,7 @@ function renderFriendsPanel() {
 
   const prize = getDailyPrizeConfig();
   const referrals = dailyReferralCount || Number(state.referrals?.count || 0);
-  const required = prize?.minReferrals || dailyReferralsRequired || 3;
+  const required = prize?.minReferrals || dailyReferralsRequired || 1;
   const eligible = dailyPrizeEligible || Boolean(state.referrals?.eligible);
   const referralCoins = referrals * 500;
   const link = getInviteLink();
@@ -2249,9 +2278,9 @@ function renderFriendsPanel() {
     </article>
 
     <article class="friends-tips">
-      <p><strong>1.</strong> Send your link to friends in Telegram</p>
-      <p><strong>2.</strong> They subscribe to the official Wealthia Telegram channel</p>
-      <p><strong>3.</strong> They open the game and you earn +500 coins for each one</p>
+      <p><strong>1.</strong> Friend opens your invite link in Telegram</p>
+      <p><strong>2.</strong> They tap <strong>Play Wealthia</strong> in the bot</p>
+      <p><strong>3.</strong> You instantly get <strong>+500 coins</strong> — no channel required</p>
     </article>
   `;
 
@@ -3074,14 +3103,14 @@ function syncFromBackend(user, options = {}) {
       score: Number(game.dailyContest.score || game.dailyScore || 0),
       date: game.dailyContest.date || "",
       resetsAt: game.dailyContest.resetsAt || "",
-      minReferrals: Number(game.dailyContest.minReferrals || 3),
+      minReferrals: Number(game.dailyContest.minReferrals || 1),
       eligible: Boolean(game.dailyContest.eligible),
       tickets: Number(game.dailyContest.tickets || game.tickets || 0),
       ticketProgress: game.dailyContest.ticketProgress || game.ticketProgress || null
     };
     dailyContestScore = Number(game.dailyContest.score || game.dailyScore || 0);
     dailyContestResetsAt = game.dailyContest.resetsAt || "";
-    dailyReferralsRequired = Number(game.dailyContest.minReferrals || 3);
+    dailyReferralsRequired = Number(game.dailyContest.minReferrals || 1);
     dailyPrizeEligible = Boolean(game.dailyContest.eligible);
     state.tickets = Number(game.tickets || game.dailyContest.tickets || 0);
     state.ticketProgress = state.dailyContest.ticketProgress;
@@ -3098,11 +3127,11 @@ function syncFromBackend(user, options = {}) {
   if (game.referrals) {
     state.referrals = {
       count: Number(game.referrals.count || 0),
-      required: Number(game.referrals.required || 3),
+      required: Number(game.referrals.required || 1),
       eligible: Boolean(game.referrals.eligible)
     };
     dailyReferralCount = Number(game.referrals.count || 0);
-    dailyReferralsRequired = Number(game.referrals.required || 3);
+    dailyReferralsRequired = Number(game.referrals.required || 1);
     dailyPrizeEligible = Boolean(game.referrals.eligible);
   }
 }
@@ -3221,8 +3250,6 @@ function getTelegramUser() {
   };
 }
 
-const REFERRER_STORAGE_KEY = "wealthia_referrer_id";
-
 function readTelegramStartParam() {
   const tg = window.Telegram && window.Telegram.WebApp;
   const fromInitData = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param;
@@ -3243,31 +3270,29 @@ function readTelegramStartParam() {
   }
 }
 
-function parseReferrerFromStartParam(startParam) {
-  const raw = String(startParam || "").trim();
-  if (!raw) return "";
+function captureReferrerId(raw) {
+  const value = String(raw || "").trim();
+  if (!value) return "";
 
-  if (raw.startsWith("ref_")) {
-    return raw.slice(4);
-  }
-
-  return raw;
-}
-
-function rememberReferrerId(referrerId) {
-  const id = String(referrerId || "").trim();
-  if (!id) return;
+  const parsed = value.startsWith("ref_") ? value.slice(4) : value;
+  const selfId = String(backendUserId || getTelegramUser().id || "");
+  if (!parsed || (selfId && parsed === selfId)) return "";
 
   try {
-    localStorage.setItem(REFERRER_STORAGE_KEY, id);
+    localStorage.setItem(REFERRER_STORAGE_KEY, parsed);
   } catch {
-    // ignore storage failures
+    // ignore storage errors
   }
+
+  return parsed;
 }
 
-function getStoredReferrerId() {
+function getReferrerId() {
+  const fromStart = readTelegramStartParam();
+  if (fromStart) return captureReferrerId(fromStart);
+
   try {
-    return String(localStorage.getItem(REFERRER_STORAGE_KEY) || "").trim();
+    return localStorage.getItem(REFERRER_STORAGE_KEY) || "";
   } catch {
     return "";
   }
@@ -3281,14 +3306,125 @@ function clearStoredReferrerId() {
   }
 }
 
-function getReferrerId() {
-  const fromStartParam = parseReferrerFromStartParam(readTelegramStartParam());
-  if (fromStartParam) {
-    rememberReferrerId(fromStartParam);
-    return fromStartParam;
+async function applySessionResponse(result, options = {}) {
+  const silent = Boolean(options.silent);
+  rememberServerChannelMeta(result);
+
+  if (result && result.channelRequired) {
+    captureReferrerId(getReferrerId());
+    showChannelGate(
+      result.channelUrl || getOfficialChannelUrl(),
+      result.channelMessage || "Please subscribe to our official channel to unlock the game"
+    );
+    backendReady = false;
+    backendSessionToken = "";
+    renderSyncBar();
+    render();
+    return false;
   }
 
-  return getStoredReferrerId();
+  if (result && !result.error && result.game) {
+    hideChannelGate();
+    if (result.referralQualified) {
+      clearStoredReferrerId();
+    }
+    backendUserId = result.userId;
+    backendSessionToken = result.token || "";
+    backendReconnectAttempts = 0;
+    const successMessage = Object.prototype.hasOwnProperty.call(options, "successMessage")
+      ? options.successMessage
+      : "Backend connected.";
+    await applyBackendUser(
+      result,
+      silent ? "" : successMessage
+    );
+    await loadTournament();
+    renderSyncBar();
+    return true;
+  }
+
+  return false;
+}
+
+async function referralContinue(options = {}) {
+  captureReferrerId(getReferrerId());
+
+  const retryButton = document.getElementById("channelGateRetryButton");
+  const previousLabel = retryButton ? retryButton.textContent : "";
+  if (retryButton) {
+    retryButton.disabled = true;
+    retryButton.textContent = "Checking channel...";
+  }
+
+  try {
+    const { ok, result } = await apiPost("/api/referral/continue", {
+      initData: getTelegramInitData(),
+      telegramUser: getTelegramUser(),
+      referrerId: getReferrerId()
+    });
+
+    if (!ok || !result) {
+      if (!options.silent) showConnectionErrorToast();
+      return false;
+    }
+
+    if (result.channelRequired) {
+      rememberServerChannelMeta(result);
+      const channelLabel = result.channelUsername || serverOfficialChannelUsername || "the official channel";
+      if (!options.silent) {
+        showToast(`Not subscribed yet. Join ${channelLabel}, wait a few seconds, then tap continue again.`);
+      }
+      return applySessionResponse(result, { silent: true });
+    }
+
+    const connected = await applySessionResponse(result, {
+      silent: Boolean(options.silent),
+      successMessage: options.successMessage || ""
+    });
+
+    if (connected && !options.silent) {
+      showToast(result.referralQualified ? "Welcome! You're in." : "Welcome back!");
+    }
+
+    return connected;
+  } finally {
+    if (retryButton) {
+      retryButton.disabled = false;
+      retryButton.textContent = previousLabel || "I subscribed — continue";
+    }
+  }
+}
+
+async function syncReferralProgress(options = {}) {
+  if (!(await ensureBackend())) return false;
+
+  const { ok, result } = await apiPost("/api/referral/sync", {});
+  if (!ok || !result) return false;
+
+  if (result.channelRequired) {
+    if (!options.silent) {
+      showChannelGate(
+        result.channelUrl,
+        result.channelMessage || "Please subscribe to our official channel to unlock the game"
+      );
+    }
+    return false;
+  }
+
+  if (result.user) {
+    if (result.referralQualified) {
+      clearStoredReferrerId();
+    }
+    syncFromBackend(result.user, { preservePendingEnergy: true, preserveLocalRegen: true });
+    saveState();
+    render();
+    if (result.referralQualified && !options.silent) {
+      showToast("Referral linked! Your inviter earned +500 coins.");
+    }
+    return true;
+  }
+
+  return false;
 }
 
 const API_FETCH_TIMEOUT_MS = 25000;
@@ -3926,6 +4062,8 @@ async function connectBackend(retries = 6, options = {}) {
     await waitForTelegramInitData();
   }
 
+  captureReferrerId(getReferrerId());
+
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     const { ok, result, status } = await apiPost("/api/session", {
       initData: getTelegramInitData(),
@@ -3933,35 +4071,15 @@ async function connectBackend(retries = 6, options = {}) {
       referrerId: getReferrerId()
     });
 
-    if (ok && result && result.channelRequired) {
-      showChannelGate(
-        result.channelUrl,
-        result.channelMessage || "Please subscribe to our official channel to unlock the game"
-      );
-      backendReady = false;
-      backendSessionToken = "";
-      renderSyncBar();
-      render();
-      return false;
-    }
-
-    if (ok && result && !result.error && result.game) {
-      hideChannelGate();
-      if (result.referralQualified) {
-        clearStoredReferrerId();
+    if (ok && result && (result.channelRequired || result.game)) {
+      const connected = await applySessionResponse(result, {
+        silent: attempt === 0 && !messageShownRecently("backend-connected") && Boolean(result.game),
+        successMessage: attempt > 0 ? "Backend reconnected." : ""
+      });
+      if (connected && attempt === 0 && !messageShownRecently("backend-connected")) {
+        markMessageShown("backend-connected");
       }
-      backendUserId = result.userId;
-      backendSessionToken = result.token || "";
-      backendReconnectAttempts = 0;
-      const silent = attempt === 0 && !messageShownRecently("backend-connected");
-      await applyBackendUser(
-        result,
-        silent ? "" : attempt > 0 ? "Backend reconnected." : "Backend connected."
-      );
-      if (!silent && attempt === 0) markMessageShown("backend-connected");
-      await loadTournament();
-      renderSyncBar();
-      return true;
+      return connected;
     }
 
     if (result && result.error === "INVALID_TELEGRAM_AUTH") {
@@ -4090,7 +4208,7 @@ async function loadLeaderboard() {
   dailyLeaderboardYou = result.daily?.you || null;
   dailyYourRank = Number(result.daily?.yourRank || dailyLeaderboardYou?.rank || 0);
   dailyContestResetsAt = result.daily?.resetsAt || state.dailyContest?.resetsAt || "";
-  dailyReferralsRequired = Number(result.daily?.minReferrals || 3);
+  dailyReferralsRequired = Number(result.daily?.minReferrals || 1);
   dailyReferralCount = Number(result.daily?.yourReferrals || state.referrals?.count || 0);
   dailyPrizeEligible = Boolean(result.daily?.eligible);
   dailyLastWinner = result.daily?.lastWinner || null;
@@ -4430,7 +4548,7 @@ async function handleEarnClick(type) {
 
   if (type === "ad") {
     if (!adRewardAvailable()) {
-      showToast(`Refreshing in ${adRefreshMinutesLeft()}`);
+      showToast(`Refreshing in ${adRefreshTimeLeft()}`);
       return;
     }
 
@@ -4440,7 +4558,7 @@ async function handleEarnClick(type) {
 
   if (type === "bonus_ad") {
     if (!bonusAdRewardAvailable()) {
-      showToast(`Refreshing in ${bonusAdRefreshMinutesLeft()}`);
+      showToast(`Refreshing in ${bonusAdRefreshTimeLeft()}`);
       return;
     }
 
@@ -4485,12 +4603,12 @@ async function claimEarnTask(type) {
       state.adCooldownUntil = Number(result.nextAt || state.adCooldownUntil);
       scheduleAdCooldownRefresh();
       renderEarnPanel();
-      showToast(`Refreshing in ${adRefreshMinutesLeft()}`);
+      showToast(`Refreshing in ${adRefreshTimeLeft()}`);
     } else if (result && result.error === "BONUS_AD_COOLDOWN") {
       state.bonusAdCooldownUntil = Number(result.nextAt || state.bonusAdCooldownUntil);
       scheduleAdCooldownRefresh();
       renderEarnPanel();
-      showToast(`Refreshing in ${bonusAdRefreshMinutesLeft()}`);
+      showToast(`Refreshing in ${bonusAdRefreshTimeLeft()}`);
     } else showToast("Task unavailable.");
     return false;
   }
@@ -4890,6 +5008,10 @@ document.querySelectorAll(".tab").forEach((tab) => {
 
     renderCampaignBanner();
     renderFriendsPanel();
+
+    if (tab.dataset.tab === "friendsPanel") {
+      refreshBackendState();
+    }
 
     if (tab.dataset.tab === "rankPanel") {
       loadLeaderboard();

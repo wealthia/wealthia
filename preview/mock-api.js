@@ -99,14 +99,14 @@ export function buildMockSession() {
         channel: false
       },
       adReward: {
-        nextAt: Date.now() + 3 * 60 * 1000,
-        reward: 100,
-        cooldownMs: 5 * 60 * 1000
+        nextAt: Date.now() + 45 * 1000,
+        reward: 1500,
+        cooldownMs: 60 * 1000
       },
       bonusAdReward: {
-        nextAt: Date.now() + 10 * 60 * 1000,
-        reward: 150,
-        cooldownMs: 15 * 60 * 1000
+        nextAt: Date.now() + 30 * 1000,
+        reward: 800,
+        cooldownMs: 60 * 1000
       },
       buildings: {
         shop: 12,
@@ -132,7 +132,7 @@ export function buildMockSession() {
         score: 1372,
         date: new Date().toISOString().slice(0, 10),
         resetsAt: tomorrow.toISOString(),
-        minReferrals: 3,
+        minReferrals: 1,
         eligible: true,
         tickets: 1,
         ticketProgress: { current: 372, target: 1000, percent: 37 }
@@ -189,7 +189,7 @@ export function buildMockLeaderboard() {
     daily: {
       date: new Date().toISOString().slice(0, 10),
       resetsAt: tomorrow.toISOString(),
-      minReferrals: 3,
+      minReferrals: 1,
       yourReferrals: 5,
       eligible: true,
       top3: [

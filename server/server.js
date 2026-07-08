@@ -63,22 +63,47 @@ const TASKS_PER_CYCLE = 4;
 
 function normalizeChannelUsername(value) {
   const raw = String(value || "").trim();
-  if (!raw) return "@weathia_official";
+  if (!raw) return "";
   return raw.startsWith("@") ? raw : `@${raw}`;
 }
 
-const SOCIAL_JOIN_TELEGRAM_URL =
-  process.env.SOCIAL_JOIN_TELEGRAM_URL || "https://t.me/weathia_official";
+function usernameFromChannelUrl(url) {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+
+  try {
+    const path = new URL(raw).pathname.replace(/^\//, "");
+    const slug = path.split("/")[0];
+    if (!slug || slug.startsWith("+")) return "";
+    return normalizeChannelUsername(slug);
+  } catch {
+    const match = raw.match(/t\.me\/([A-Za-z0-9_]+)/i);
+    return match ? normalizeChannelUsername(match[1]) : "";
+  }
+}
+
+const CHANNEL_URL_CONFIGURED = String(
+  process.env.CHANNEL_URL || process.env.OFFICIAL_CHANNEL_URL || ""
+).trim();
 const OFFICIAL_CHANNEL_USERNAME = normalizeChannelUsername(
-  process.env.OFFICIAL_CHANNEL_USERNAME || "@weathia_official"
+  process.env.OFFICIAL_CHANNEL_USERNAME ||
+  usernameFromChannelUrl(CHANNEL_URL_CONFIGURED) ||
+  "@weathia_official"
 );
 const OFFICIAL_CHANNEL_FALLBACK_USERNAMES = [
   OFFICIAL_CHANNEL_USERNAME,
-  normalizeChannelUsername(process.env.OFFICIAL_CHANNEL_FALLBACK_USERNAME || "@official_wealthia")
-].filter((value, index, list) => list.indexOf(value) === index);
+  usernameFromChannelUrl(CHANNEL_URL_CONFIGURED),
+  normalizeChannelUsername(process.env.OFFICIAL_CHANNEL_FALLBACK_USERNAME || "@official_wealthia"),
+  "@wealthia_official",
+  "@weathia_official"
+].filter((value, index, list) => value && list.indexOf(value) === index);
 const OFFICIAL_CHANNEL_ID = String(process.env.OFFICIAL_CHANNEL_ID || "").trim();
 const OFFICIAL_CHANNEL_URL =
-  process.env.OFFICIAL_CHANNEL_URL || `https://t.me/${OFFICIAL_CHANNEL_USERNAME.replace(/^@/, "")}`;
+  CHANNEL_URL_CONFIGURED ||
+  process.env.OFFICIAL_CHANNEL_URL ||
+  `https://t.me/${OFFICIAL_CHANNEL_USERNAME.replace(/^@/, "")}`;
+const SOCIAL_JOIN_TELEGRAM_URL =
+  process.env.SOCIAL_JOIN_TELEGRAM_URL || OFFICIAL_CHANNEL_URL;
 const CONNECTION_ERROR_MESSAGE =
   "Connection error. Please try again or restart the bot.";
 let resolvedOfficialChannelChatId = "";
@@ -87,13 +112,13 @@ const BOOST_DURATION_MS = 30 * 60 * 1000;
 const REFERRAL_BONUS = 500;
 const NEW_PLAYER_BONUS = 100;
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
-const AD_REWARD_COOLDOWN_MS = 5 * 60 * 1000;
-const BONUS_AD_REWARD_COOLDOWN_MS = 15 * 60 * 1000;
+const AD_REWARD_COOLDOWN_MS = 60 * 1000;
+const BONUS_AD_REWARD_COOLDOWN_MS = 60 * 1000;
 const GOLD_RUSH_DURATION_MS = 15 * 60 * 1000;
 const GOLD_RUSH_MULTIPLIER = 2;
 const CRON_SECRET = process.env.CRON_SECRET || process.env.ADMIN_SECRET || "";
 const DAILY_PUSH_HOUR_UTC = Math.max(0, Math.min(23, Number(process.env.DAILY_PUSH_HOUR_UTC) || 10));
-const DAILY_PRIZE_MIN_REFERRALS = Math.max(0, Number(process.env.DAILY_PRIZE_MIN_REFERRALS) || 3);
+const DAILY_PRIZE_MIN_REFERRALS = Math.max(0, Number(process.env.DAILY_PRIZE_MIN_REFERRALS) || 1);
 const REFERRAL_STATUS_QUALIFIED = "qualified";
 const REFERRAL_STATUS_PENDING_CHANNEL = "pending_channel";
 const REFERRAL_STATUS_REJECTED_BOT = "rejected_bot";
@@ -119,8 +144,8 @@ const ipRateBuckets = new Map();
 
 const EARN_TASKS = {
   sponsor: { reward: 750, field: "sponsor_done" },
-  ad: { reward: 300, cooldown: true },
-  bonus_ad: { reward: 150, cooldown: true, field: "bonus_ad_last_claimed_at" },
+  ad: { reward: 1500, cooldown: true },
+  bonus_ad: { reward: 800, cooldown: true, field: "bonus_ad_last_claimed_at" },
   channel: { reward: 500, field: "channel_done" }
 };
 
@@ -348,6 +373,40 @@ async function getOfficialChannelChatId() {
 
 function getOfficialChannelUrl() {
   return resolvedOfficialChannelUrl || OFFICIAL_CHANNEL_URL;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function checkOfficialChannelMembershipWithRetry(telegramId, options = {}) {
+  const attempts = Math.max(1, Number(options.attempts || 1));
+  const delayMs = Math.max(0, Number(options.delayMs || 1500));
+
+  let last = await checkOfficialChannelMembership(telegramId);
+  for (let attempt = 1; attempt < attempts; attempt += 1) {
+    if (last.skipped || last.isMember) return last;
+    await sleep(delayMs);
+    last = await checkOfficialChannelMembership(telegramId);
+  }
+
+  return last;
+}
+
+async function notifyReferrerQualified(referrerId) {
+  const referrer = String(referrerId || "");
+  if (!TELEGRAM_BOT_TOKEN || !referrer) return;
+
+  const safe = await telegramApiSafe("sendMessage", {
+    chat_id: Number(referrer),
+    text:
+      "🎉 Your friend joined Wealthia through your invite link!\n\n" +
+      "+500 Wealth Coins added. Open the game → Friends tab to see your progress."
+  });
+
+  if (!safe.ok) {
+    console.warn("REFERRAL_NOTIFY_FAILED:", referrer, safe.error);
+  }
 }
 
 function isChannelMembershipLookupError(errorText) {
@@ -1785,6 +1844,20 @@ function toClientUser(row, extra = {}) {
   };
 }
 
+async function tryQualifyPendingReferral(referredUserId) {
+  try {
+    return await qualifyReferralIfPending(referredUserId);
+  } catch (error) {
+    console.warn("QUALIFY_REFERRAL_FAILED:", referredUserId, error.message);
+    return false;
+  }
+}
+
+async function syncReferralAfterChannelJoin(userId) {
+  const referralQualified = await tryQualifyPendingReferral(userId);
+  return { ok: true, referralQualified };
+}
+
 async function isOfficialChannelMember(telegramId) {
   const check = await checkOfficialChannelMembership(telegramId);
   return Boolean(check.isMember);
@@ -1792,7 +1865,7 @@ async function isOfficialChannelMember(telegramId) {
 
 async function creditReferrerCoins(referrerId) {
   const referrer = String(referrerId || "");
-  if (!referrer) return;
+  if (!referrer) return false;
 
   await tapPipeline.flushUser(referrer, tapHelpers);
 
@@ -1802,7 +1875,7 @@ async function creditReferrerCoins(referrerId) {
     .eq("user_id", referrer)
     .maybeSingle();
 
-  if (!refRow) return;
+  if (!refRow) return false;
 
   const bonus = REFERRAL_BONUS;
 
@@ -1818,7 +1891,22 @@ async function creditReferrerCoins(referrerId) {
     .select("*")
     .single();
 
+  if (!data) return false;
+
   syncTapCache(referrer, data);
+  return true;
+}
+
+async function registerQualifiedReferral(referrerId, newUserId, options = {}) {
+  const referrer = String(referrerId || "");
+  const newbie = String(newUserId || "");
+
+  if (!referrer || !newbie || referrer === newbie) return false;
+
+  return recordReferral(referrer, newbie, {
+    ...options,
+    status: REFERRAL_STATUS_QUALIFIED
+  });
 }
 
 async function registerPendingReferral(referrerId, newUserId, options = {}) {
@@ -1855,18 +1943,20 @@ async function qualifyReferralIfPending(referredUserId) {
     return false;
   }
 
-  const { error: updateError } = await supabase
+  const { data: updatedRows, error: updateError } = await supabase
     .from("referrals")
     .update({
       status: REFERRAL_STATUS_QUALIFIED,
       reject_reason: ""
     })
     .eq("id", pending.id)
-    .eq("status", REFERRAL_STATUS_PENDING_CHANNEL);
+    .eq("status", REFERRAL_STATUS_PENDING_CHANNEL)
+    .select("id");
 
   if (updateError) throw updateError;
+  if (!updatedRows || !updatedRows.length) return false;
 
-  await creditReferrerCoins(referrer);
+  const coinsCredited = await creditReferrerCoins(referrer);
 
   const qualifiedCount = await getReferralCount(referrer);
   await supabase
@@ -1875,6 +1965,10 @@ async function qualifyReferralIfPending(referredUserId) {
       referral_count: qualifiedCount
     })
     .eq("id", referrer);
+
+  if (coinsCredited) {
+    await notifyReferrerQualified(referrer);
+  }
 
   return true;
 }
@@ -1934,15 +2028,26 @@ async function recordReferral(referrerId, referredUserId, options = {}) {
     throw error;
   }
 
-  if (status === REFERRAL_STATUS_QUALIFIED) {
-    const qualifiedCount = await getReferralCount(referrer);
+  await supabase
+    .from("users")
+    .update({ referred_by: referrer })
+    .eq("id", referred)
+    .is("referred_by", null);
 
+  if (status === REFERRAL_STATUS_QUALIFIED) {
+    const coinsCredited = await creditReferrerCoins(referrer);
+
+    const qualifiedCount = await getReferralCount(referrer);
     await supabase
       .from("users")
       .update({
         referral_count: qualifiedCount
       })
       .eq("id", referrer);
+
+    if (coinsCredited) {
+      await notifyReferrerQualified(referrer);
+    }
   }
 
   return true;
@@ -1957,6 +2062,87 @@ async function getReferralCount(userId) {
 
   if (error) throw error;
   return number(count);
+}
+
+async function buildReferralsAnalytics() {
+  const { data: qualifiedRows, error: qualifiedError } = await supabase
+    .from("referrals")
+    .select("referrer_id, referred_user_id, status, created_at")
+    .eq("status", REFERRAL_STATUS_QUALIFIED);
+
+  if (qualifiedError) throw qualifiedError;
+
+  const { data: viralRows, error: viralError } = await supabase
+    .from("referrals")
+    .select("referred_user_id")
+    .neq("status", REFERRAL_STATUS_REJECTED_BOT);
+
+  if (viralError) throw viralError;
+
+  const byReferrer = new Map();
+  for (const row of qualifiedRows || []) {
+    const referrerId = String(row.referrer_id || "");
+    if (!referrerId) continue;
+    byReferrer.set(referrerId, number(byReferrer.get(referrerId)) + 1);
+  }
+
+  const referrerIds = [...byReferrer.entries()]
+    .filter(([, count]) => count > 0)
+    .map(([id]) => id);
+
+  const userMap = new Map();
+  if (referrerIds.length) {
+    const { data: users, error: usersError } = await supabase
+      .from("users")
+      .select("id, username, first_name, is_banned, referral_count")
+      .in("id", referrerIds);
+
+    if (usersError) throw usersError;
+
+    for (const user of users || []) {
+      userMap.set(String(user.id), user);
+    }
+  }
+
+  const leaderboard = referrerIds
+    .map((telegramId) => {
+      const referralCount = number(byReferrer.get(telegramId));
+      const user = userMap.get(telegramId) || {};
+      return {
+        telegramId,
+        username: String(user.username || ""),
+        displayName: String(user.first_name || "Player"),
+        referralCount,
+        totalRewardsDistributed: referralCount * REFERRAL_BONUS,
+        status: user.is_banned ? "banned" : "active"
+      };
+    })
+    .sort((a, b) => b.referralCount - a.referralCount || String(a.telegramId).localeCompare(String(b.telegramId)))
+    .map((row, index) => ({
+      rank: index + 1,
+      ...row
+    }));
+
+  const totalViralUsers = new Set(
+    (viralRows || []).map((row) => String(row.referred_user_id || "")).filter(Boolean)
+  ).size;
+
+  const king = leaderboard[0] || null;
+
+  return {
+    summary: {
+      totalViralUsers,
+      kingOfInvites: king
+        ? {
+            telegramId: king.telegramId,
+            username: king.username,
+            displayName: king.displayName,
+            referralCount: king.referralCount
+          }
+        : null
+    },
+    leaderboard
+  };
 }
 
 async function getReferralCounts(userIds) {
@@ -2242,7 +2428,7 @@ async function ensureUserProfile(telegramUser) {
   };
 }
 
-async function registerPendingReferralIfNew(telegramUser, referrerId) {
+async function registerReferralIfNew(telegramUser, referrerId) {
   const telegramId = String(telegramUser?.id || "");
   const referrer = parseReferrerId(referrerId);
 
@@ -2250,16 +2436,26 @@ async function registerPendingReferralIfNew(telegramUser, referrerId) {
 
   const { data: existingReferral, error: existingError } = await supabase
     .from("referrals")
-    .select("id")
+    .select("id, status")
     .eq("referred_user_id", telegramId)
     .maybeSingle();
 
   if (existingError) throw existingError;
-  if (existingReferral) return false;
+
+  if (existingReferral) {
+    if (String(existingReferral.status || "") === REFERRAL_STATUS_PENDING_CHANNEL) {
+      return await tryQualifyPendingReferral(telegramId);
+    }
+    return false;
+  }
 
   return registerPendingReferral(referrer, telegramId, {
     isBot: Boolean(telegramUser?.is_bot)
   });
+}
+
+async function registerPendingReferralIfNew(telegramUser, referrerId) {
+  return registerReferralIfNew(telegramUser, referrerId);
 }
 
 async function getOrCreatePlayer(telegramUser, referrerId = "") {
@@ -2383,6 +2579,78 @@ app.get("/api/adsgram/reward", (_req, res) => {
   res.status(200).send("ok");
 });
 
+async function completePlayerSession(telegramUser, referrerId = "") {
+  const telegramId = String(telegramUser?.id || "");
+  const parsedReferrer = parseReferrerId(referrerId || telegramUser?.start_param || "");
+  const officialChannelUrl = getOfficialChannelUrl();
+  const officialChannelUsername = OFFICIAL_CHANNEL_USERNAME;
+
+  let isNewPlayer = false;
+  const row = await tapPipeline.reload(telegramId, async () => {
+    const profile = await ensureUserProfile(telegramUser);
+    isNewPlayer = Boolean(profile.isNew);
+    return profile.row;
+  }, tapHelpers);
+  let referralRegistered = false;
+
+  if (parsedReferrer) {
+    try {
+      referralRegistered = await registerReferralIfNew(telegramUser, parsedReferrer);
+      if (referralRegistered) {
+        console.log("REFERRAL_PENDING:", parsedReferrer, "->", telegramId);
+      } else if (parsedReferrer) {
+        console.warn("REFERRAL_NOT_REGISTERED:", `referred=${telegramId}`, `referrer=${parsedReferrer}`);
+      }
+    } catch (referralError) {
+      console.warn("REFERRAL_REGISTER_FAILED:", referralError.message);
+    }
+  }
+
+  const enforceChannelGate = isNewPlayer || await hasPendingChannelReferral(telegramId);
+  if (enforceChannelGate) {
+    const channelCheck = await checkOfficialChannelMembership(telegramId);
+
+    if (channelCheck.skipped) {
+      console.warn("OFFICIAL_CHANNEL_CHECK_SKIPPED:", channelCheck.error);
+    } else if (!channelCheck.isMember) {
+      return {
+        userId: telegramId,
+        channelRequired: true,
+        channelUrl: officialChannelUrl,
+        channelUsername: officialChannelUsername,
+        channelMessage: "Please subscribe to our official channel to unlock the game"
+      };
+    }
+  }
+
+  const referralQualified = await tryQualifyPendingReferral(telegramId);
+
+  const session = createSessionToken(telegramId);
+  let referralCount = 0;
+  try {
+    referralCount = await getReferralCount(telegramId);
+  } catch (countError) {
+    console.warn("REFERRAL_COUNT_FAILED:", countError.message);
+  }
+
+  const responseRow = await tapPipeline.getLiveRow(telegramId, row, tapHelpers);
+
+  return {
+    ...toClientUser(responseRow || row, {
+      referralCount,
+      offlineEarnings: number(row.__offlineEarnings || 0),
+      offlineCashAdded: number(row.__offlineCashAdded || 0),
+      autoUpgrades: row.__autoUpgrades || []
+    }),
+    token: session.token,
+    expiresAt: session.expiresAt,
+    referralQualified: referralQualified || referralRegistered,
+    referralRegistered,
+    officialChannelUrl,
+    officialChannelUsername
+  };
+}
+
 app.post("/api/session", async (req, res) => {
   try {
     const telegramUser = resolveTelegramUser(req);
@@ -2398,95 +2666,8 @@ app.post("/api/session", async (req, res) => {
       req.body.referrerId || req.body.referralId || telegramUser.start_param
     );
 
-    let row;
-    let isNewPlayer = false;
-    try {
-      row = await tapPipeline.reload(telegramUser.id, async () => {
-        const profile = await ensureUserProfile(telegramUser);
-        isNewPlayer = Boolean(profile.isNew);
-        return profile.row;
-      }, tapHelpers);
-    } catch (profileError) {
-      console.error("ENSURE_USER_PROFILE_FAILED:", profileError);
-      if (profileError.code === "BOTS_NOT_ALLOWED") {
-        res.status(403).json({ error: "BOTS_NOT_ALLOWED" });
-        return;
-      }
-      if (profileError.code === "ACCOUNT_BANNED") {
-        res.status(403).json({
-          error: "ACCOUNT_BANNED",
-          message: profileError.banReason || "Your account has been blocked."
-        });
-        return;
-      }
-      res.status(503).json({
-        error: "CONNECTION_ERROR",
-        message: CONNECTION_ERROR_MESSAGE
-      });
-      return;
-    }
-
-    try {
-      const referralRegistered = await registerPendingReferralIfNew(telegramUser, referrerId);
-      if (referrerId && !referralRegistered) {
-        console.warn(
-          "REFERRAL_NOT_REGISTERED:",
-          `referred=${telegramUser.id}`,
-          `referrer=${referrerId}`,
-          `isNew=${isNewPlayer}`
-        );
-      } else if (referralRegistered) {
-        console.log("REFERRAL_PENDING:", `referred=${telegramUser.id}`, `referrer=${referrerId}`);
-      }
-    } catch (referralError) {
-      console.warn("PENDING_REFERRAL_REGISTER_FAILED:", referralError.message);
-    }
-
-    const enforceChannelGate = isNewPlayer || await hasPendingChannelReferral(telegramUser.id);
-    if (enforceChannelGate) {
-      const channelCheck = await checkOfficialChannelMembership(telegramUser.id);
-
-      if (channelCheck.skipped) {
-        console.warn("OFFICIAL_CHANNEL_CHECK_SKIPPED:", channelCheck.error);
-      } else if (!channelCheck.isMember) {
-        res.json({
-          userId: telegramUser.id,
-          channelRequired: true,
-          channelUrl: getOfficialChannelUrl(),
-          channelMessage: "Please subscribe to our official channel to unlock the game"
-        });
-        return;
-      }
-    }
-
-    let referralQualified = false;
-    try {
-      referralQualified = await qualifyReferralIfPending(telegramUser.id);
-    } catch (qualifyError) {
-      console.warn("QUALIFY_REFERRAL_FAILED:", qualifyError.message);
-    }
-
-    const session = createSessionToken(telegramUser.id);
-    let referralCount = 0;
-    try {
-      referralCount = await getReferralCount(telegramUser.id);
-    } catch (countError) {
-      console.warn("REFERRAL_COUNT_FAILED:", countError.message);
-    }
-
-    const responseRow = await tapPipeline.getLiveRow(telegramUser.id, row, tapHelpers);
-
-    res.json({
-      ...toClientUser(responseRow || row, {
-        referralCount,
-        offlineEarnings: number(row.__offlineEarnings || 0),
-        offlineCashAdded: number(row.__offlineCashAdded || 0),
-        autoUpgrades: row.__autoUpgrades || []
-      }),
-      token: session.token,
-      expiresAt: session.expiresAt,
-      referralQualified
-    });
+    const result = await completePlayerSession(telegramUser, referrerId);
+    res.json(result);
   } catch (error) {
     console.error("SESSION_ERROR:", error);
     if (error.code === "BOTS_NOT_ALLOWED") {
@@ -2503,6 +2684,44 @@ app.post("/api/session", async (req, res) => {
     });
   }
 });
+
+app.post("/api/referral/continue", async (req, res) => {
+  try {
+    const telegramUser = resolveTelegramUser(req);
+    if (!telegramUser) {
+      res.status(401).json({
+        error: "INVALID_TELEGRAM_AUTH",
+        reason: authFailureReason(req) || "UNKNOWN"
+      });
+      return;
+    }
+
+    const referrerId = parseReferrerId(
+      req.body.referrerId || req.body.referralId || telegramUser.start_param
+    );
+
+    const result = await completePlayerSession(telegramUser, referrerId);
+    res.json(result);
+  } catch (error) {
+    console.error("REFERRAL_CONTINUE_ERROR:", error);
+    if (error.code === "BOTS_NOT_ALLOWED") {
+      res.status(403).json({ error: "BOTS_NOT_ALLOWED" });
+      return;
+    }
+    if (error.code === "ACCOUNT_BANNED") {
+      res.status(403).json({
+        error: "ACCOUNT_BANNED",
+        message: error.banReason || "Your account has been blocked."
+      });
+      return;
+    }
+    res.status(503).json({
+      error: "CONNECTION_ERROR",
+      message: CONNECTION_ERROR_MESSAGE
+    });
+  }
+});
+
 app.post("/api/gold-rush/start", requirePlayer, async (req, res) => {
   try {
     const userId = req.playerId;
@@ -2638,7 +2857,38 @@ app.post("/api/verify-channel-subscription", requirePlayer, async (req, res) => 
       return;
     }
 
-    res.json({ success: true, status: check.status });
+    const referralQualified = await tryQualifyPendingReferral(req.playerId);
+
+    res.json({ success: true, status: check.status, referralQualified });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/referral/sync", requirePlayer, async (req, res) => {
+  try {
+    const userId = req.playerId;
+    const sync = await syncReferralAfterChannelJoin(userId);
+
+    if (!sync.ok) {
+      res.json({
+        ok: false,
+        channelRequired: true,
+        channelUrl: sync.channelUrl,
+        channelUsername: sync.channelUsername,
+        channelMessage: sync.channelMessage
+      });
+      return;
+    }
+
+    const row = await loadGame(userId);
+    const referralCount = await getReferralCount(userId);
+
+    res.json({
+      ok: true,
+      referralQualified: Boolean(sync.referralQualified),
+      user: toClientUser(row, { referralCount })
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -4214,6 +4464,17 @@ app.get("/api/admin/fraud-alerts", async (req, res) => {
     });
 
     res.json({ rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/admin/referrals-analytics", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const analytics = await buildReferralsAnalytics();
+    res.json(analytics);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

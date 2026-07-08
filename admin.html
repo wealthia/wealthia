@@ -44,6 +44,7 @@
         <button class="nav-item" type="button" data-view="gameSettings">Game Settings</button>
         <button class="nav-item" type="button" data-view="promoCodes">Promo Codes</button>
         <button class="nav-item" type="button" data-view="players">User Management</button>
+        <button class="nav-item" type="button" data-view="referralAnalytics">Referral Analytics</button>
         <button class="nav-item" type="button" data-view="tournaments">Tournaments</button>
         <button class="nav-item" type="button" data-view="revenue">Revenue</button>
         <button class="nav-item" type="button" data-view="payouts">Payouts</button>
@@ -228,6 +229,31 @@
             </div>
           </article>
         </div>
+      </section>
+
+      <section class="view" id="referralAnalyticsView">
+        <div class="hero-stats" id="referralSummaryCards"></div>
+        <article class="card">
+          <div class="view-toolbar">
+            <h2>Top Referrers</h2>
+          </div>
+          <p class="empty">Qualified invites only. +500 coins per friend when they tap Play from your invite link.</p>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Telegram ID</th>
+                  <th>Username</th>
+                  <th>Total Friends Invited</th>
+                  <th>Rewards Paid</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="referralAnalyticsTable"></tbody>
+            </table>
+          </div>
+        </article>
       </section>
 
       <section class="view" id="playersView">
@@ -445,6 +471,6 @@
   <div class="toast" id="toast"></div>
 
   <script src="./config.js?v=1"></script>
-  <script src="./admin.js?v=11"></script>
+  <script src="./admin.js?v=12"></script>
 </body>
 </html>
