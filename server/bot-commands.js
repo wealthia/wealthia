@@ -14,7 +14,7 @@ Your journey to building an unstoppable empire starts right here, right now. �
 🎲 Spin the Lucky Wheel!
 🏗️ Build, Upgrade, and Dominate!
 
-👇 First join our official channel, then tap Play Wealthia to enter the game.`;
+👇 Tap Play Wealthia to enter the game. Join our channel anytime for news & rewards.`;
 
 const PLAY_BUTTON_TEXT = "🎮  Play Wealthia  🎮";
 

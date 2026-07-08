@@ -1854,21 +1854,6 @@ async function tryQualifyPendingReferral(referredUserId) {
 }
 
 async function syncReferralAfterChannelJoin(userId) {
-  const channelCheck = await checkOfficialChannelMembershipWithRetry(userId, {
-    attempts: 4,
-    delayMs: 1500
-  });
-  if (!channelCheck.skipped && !channelCheck.isMember) {
-    return {
-      ok: false,
-      channelRequired: true,
-      channelUrl: getOfficialChannelUrl(),
-      channelUsername: OFFICIAL_CHANNEL_USERNAME,
-      channelMessage:
-        `Please subscribe to ${OFFICIAL_CHANNEL_USERNAME} to unlock the game and count your invite.`
-    };
-  }
-
   const referralQualified = await tryQualifyPendingReferral(userId);
   return { ok: true, referralQualified };
 }
@@ -1912,7 +1897,7 @@ async function creditReferrerCoins(referrerId) {
   return true;
 }
 
-async function registerPendingReferral(referrerId, newUserId, options = {}) {
+async function registerQualifiedReferral(referrerId, newUserId, options = {}) {
   const referrer = String(referrerId || "");
   const newbie = String(newUserId || "");
 
@@ -1920,8 +1905,12 @@ async function registerPendingReferral(referrerId, newUserId, options = {}) {
 
   return recordReferral(referrer, newbie, {
     ...options,
-    status: REFERRAL_STATUS_PENDING_CHANNEL
+    status: REFERRAL_STATUS_QUALIFIED
   });
+}
+
+async function registerPendingReferral(referrerId, newUserId, options = {}) {
+  return registerQualifiedReferral(referrerId, newUserId, options);
 }
 
 async function qualifyReferralIfPending(referredUserId) {
@@ -2033,14 +2022,19 @@ async function recordReferral(referrerId, referredUserId, options = {}) {
     .is("referred_by", null);
 
   if (status === REFERRAL_STATUS_QUALIFIED) {
-    const qualifiedCount = await getReferralCount(referrer);
+    const coinsCredited = await creditReferrerCoins(referrer);
 
+    const qualifiedCount = await getReferralCount(referrer);
     await supabase
       .from("users")
       .update({
         referral_count: qualifiedCount
       })
       .eq("id", referrer);
+
+    if (coinsCredited) {
+      await notifyReferrerQualified(referrer);
+    }
   }
 
   return true;
@@ -2421,7 +2415,7 @@ async function ensureUserProfile(telegramUser) {
   };
 }
 
-async function registerPendingReferralIfNew(telegramUser, referrerId) {
+async function registerReferralIfNew(telegramUser, referrerId) {
   const telegramId = String(telegramUser?.id || "");
   const referrer = parseReferrerId(referrerId);
 
@@ -2429,22 +2423,26 @@ async function registerPendingReferralIfNew(telegramUser, referrerId) {
 
   const { data: existingReferral, error: existingError } = await supabase
     .from("referrals")
-    .select("id")
+    .select("id, status")
     .eq("referred_user_id", telegramId)
     .maybeSingle();
 
   if (existingError) throw existingError;
-  if (existingReferral) return false;
 
-  const registered = await registerPendingReferral(referrer, telegramId, {
-    isBot: Boolean(telegramUser?.is_bot)
-  });
-
-  if (registered) {
-    console.log("PENDING_REFERRAL_REGISTERED:", referrer, "->", telegramId);
+  if (existingReferral) {
+    if (String(existingReferral.status || "") === REFERRAL_STATUS_PENDING_CHANNEL) {
+      return await tryQualifyPendingReferral(telegramId);
+    }
+    return false;
   }
 
-  return registered;
+  return registerQualifiedReferral(referrer, telegramId, {
+    isBot: Boolean(telegramUser?.is_bot)
+  });
+}
+
+async function registerPendingReferralIfNew(telegramUser, referrerId) {
+  return registerReferralIfNew(telegramUser, referrerId);
 }
 
 async function getOrCreatePlayer(telegramUser, referrerId = "") {
@@ -2568,10 +2566,9 @@ app.get("/api/adsgram/reward", (_req, res) => {
   res.status(200).send("ok");
 });
 
-async function completePlayerSession(telegramUser, referrerId = "", options = {}) {
+async function completePlayerSession(telegramUser, referrerId = "") {
   const telegramId = String(telegramUser?.id || "");
   const parsedReferrer = parseReferrerId(referrerId || telegramUser?.start_param || "");
-  const channelRetries = Math.max(1, Number(options.channelRetries || 2));
   const officialChannelUrl = getOfficialChannelUrl();
   const officialChannelUsername = OFFICIAL_CHANNEL_USERNAME;
 
@@ -2581,52 +2578,20 @@ async function completePlayerSession(telegramUser, referrerId = "", options = {}
     isNewPlayer = Boolean(profile.isNew);
     return profile.row;
   }, tapHelpers);
-  let pendingRegistered = false;
+  let referralRegistered = false;
 
   if (parsedReferrer) {
     try {
-      pendingRegistered = await registerPendingReferralIfNew(telegramUser, parsedReferrer);
+      referralRegistered = await registerReferralIfNew(telegramUser, parsedReferrer);
+      if (referralRegistered) {
+        console.log("REFERRAL_QUALIFIED_INSTANT:", parsedReferrer, "->", telegramId);
+      }
     } catch (referralError) {
-      console.warn("PENDING_REFERRAL_REGISTER_FAILED:", referralError.message);
-    }
-  } else if (await hasPendingChannelReferral(telegramId)) {
-    console.log("REFERRAL_PENDING_WAITING_CHANNEL:", telegramId);
-  }
-
-  const enforceChannelGate = isNewPlayer || await hasPendingChannelReferral(telegramId);
-  if (enforceChannelGate) {
-    const channelCheck = await checkOfficialChannelMembershipWithRetry(telegramId, {
-      attempts: channelRetries,
-      delayMs: 1500
-    });
-
-    if (channelCheck.skipped) {
-      console.warn("OFFICIAL_CHANNEL_CHECK_SKIPPED:", channelCheck.error);
-    } else if (!channelCheck.isMember) {
-      console.warn(
-        "CHANNEL_MEMBER_CHECK_FAILED:",
-        telegramId,
-        officialChannelUsername,
-        officialChannelUrl,
-        channelCheck.error || "not_member"
-      );
-      return {
-        channelRequired: true,
-        userId: telegramId,
-        channelUrl: officialChannelUrl,
-        channelUsername: officialChannelUsername,
-        channelMessage:
-          `Please subscribe to ${officialChannelUsername} to unlock the game and count your invite.`,
-        pendingReferral: await hasPendingChannelReferral(telegramId),
-        pendingRegistered
-      };
+      console.warn("REFERRAL_REGISTER_FAILED:", referralError.message);
     }
   }
 
   const referralQualified = await tryQualifyPendingReferral(telegramId);
-  if (referralQualified) {
-    console.log("REFERRAL_QUALIFIED:", telegramId, "referrer pending resolved");
-  }
 
   const session = createSessionToken(telegramId);
   let referralCount = 0;
@@ -2647,8 +2612,8 @@ async function completePlayerSession(telegramUser, referrerId = "", options = {}
     }),
     token: session.token,
     expiresAt: session.expiresAt,
-    referralQualified,
-    pendingRegistered,
+    referralQualified: referralQualified || referralRegistered,
+    referralRegistered,
     officialChannelUrl,
     officialChannelUsername
   };
@@ -2669,9 +2634,7 @@ app.post("/api/session", async (req, res) => {
       req.body.referrerId || req.body.referralId || telegramUser.start_param
     );
 
-    const result = await completePlayerSession(telegramUser, referrerId, {
-      channelRetries: 4
-    });
+    const result = await completePlayerSession(telegramUser, referrerId);
     res.json(result);
   } catch (error) {
     console.error("SESSION_ERROR:", error);
@@ -2705,9 +2668,7 @@ app.post("/api/referral/continue", async (req, res) => {
       req.body.referrerId || req.body.referralId || telegramUser.start_param
     );
 
-    const result = await completePlayerSession(telegramUser, referrerId, {
-      channelRetries: 4
-    });
+    const result = await completePlayerSession(telegramUser, referrerId);
     res.json(result);
   } catch (error) {
     console.error("REFERRAL_CONTINUE_ERROR:", error);
