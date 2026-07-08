@@ -1880,7 +1880,7 @@ async function isOfficialChannelMember(telegramId) {
 
 async function creditReferrerCoins(referrerId) {
   const referrer = String(referrerId || "");
-  if (!referrer) return;
+  if (!referrer) return false;
 
   await tapPipeline.flushUser(referrer, tapHelpers);
 
@@ -1890,7 +1890,7 @@ async function creditReferrerCoins(referrerId) {
     .eq("user_id", referrer)
     .maybeSingle();
 
-  if (!refRow) return;
+  if (!refRow) return false;
 
   const bonus = REFERRAL_BONUS;
 
@@ -1906,7 +1906,10 @@ async function creditReferrerCoins(referrerId) {
     .select("*")
     .single();
 
+  if (!data) return false;
+
   syncTapCache(referrer, data);
+  return true;
 }
 
 async function registerPendingReferral(referrerId, newUserId, options = {}) {
@@ -1951,7 +1954,7 @@ async function qualifyReferralIfPending(referredUserId) {
   if (updateError) throw updateError;
   if (!updatedRows || !updatedRows.length) return false;
 
-  await creditReferrerCoins(referrer);
+  const coinsCredited = await creditReferrerCoins(referrer);
 
   const qualifiedCount = await getReferralCount(referrer);
   await supabase
@@ -1961,7 +1964,9 @@ async function qualifyReferralIfPending(referredUserId) {
     })
     .eq("id", referrer);
 
-  await notifyReferrerQualified(referrer);
+  if (coinsCredited) {
+    await notifyReferrerQualified(referrer);
+  }
 
   return true;
 }
@@ -2877,6 +2882,7 @@ app.post("/api/referral/sync", requirePlayer, async (req, res) => {
         ok: false,
         channelRequired: true,
         channelUrl: sync.channelUrl,
+        channelUsername: sync.channelUsername,
         channelMessage: sync.channelMessage
       });
       return;

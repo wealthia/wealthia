@@ -3308,9 +3308,12 @@ async function applySessionResponse(result, options = {}) {
     backendUserId = result.userId;
     backendSessionToken = result.token || "";
     backendReconnectAttempts = 0;
+    const successMessage = Object.prototype.hasOwnProperty.call(options, "successMessage")
+      ? options.successMessage
+      : "Backend connected.";
     await applyBackendUser(
       result,
-      silent ? "" : (options.successMessage || "Backend connected.")
+      silent ? "" : successMessage
     );
     await loadTournament();
     renderSyncBar();
