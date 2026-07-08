@@ -717,6 +717,18 @@ const CONNECTION_ERROR_TOAST =
   "⚠️ Connection error. Please try again or restart the bot.";
 
 const REFERRER_STORAGE_KEY = "wealthia_referrer_id";
+
+function getReferrerStorageKey() {
+  const userId = String(getTelegramUser().id || "").trim();
+  return `${REFERRER_STORAGE_KEY}:${userId || "anonymous"}`;
+}
+
+function isSelfReferrerId(referrerId) {
+  const id = String(referrerId || "").trim();
+  const userId = String(getTelegramUser().id || "").trim();
+  return Boolean(id && userId && id === userId);
+}
+
 const PAYMENT_OPENING_TOAST = "Opening Stars payment...";
 
 let channelGateUrl = "";
@@ -3275,11 +3287,13 @@ function captureReferrerId(raw) {
   if (!value) return "";
 
   const parsed = value.startsWith("ref_") ? value.slice(4) : value;
-  const selfId = String(backendUserId || getTelegramUser().id || "");
-  if (!parsed || (selfId && parsed === selfId)) return "";
+  if (!parsed || isSelfReferrerId(parsed)) {
+    clearStoredReferrerId();
+    return "";
+  }
 
   try {
-    localStorage.setItem(REFERRER_STORAGE_KEY, parsed);
+    localStorage.setItem(getReferrerStorageKey(), parsed);
   } catch {
     // ignore storage errors
   }
@@ -3292,7 +3306,12 @@ function getReferrerId() {
   if (fromStart) return captureReferrerId(fromStart);
 
   try {
-    return localStorage.getItem(REFERRER_STORAGE_KEY) || "";
+    const storedReferrerId = String(localStorage.getItem(getReferrerStorageKey()) || "").trim();
+    if (isSelfReferrerId(storedReferrerId)) {
+      clearStoredReferrerId();
+      return "";
+    }
+    return storedReferrerId;
   } catch {
     return "";
   }
@@ -3300,6 +3319,7 @@ function getReferrerId() {
 
 function clearStoredReferrerId() {
   try {
+    localStorage.removeItem(getReferrerStorageKey());
     localStorage.removeItem(REFERRER_STORAGE_KEY);
   } catch {
     // ignore storage failures
@@ -3457,6 +3477,9 @@ async function refreshPaymentSession() {
   });
 
   if (ok && result && !result.error && result.token) {
+    if (result.referralQualified) {
+      clearStoredReferrerId();
+    }
     backendSessionToken = result.token;
     backendUserId = result.userId || backendUserId;
     backendReady = true;
@@ -4889,6 +4912,9 @@ async function refreshBackendState() {
   }
 
   hideChannelGate();
+  if (result.referralQualified) {
+    clearStoredReferrerId();
+  }
 
   if (result.token) {
     backendSessionToken = result.token;

@@ -1844,9 +1844,9 @@ function toClientUser(row, extra = {}) {
   };
 }
 
-async function tryQualifyPendingReferral(referredUserId) {
+async function tryQualifyPendingReferral(referredUserId, options = {}) {
   try {
-    return await qualifyReferralIfPending(referredUserId);
+    return await qualifyReferralIfPending(referredUserId, options);
   } catch (error) {
     console.warn("QUALIFY_REFERRAL_FAILED:", referredUserId, error.message);
     return false;
@@ -1921,7 +1921,7 @@ async function registerPendingReferral(referrerId, newUserId, options = {}) {
   });
 }
 
-async function qualifyReferralIfPending(referredUserId) {
+async function qualifyReferralIfPending(referredUserId, options = {}) {
   const referred = String(referredUserId || "");
   if (!referred) return false;
 
@@ -1938,7 +1938,7 @@ async function qualifyReferralIfPending(referredUserId) {
   const referrer = String(pending.referrer_id || "");
   if (!referrer || referrer === referred) return false;
 
-  const channelCheck = await checkOfficialChannelMembership(referred);
+  const channelCheck = options.channelCheck || await checkOfficialChannelMembership(referred);
   if (!channelCheck.skipped && !channelCheck.isMember) {
     return false;
   }
@@ -2607,8 +2607,9 @@ async function completePlayerSession(telegramUser, referrerId = "") {
   }
 
   const enforceChannelGate = isNewPlayer || await hasPendingChannelReferral(telegramId);
+  let channelCheck = null;
   if (enforceChannelGate) {
-    const channelCheck = await checkOfficialChannelMembership(telegramId);
+    channelCheck = await checkOfficialChannelMembership(telegramId);
 
     if (channelCheck.skipped) {
       console.warn("OFFICIAL_CHANNEL_CHECK_SKIPPED:", channelCheck.error);
@@ -2623,7 +2624,7 @@ async function completePlayerSession(telegramUser, referrerId = "") {
     }
   }
 
-  const referralQualified = await tryQualifyPendingReferral(telegramId);
+  const referralQualified = await tryQualifyPendingReferral(telegramId, { channelCheck });
 
   const session = createSessionToken(telegramId);
   let referralCount = 0;
