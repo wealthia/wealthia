@@ -1785,6 +1785,30 @@ function toClientUser(row, extra = {}) {
   };
 }
 
+async function tryQualifyPendingReferral(referredUserId) {
+  try {
+    return await qualifyReferralIfPending(referredUserId);
+  } catch (error) {
+    console.warn("QUALIFY_REFERRAL_FAILED:", referredUserId, error.message);
+    return false;
+  }
+}
+
+async function syncReferralAfterChannelJoin(userId) {
+  const channelCheck = await checkOfficialChannelMembership(userId);
+  if (!channelCheck.skipped && !channelCheck.isMember) {
+    return {
+      ok: false,
+      channelRequired: true,
+      channelUrl: getOfficialChannelUrl(),
+      channelMessage: "Please subscribe to our official channel to unlock the game"
+    };
+  }
+
+  const referralQualified = await tryQualifyPendingReferral(userId);
+  return { ok: true, referralQualified };
+}
+
 async function isOfficialChannelMember(telegramId) {
   const check = await checkOfficialChannelMembership(telegramId);
   return Boolean(check.isMember);
@@ -1850,16 +1874,18 @@ async function qualifyReferralIfPending(referredUserId) {
   const referrer = String(pending.referrer_id || "");
   if (!referrer || referrer === referred) return false;
 
-  const { error: updateError } = await supabase
+  const { data: updatedRows, error: updateError } = await supabase
     .from("referrals")
     .update({
       status: REFERRAL_STATUS_QUALIFIED,
       reject_reason: ""
     })
     .eq("id", pending.id)
-    .eq("status", REFERRAL_STATUS_PENDING_CHANNEL);
+    .eq("status", REFERRAL_STATUS_PENDING_CHANNEL)
+    .select("id");
 
   if (updateError) throw updateError;
+  if (!updatedRows || !updatedRows.length) return false;
 
   await creditReferrerCoins(referrer);
 
@@ -1933,7 +1959,7 @@ async function recordReferral(referrerId, referredUserId, options = {}) {
     .from("users")
     .update({ referred_by: referrer })
     .eq("id", referred)
-    .or("referred_by.is.null,referred_by.eq.");
+    .is("referred_by", null);
 
   if (status === REFERRAL_STATUS_QUALIFIED) {
     const qualifiedCount = await getReferralCount(referrer);
@@ -2339,9 +2365,15 @@ async function registerPendingReferralIfNew(telegramUser, referrerId) {
   if (existingError) throw existingError;
   if (existingReferral) return false;
 
-  return registerPendingReferral(referrer, telegramId, {
+  const registered = await registerPendingReferral(referrer, telegramId, {
     isBot: Boolean(telegramUser?.is_bot)
   });
+
+  if (registered) {
+    console.log("PENDING_REFERRAL_REGISTERED:", referrer, "->", telegramId);
+  }
+
+  return registered;
 }
 
 async function getOrCreatePlayer(telegramUser, referrerId = "") {
@@ -2532,7 +2564,10 @@ app.post("/api/session", async (req, res) => {
     }
 
     try {
-      await qualifyReferralIfPending(telegramUser.id);
+      const referralQualified = await tryQualifyPendingReferral(telegramUser.id);
+      if (referralQualified) {
+        console.log("REFERRAL_QUALIFIED:", telegramUser.id);
+      }
     } catch (qualifyError) {
       console.warn("QUALIFY_REFERRAL_FAILED:", qualifyError.message);
     }
@@ -2708,7 +2743,37 @@ app.post("/api/verify-channel-subscription", requirePlayer, async (req, res) => 
       return;
     }
 
-    res.json({ success: true, status: check.status });
+    const referralQualified = await tryQualifyPendingReferral(req.playerId);
+
+    res.json({ success: true, status: check.status, referralQualified });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/referral/sync", requirePlayer, async (req, res) => {
+  try {
+    const userId = req.playerId;
+    const sync = await syncReferralAfterChannelJoin(userId);
+
+    if (!sync.ok) {
+      res.json({
+        ok: false,
+        channelRequired: true,
+        channelUrl: sync.channelUrl,
+        channelMessage: sync.channelMessage
+      });
+      return;
+    }
+
+    const row = await loadGame(userId);
+    const referralCount = await getReferralCount(userId);
+
+    res.json({
+      ok: true,
+      referralQualified: Boolean(sync.referralQualified),
+      user: toClientUser(row, { referralCount })
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
