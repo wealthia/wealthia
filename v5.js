@@ -506,7 +506,10 @@ function switchToFriendsTab() {
 function getInviteLink() {
   const botName = CONFIG.BOT_USERNAME || "WealthiaGameBot";
   const userId = backendUserId || "guest";
-  return `https://t.me/${botName}?start=ref_${userId}`;
+  if (!userId || userId === "guest" || userId === "web_demo") {
+    return `https://t.me/${botName}`;
+  }
+  return `https://t.me/${botName}?startapp=ref_${userId}`;
 }
 
 async function copyTextToClipboard(text) {
@@ -756,10 +759,7 @@ function bindChannelGateModal() {
     retryButton.addEventListener("click", async () => {
       try {
         backendReconnectAttempts = 0;
-        const connected = await connectBackend(4);
-        if (connected) {
-          await syncReferralProgress({ silent: true });
-        }
+        await referralContinue({ silent: true });
       } catch {
         showConnectionErrorToast();
       }
@@ -2264,9 +2264,9 @@ function renderFriendsPanel() {
     </article>
 
     <article class="friends-tips">
-      <p><strong>1.</strong> Send your link to friends in Telegram</p>
-      <p><strong>2.</strong> They subscribe to the official Wealthia Telegram channel</p>
-      <p><strong>3.</strong> They open the game and you earn +500 coins for each one</p>
+      <p><strong>1.</strong> Friend opens your invite link (game launches directly)</p>
+      <p><strong>2.</strong> They join the official Wealthia Telegram channel</p>
+      <p><strong>3.</strong> They tap <strong>I subscribed — continue</strong> — you get +500 coins</p>
     </article>
   `;
 
@@ -3272,6 +3272,56 @@ function getReferrerId() {
   }
 }
 
+async function applySessionResponse(result, options = {}) {
+  const silent = Boolean(options.silent);
+
+  if (result && result.channelRequired) {
+    captureReferrerId(getReferrerId());
+    showChannelGate(
+      result.channelUrl,
+      result.channelMessage || "Please subscribe to our official channel to unlock the game"
+    );
+    backendReady = false;
+    backendSessionToken = "";
+    renderSyncBar();
+    render();
+    return false;
+  }
+
+  if (result && !result.error && result.game) {
+    hideChannelGate();
+    backendUserId = result.userId;
+    backendSessionToken = result.token || "";
+    backendReconnectAttempts = 0;
+    await applyBackendUser(
+      result,
+      silent ? "" : (options.successMessage || "Backend connected.")
+    );
+    await loadTournament();
+    renderSyncBar();
+    return true;
+  }
+
+  return false;
+}
+
+async function referralContinue(options = {}) {
+  captureReferrerId(getReferrerId());
+
+  const { ok, result } = await apiPost("/api/referral/continue", {
+    initData: getTelegramInitData(),
+    telegramUser: getTelegramUser(),
+    referrerId: getReferrerId()
+  });
+
+  if (!ok || !result) return false;
+
+  return applySessionResponse(result, {
+    silent: Boolean(options.silent),
+    successMessage: options.successMessage || ""
+  });
+}
+
 async function syncReferralProgress(options = {}) {
   if (!(await ensureBackend())) return false;
 
@@ -3945,34 +3995,15 @@ async function connectBackend(retries = 6, options = {}) {
       referrerId: getReferrerId()
     });
 
-    if (ok && result && result.channelRequired) {
-      captureReferrerId(getReferrerId());
-      showChannelGate(
-        result.channelUrl,
-        result.channelMessage || "Please subscribe to our official channel to unlock the game"
-      );
-      backendReady = false;
-      backendSessionToken = "";
-      renderSyncBar();
-      render();
-      return false;
-    }
-
-    if (ok && result && !result.error && result.game) {
-      hideChannelGate();
-      captureReferrerId(getReferrerId());
-      backendUserId = result.userId;
-      backendSessionToken = result.token || "";
-      backendReconnectAttempts = 0;
-      const silent = attempt === 0 && !messageShownRecently("backend-connected");
-      await applyBackendUser(
-        result,
-        silent ? "" : attempt > 0 ? "Backend reconnected." : "Backend connected."
-      );
-      if (!silent && attempt === 0) markMessageShown("backend-connected");
-      await loadTournament();
-      renderSyncBar();
-      return true;
+    if (ok && result && (result.channelRequired || result.game)) {
+      const connected = await applySessionResponse(result, {
+        silent: attempt === 0 && !messageShownRecently("backend-connected") && Boolean(result.game),
+        successMessage: attempt > 0 ? "Backend reconnected." : ""
+      });
+      if (connected && attempt === 0 && !messageShownRecently("backend-connected")) {
+        markMessageShown("backend-connected");
+      }
+      return connected;
     }
 
     if (result && result.error === "INVALID_TELEGRAM_AUTH") {

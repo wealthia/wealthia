@@ -84,7 +84,7 @@ function startKeyboard(userId, startParam) {
     [
       {
         text: "Invite Friends",
-        url: `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${BOT_USERNAME}?start=${ref}`)}&text=${encodeURIComponent("Join my Wealthia empire!")}`
+        url: `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${BOT_USERNAME}?startapp=${ref}`)}&text=${encodeURIComponent("Join my Wealthia empire!")}`
       }
     ]
   ];

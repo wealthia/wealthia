@@ -63,22 +63,47 @@ const TASKS_PER_CYCLE = 4;
 
 function normalizeChannelUsername(value) {
   const raw = String(value || "").trim();
-  if (!raw) return "@weathia_official";
+  if (!raw) return "";
   return raw.startsWith("@") ? raw : `@${raw}`;
 }
 
-const SOCIAL_JOIN_TELEGRAM_URL =
-  process.env.SOCIAL_JOIN_TELEGRAM_URL || "https://t.me/weathia_official";
+function usernameFromChannelUrl(url) {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+
+  try {
+    const path = new URL(raw).pathname.replace(/^\//, "");
+    const slug = path.split("/")[0];
+    if (!slug || slug.startsWith("+")) return "";
+    return normalizeChannelUsername(slug);
+  } catch {
+    const match = raw.match(/t\.me\/([A-Za-z0-9_]+)/i);
+    return match ? normalizeChannelUsername(match[1]) : "";
+  }
+}
+
+const CHANNEL_URL_CONFIGURED = String(
+  process.env.CHANNEL_URL || process.env.OFFICIAL_CHANNEL_URL || ""
+).trim();
 const OFFICIAL_CHANNEL_USERNAME = normalizeChannelUsername(
-  process.env.OFFICIAL_CHANNEL_USERNAME || "@weathia_official"
+  process.env.OFFICIAL_CHANNEL_USERNAME ||
+  usernameFromChannelUrl(CHANNEL_URL_CONFIGURED) ||
+  "@weathia_official"
 );
 const OFFICIAL_CHANNEL_FALLBACK_USERNAMES = [
   OFFICIAL_CHANNEL_USERNAME,
-  normalizeChannelUsername(process.env.OFFICIAL_CHANNEL_FALLBACK_USERNAME || "@official_wealthia")
-].filter((value, index, list) => list.indexOf(value) === index);
+  usernameFromChannelUrl(CHANNEL_URL_CONFIGURED),
+  normalizeChannelUsername(process.env.OFFICIAL_CHANNEL_FALLBACK_USERNAME || "@official_wealthia"),
+  "@wealthia_official",
+  "@weathia_official"
+].filter((value, index, list) => value && list.indexOf(value) === index);
 const OFFICIAL_CHANNEL_ID = String(process.env.OFFICIAL_CHANNEL_ID || "").trim();
 const OFFICIAL_CHANNEL_URL =
-  process.env.OFFICIAL_CHANNEL_URL || `https://t.me/${OFFICIAL_CHANNEL_USERNAME.replace(/^@/, "")}`;
+  CHANNEL_URL_CONFIGURED ||
+  process.env.OFFICIAL_CHANNEL_URL ||
+  `https://t.me/${OFFICIAL_CHANNEL_USERNAME.replace(/^@/, "")}`;
+const SOCIAL_JOIN_TELEGRAM_URL =
+  process.env.SOCIAL_JOIN_TELEGRAM_URL || OFFICIAL_CHANNEL_URL;
 const CONNECTION_ERROR_MESSAGE =
   "Connection error. Please try again or restart the bot.";
 let resolvedOfficialChannelChatId = "";
@@ -2497,6 +2522,75 @@ app.get("/api/adsgram/reward", (_req, res) => {
   res.status(200).send("ok");
 });
 
+async function completePlayerSession(telegramUser, referrerId = "") {
+  const telegramId = String(telegramUser?.id || "");
+  const parsedReferrer = parseReferrerId(referrerId || telegramUser?.start_param || "");
+
+  let isNewPlayer = false;
+  const row = await tapPipeline.reload(telegramId, async () => {
+    const profile = await ensureUserProfile(telegramUser);
+    isNewPlayer = Boolean(profile.isNew);
+    return profile.row;
+  }, tapHelpers);
+  let pendingRegistered = false;
+
+  if (parsedReferrer) {
+    try {
+      pendingRegistered = await registerPendingReferralIfNew(telegramUser, parsedReferrer);
+    } catch (referralError) {
+      console.warn("PENDING_REFERRAL_REGISTER_FAILED:", referralError.message);
+    }
+  } else if (await hasPendingChannelReferral(telegramId)) {
+    console.log("REFERRAL_PENDING_WAITING_CHANNEL:", telegramId);
+  }
+
+  const enforceChannelGate = isNewPlayer || await hasPendingChannelReferral(telegramId);
+  if (enforceChannelGate) {
+    const channelCheck = await checkOfficialChannelMembership(telegramId);
+
+    if (channelCheck.skipped) {
+      console.warn("OFFICIAL_CHANNEL_CHECK_SKIPPED:", channelCheck.error);
+    } else if (!channelCheck.isMember) {
+      return {
+        channelRequired: true,
+        userId: telegramId,
+        channelUrl: getOfficialChannelUrl(),
+        channelMessage: "Please subscribe to our official channel to unlock the game",
+        pendingReferral: await hasPendingChannelReferral(telegramId),
+        pendingRegistered
+      };
+    }
+  }
+
+  const referralQualified = await tryQualifyPendingReferral(telegramId);
+  if (referralQualified) {
+    console.log("REFERRAL_QUALIFIED:", telegramId, "referrer pending resolved");
+  }
+
+  const session = createSessionToken(telegramId);
+  let referralCount = 0;
+  try {
+    referralCount = await getReferralCount(telegramId);
+  } catch (countError) {
+    console.warn("REFERRAL_COUNT_FAILED:", countError.message);
+  }
+
+  const responseRow = await tapPipeline.getLiveRow(telegramId, row, tapHelpers);
+
+  return {
+    ...toClientUser(responseRow || row, {
+      referralCount,
+      offlineEarnings: number(row.__offlineEarnings || 0),
+      offlineCashAdded: number(row.__offlineCashAdded || 0),
+      autoUpgrades: row.__autoUpgrades || []
+    }),
+    token: session.token,
+    expiresAt: session.expiresAt,
+    referralQualified,
+    pendingRegistered
+  };
+}
+
 app.post("/api/session", async (req, res) => {
   try {
     const telegramUser = resolveTelegramUser(req);
@@ -2512,86 +2606,8 @@ app.post("/api/session", async (req, res) => {
       req.body.referrerId || req.body.referralId || telegramUser.start_param
     );
 
-    let row;
-    let isNewPlayer = false;
-    try {
-      row = await tapPipeline.reload(telegramUser.id, async () => {
-        const profile = await ensureUserProfile(telegramUser);
-        isNewPlayer = Boolean(profile.isNew);
-        return profile.row;
-      }, tapHelpers);
-    } catch (profileError) {
-      console.error("ENSURE_USER_PROFILE_FAILED:", profileError);
-      if (profileError.code === "BOTS_NOT_ALLOWED") {
-        res.status(403).json({ error: "BOTS_NOT_ALLOWED" });
-        return;
-      }
-      if (profileError.code === "ACCOUNT_BANNED") {
-        res.status(403).json({
-          error: "ACCOUNT_BANNED",
-          message: profileError.banReason || "Your account has been blocked."
-        });
-        return;
-      }
-      res.status(503).json({
-        error: "CONNECTION_ERROR",
-        message: CONNECTION_ERROR_MESSAGE
-      });
-      return;
-    }
-
-    try {
-      await registerPendingReferralIfNew(telegramUser, referrerId);
-    } catch (referralError) {
-      console.warn("PENDING_REFERRAL_REGISTER_FAILED:", referralError.message);
-    }
-
-    const enforceChannelGate = isNewPlayer || await hasPendingChannelReferral(telegramUser.id);
-    if (enforceChannelGate) {
-      const channelCheck = await checkOfficialChannelMembership(telegramUser.id);
-
-      if (channelCheck.skipped) {
-        console.warn("OFFICIAL_CHANNEL_CHECK_SKIPPED:", channelCheck.error);
-      } else if (!channelCheck.isMember) {
-        res.json({
-          userId: telegramUser.id,
-          channelRequired: true,
-          channelUrl: getOfficialChannelUrl(),
-          channelMessage: "Please subscribe to our official channel to unlock the game"
-        });
-        return;
-      }
-    }
-
-    try {
-      const referralQualified = await tryQualifyPendingReferral(telegramUser.id);
-      if (referralQualified) {
-        console.log("REFERRAL_QUALIFIED:", telegramUser.id);
-      }
-    } catch (qualifyError) {
-      console.warn("QUALIFY_REFERRAL_FAILED:", qualifyError.message);
-    }
-
-    const session = createSessionToken(telegramUser.id);
-    let referralCount = 0;
-    try {
-      referralCount = await getReferralCount(telegramUser.id);
-    } catch (countError) {
-      console.warn("REFERRAL_COUNT_FAILED:", countError.message);
-    }
-
-    const responseRow = await tapPipeline.getLiveRow(telegramUser.id, row, tapHelpers);
-
-    res.json({
-      ...toClientUser(responseRow || row, {
-        referralCount,
-        offlineEarnings: number(row.__offlineEarnings || 0),
-        offlineCashAdded: number(row.__offlineCashAdded || 0),
-        autoUpgrades: row.__autoUpgrades || []
-      }),
-      token: session.token,
-      expiresAt: session.expiresAt
-    });
+    const result = await completePlayerSession(telegramUser, referrerId);
+    res.json(result);
   } catch (error) {
     console.error("SESSION_ERROR:", error);
     if (error.code === "BOTS_NOT_ALLOWED") {
@@ -2608,6 +2624,44 @@ app.post("/api/session", async (req, res) => {
     });
   }
 });
+
+app.post("/api/referral/continue", async (req, res) => {
+  try {
+    const telegramUser = resolveTelegramUser(req);
+    if (!telegramUser) {
+      res.status(401).json({
+        error: "INVALID_TELEGRAM_AUTH",
+        reason: authFailureReason(req) || "UNKNOWN"
+      });
+      return;
+    }
+
+    const referrerId = parseReferrerId(
+      req.body.referrerId || req.body.referralId || telegramUser.start_param
+    );
+
+    const result = await completePlayerSession(telegramUser, referrerId);
+    res.json(result);
+  } catch (error) {
+    console.error("REFERRAL_CONTINUE_ERROR:", error);
+    if (error.code === "BOTS_NOT_ALLOWED") {
+      res.status(403).json({ error: "BOTS_NOT_ALLOWED" });
+      return;
+    }
+    if (error.code === "ACCOUNT_BANNED") {
+      res.status(403).json({
+        error: "ACCOUNT_BANNED",
+        message: error.banReason || "Your account has been blocked."
+      });
+      return;
+    }
+    res.status(503).json({
+      error: "CONNECTION_ERROR",
+      message: CONNECTION_ERROR_MESSAGE
+    });
+  }
+});
+
 app.post("/api/gold-rush/start", requirePlayer, async (req, res) => {
   try {
     const userId = req.playerId;
