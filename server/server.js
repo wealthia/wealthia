@@ -1929,6 +1929,12 @@ async function recordReferral(referrerId, referredUserId, options = {}) {
     throw error;
   }
 
+  await supabase
+    .from("users")
+    .update({ referred_by: referrer })
+    .eq("id", referred)
+    .or("referred_by.is.null,referred_by.eq.");
+
   if (status === REFERRAL_STATUS_QUALIFIED) {
     const qualifiedCount = await getReferralCount(referrer);
 
@@ -1952,6 +1958,87 @@ async function getReferralCount(userId) {
 
   if (error) throw error;
   return number(count);
+}
+
+async function buildReferralsAnalytics() {
+  const { data: qualifiedRows, error: qualifiedError } = await supabase
+    .from("referrals")
+    .select("referrer_id, referred_user_id, status, created_at")
+    .eq("status", REFERRAL_STATUS_QUALIFIED);
+
+  if (qualifiedError) throw qualifiedError;
+
+  const { data: viralRows, error: viralError } = await supabase
+    .from("referrals")
+    .select("referred_user_id")
+    .neq("status", REFERRAL_STATUS_REJECTED_BOT);
+
+  if (viralError) throw viralError;
+
+  const byReferrer = new Map();
+  for (const row of qualifiedRows || []) {
+    const referrerId = String(row.referrer_id || "");
+    if (!referrerId) continue;
+    byReferrer.set(referrerId, number(byReferrer.get(referrerId)) + 1);
+  }
+
+  const referrerIds = [...byReferrer.entries()]
+    .filter(([, count]) => count > 0)
+    .map(([id]) => id);
+
+  const userMap = new Map();
+  if (referrerIds.length) {
+    const { data: users, error: usersError } = await supabase
+      .from("users")
+      .select("id, username, first_name, is_banned, referral_count")
+      .in("id", referrerIds);
+
+    if (usersError) throw usersError;
+
+    for (const user of users || []) {
+      userMap.set(String(user.id), user);
+    }
+  }
+
+  const leaderboard = referrerIds
+    .map((telegramId) => {
+      const referralCount = number(byReferrer.get(telegramId));
+      const user = userMap.get(telegramId) || {};
+      return {
+        telegramId,
+        username: String(user.username || ""),
+        displayName: String(user.first_name || "Player"),
+        referralCount,
+        totalRewardsDistributed: referralCount * REFERRAL_BONUS,
+        status: user.is_banned ? "banned" : "active"
+      };
+    })
+    .sort((a, b) => b.referralCount - a.referralCount || String(a.telegramId).localeCompare(String(b.telegramId)))
+    .map((row, index) => ({
+      rank: index + 1,
+      ...row
+    }));
+
+  const totalViralUsers = new Set(
+    (viralRows || []).map((row) => String(row.referred_user_id || "")).filter(Boolean)
+  ).size;
+
+  const king = leaderboard[0] || null;
+
+  return {
+    summary: {
+      totalViralUsers,
+      kingOfInvites: king
+        ? {
+            telegramId: king.telegramId,
+            username: king.username,
+            displayName: king.displayName,
+            referralCount: king.referralCount
+          }
+        : null
+    },
+    leaderboard
+  };
 }
 
 async function getReferralCounts(userIds) {
@@ -4197,6 +4284,17 @@ app.get("/api/admin/fraud-alerts", async (req, res) => {
     });
 
     res.json({ rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/admin/referrals-analytics", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const analytics = await buildReferralsAnalytics();
+    res.json(analytics);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

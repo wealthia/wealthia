@@ -54,6 +54,8 @@ const els = {
   profileUnbanButton: document.getElementById("profileUnbanButton"),
   createPromoForm: document.getElementById("createPromoForm"),
   promoCodesTable: document.getElementById("promoCodesTable"),
+  referralSummaryCards: document.getElementById("referralSummaryCards"),
+  referralAnalyticsTable: document.getElementById("referralAnalyticsTable"),
   toast: document.getElementById("toast")
 };
 
@@ -368,6 +370,83 @@ async function loadFraudAlerts() {
   renderFraudAlerts(result.rows || []);
 }
 
+function formatUsername(username, displayName) {
+  if (username) return `@${username}`;
+  if (displayName) return displayName;
+  return "—";
+}
+
+function renderReferralSummary(summary) {
+  if (!els.referralSummaryCards || !summary) return;
+
+  const king = summary.kingOfInvites;
+  const kingLabel = king
+    ? `${formatUsername(king.username, king.displayName)} · ${formatNumber(king.referralCount)} invites`
+    : "No qualified inviters yet";
+
+  const cards = [
+    {
+      label: "Total Viral Users",
+      value: formatNumber(summary.totalViralUsers || 0),
+      hint: "Players who joined through a referral link",
+      accent: "hero-stat--violet"
+    },
+    {
+      label: "King of Invites",
+      value: king ? formatNumber(king.referralCount) : "0",
+      hint: kingLabel,
+      accent: "hero-stat--gold"
+    }
+  ];
+
+  els.referralSummaryCards.innerHTML = cards.map((card) => `
+    <article class="hero-stat ${card.accent}">
+      <span class="hero-stat__label">${card.label}</span>
+      <strong class="hero-stat__value">${card.value}</strong>
+      <small class="hero-stat__hint">${card.hint}</small>
+    </article>
+  `).join("");
+}
+
+function renderReferralAnalyticsTable(rows) {
+  if (!els.referralAnalyticsTable) return;
+
+  if (!rows.length) {
+    els.referralAnalyticsTable.innerHTML =
+      '<tr><td colspan="6" class="empty">No qualified referrers yet.</td></tr>';
+    return;
+  }
+
+  els.referralAnalyticsTable.innerHTML = rows.map((row) => {
+    const username = formatUsername(row.username, row.displayName);
+    const statusClass = row.status === "banned" ? "badge--ended" : "badge--active";
+    const statusLabel = row.status === "banned" ? "Banned" : "Active";
+
+    return `
+      <tr>
+        <td>#${row.rank}</td>
+        <td><code>${row.telegramId}</code></td>
+        <td>${username}</td>
+        <td>${formatNumber(row.referralCount)}</td>
+        <td>${formatNumber(row.totalRewardsDistributed)} coins</td>
+        <td><span class="badge ${statusClass}">${statusLabel}</span></td>
+      </tr>
+    `;
+  }).join("");
+}
+
+async function loadReferralAnalytics() {
+  const { ok, result } = await api("/api/admin/referrals-analytics");
+
+  if (!ok) {
+    showLogin("Session expired.");
+    return;
+  }
+
+  renderReferralSummary(result.summary || {});
+  renderReferralAnalyticsTable(result.leaderboard || []);
+}
+
 async function sendBroadcast(event) {
   event.preventDefault();
 
@@ -566,6 +645,7 @@ function switchView(view) {
     fraud: "Fraud Alerts",
     promoCodes: "Promo Codes",
     players: "User Management",
+    referralAnalytics: "Referral Analytics",
     tournaments: "Tournaments",
     revenue: "Revenue",
     payouts: "Payouts"
@@ -583,6 +663,7 @@ async function loadCurrentView(view = getActiveView()) {
   if (view === "spinWinners") await loadSpinWinners();
   if (view === "fraud") await loadFraudAlerts();
   if (view === "players") await loadPlayers();
+  if (view === "referralAnalytics") await loadReferralAnalytics();
   if (view === "tournaments") await loadTournaments();
   if (view === "revenue") await loadRevenue();
   if (view === "payouts") await loadPayouts();
