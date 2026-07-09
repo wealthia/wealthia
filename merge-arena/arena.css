@@ -17,6 +17,7 @@
   --legend: #ffd166;
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
+  --app-h: 100dvh;
   --font: "Exo 2", system-ui, sans-serif;
   --display: "Oxanium", system-ui, sans-serif;
 }
@@ -40,8 +41,9 @@ html, body {
 }
 
 body {
-  min-height: 100dvh;
-  height: 100dvh;
+  min-height: var(--app-h);
+  height: var(--app-h);
+  max-height: var(--app-h);
   overflow: hidden;
   overflow-x: clip;
   user-select: none;
@@ -95,11 +97,12 @@ button {
   width: 100%;
   max-width: 100%;
   height: 100%;
+  max-height: 100%;
   margin: 0 auto;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: 6px;
-  padding: calc(6px + var(--safe-t)) 8px calc(6px + var(--safe-b));
+  gap: 4px;
+  padding: calc(4px + var(--safe-t)) 8px calc(4px + var(--safe-b));
   overflow: hidden;
   min-width: 0;
   box-sizing: border-box;
@@ -198,14 +201,15 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 10px 12px;
-  border-radius: 16px;
+  padding: 8px 10px;
+  border-radius: 14px;
   border: 1px solid rgba(61, 255, 200, 0.22);
   background: linear-gradient(135deg, rgba(61, 255, 200, 0.14), rgba(255, 107, 74, 0.1));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
+  flex: 0 0 auto;
 }
 
 .hud__stats {
@@ -238,15 +242,41 @@ button {
   min-height: 0;
   min-width: 0;
   width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.view {
+  display: none;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.view.is-active {
+  display: grid;
+  gap: 6px;
+  align-content: start;
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-width: none;
 }
 
-.stage::-webkit-scrollbar { display: none; }
+.view.is-active::-webkit-scrollbar { display: none; }
 
-.view { display: none; animation: rise 320ms ease; width: 100%; min-width: 0; }
-.view.is-active { display: grid; gap: 10px; align-content: start; }
+/* Play screen: everything fits without scrolling */
+#view-play.is-active {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  align-content: stretch;
+  overflow: hidden;
+  gap: 6px;
+}
+
+#view-play .board-hint,
+#view-play .unit-strip {
+  display: none;
+}
 
 @keyframes rise {
   from { opacity: 0; transform: translateY(10px); }
@@ -291,25 +321,37 @@ button {
   position: relative;
   width: 100%;
   min-width: 0;
-  padding: 6px;
-  border-radius: 18px;
+  min-height: 0;
+  height: 100%;
+  padding: 4px;
+  border-radius: 16px;
   border: 1px solid rgba(61, 255, 200, 0.22);
   background:
     linear-gradient(180deg, rgba(12, 48, 58, 0.96), rgba(6, 20, 28, 0.98));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 14px 28px rgba(0, 0, 0, 0.3);
+    0 10px 22px rgba(0, 0, 0, 0.28);
   box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
 }
 
 .board {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 5px;
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  gap: 4px;
   width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   min-width: 0;
   min-height: 0;
   box-sizing: border-box;
+  margin: 0 auto;
+  flex: 0 0 auto;
 }
 
 .unit[data-rarity="common"] {
@@ -369,13 +411,16 @@ button {
 
 .cell {
   position: relative;
-  aspect-ratio: 1;
-  border-radius: 14px;
+  aspect-ratio: auto;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 12px;
   border: 1px dashed rgba(120, 170, 255, 0.18);
   background: rgba(255, 255, 255, 0.02);
   display: grid;
   place-items: center;
-  min-width: 0;
   transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
 }
 
@@ -458,23 +503,24 @@ button {
 .play-actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
-  gap: 8px;
+  gap: 6px;
   width: 100%;
   min-width: 0;
+  flex: 0 0 auto;
 }
 
 .btn {
-  min-height: 54px;
-  border-radius: 18px;
+  min-height: 44px;
+  border-radius: 14px;
   display: grid;
   place-items: center;
-  gap: 1px;
+  gap: 0;
   font-weight: 800;
   transition: transform 140ms ease, opacity 140ms ease, box-shadow 140ms ease;
 }
 
-.btn span { font-size: 14px; letter-spacing: 0.04em; }
-.btn small { font-size: 11px; opacity: 0.8; font-weight: 700; }
+.btn span { font-size: 13px; letter-spacing: 0.03em; }
+.btn small { font-size: 10px; opacity: 0.8; font-weight: 700; }
 .btn:active { transform: scale(0.98); }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
@@ -728,22 +774,23 @@ button {
 .dock {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 4px;
-  padding: 8px 6px;
-  border-radius: 20px;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 16px;
   border: 1px solid var(--line);
   background: rgba(8, 12, 22, 0.86);
   backdrop-filter: blur(14px);
+  flex: 0 0 auto;
 }
 
 .dock__item {
   display: grid;
-  gap: 2px;
+  gap: 1px;
   place-items: center;
-  padding: 8px 2px;
-  border-radius: 14px;
+  padding: 6px 2px;
+  border-radius: 12px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
 }
 
@@ -918,10 +965,21 @@ button {
 }
 
 @media (max-width: 380px) {
-  .board { gap: 5px; }
-  .btn { min-height: 46px; }
+  .btn { min-height: 42px; }
   .section-head h2 { font-size: 18px; }
   .brand__name { font-size: 11px; }
+  .dock__item span { font-size: 8px; }
+}
+
+@media (max-height: 700px) {
+  .wave-bar { padding: 6px 8px; }
+  .wave-bar h2 { font-size: 14px; }
+  .wave-bar__power strong { font-size: 16px; }
+  .btn { min-height: 40px; }
+  .btn span { font-size: 12px; }
+  .btn small { display: none; }
+  .dock__item { padding: 4px 2px; }
+  .brand__mark { width: 28px; height: 28px; }
 }
 
 /* PRE-GAME TUTORIAL */

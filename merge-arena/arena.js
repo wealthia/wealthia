@@ -417,16 +417,53 @@
     }
   }
 
+  function fitViewport() {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    const h = Math.round(
+      (tg && (tg.viewportStableHeight || tg.viewportHeight)) ||
+      window.visualViewport?.height ||
+      window.innerHeight ||
+      document.documentElement.clientHeight ||
+      0
+    );
+    if (h > 0) {
+      document.documentElement.style.setProperty("--app-h", `${h}px`);
+    }
+    fitBoard();
+  }
+
+  function fitBoard() {
+    const wrap = els.board && els.board.parentElement;
+    if (!wrap || !els.board) return;
+    const styles = window.getComputedStyle(wrap);
+    const padX = (parseFloat(styles.paddingLeft) || 0) + (parseFloat(styles.paddingRight) || 0);
+    const padY = (parseFloat(styles.paddingTop) || 0) + (parseFloat(styles.paddingBottom) || 0);
+    const availW = Math.max(0, wrap.clientWidth - padX);
+    const availH = Math.max(0, wrap.clientHeight - padY);
+    if (availW < 40 || availH < 40) return;
+    const size = Math.floor(Math.min(availW, availH));
+    els.board.style.width = `${size}px`;
+    els.board.style.height = `${size}px`;
+  }
+
   function initTelegram() {
     const tg = window.Telegram && window.Telegram.WebApp;
-    if (!tg) return;
+    if (!tg) {
+      fitViewport();
+      return;
+    }
     try {
       tg.ready();
       tg.expand();
-      if (tg.setHeaderColor) tg.setHeaderColor("#12091F");
-      if (tg.setBackgroundColor) tg.setBackgroundColor("#12091F");
+      if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+      if (tg.setHeaderColor) tg.setHeaderColor("#07131A");
+      if (tg.setBackgroundColor) tg.setBackgroundColor("#07131A");
+      fitViewport();
+      if (tg.onEvent) {
+        tg.onEvent("viewportChanged", fitViewport);
+      }
     } catch {
-      // browser
+      fitViewport();
     }
   }
 
@@ -482,6 +519,7 @@
     }
     renderStrip();
     renderHud();
+    requestAnimationFrame(fitBoard);
   }
 
   function renderStrip() {
@@ -929,6 +967,11 @@
 
   function boot() {
     initTelegram();
+    fitViewport();
+    window.addEventListener("resize", fitViewport);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", fitViewport);
+    }
     seedIfEmpty();
     bind();
     renderBoard();
