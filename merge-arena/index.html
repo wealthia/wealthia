@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@600;700;800&family=Exo+2:wght@500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./arena.css?v=21" />
+  <link rel="stylesheet" href="./arena.css?v=22" />
 </head>
 <body>
   <div class="fx" aria-hidden="true">
@@ -98,6 +98,28 @@
         </div>
 
         <div class="unit-strip" id="unitStrip" aria-label="Owned unit types"></div>
+
+        <div class="clash-panel" id="clashPanel" aria-label="Next fight preview">
+          <div class="clash-panel__head">
+            <span class="clash-panel__label">Next Clash</span>
+            <strong class="clash-panel__status" id="clashStatus">Scout the arena</strong>
+          </div>
+          <div class="clash-panel__meters">
+            <div class="clash-meter">
+              <span>You</span>
+              <strong id="clashYou">0</strong>
+            </div>
+            <div class="clash-meter clash-meter--vs" aria-hidden="true">VS</div>
+            <div class="clash-meter clash-meter--enemy">
+              <span>Enemy</span>
+              <strong id="clashEnemy">0</strong>
+            </div>
+          </div>
+          <div class="clash-bar" aria-hidden="true">
+            <i id="clashFill"></i>
+          </div>
+          <p class="clash-panel__tip" id="clashTip">Fuse matching heroes to raise squad power.</p>
+        </div>
       </section>
 
       <section class="view" id="view-roster" data-view="roster" hidden>
@@ -248,6 +270,6 @@
   </div>
 
   <script src="../config.js"></script>
-  <script src="./arena.js?v=21"></script>
+  <script src="./arena.js?v=22"></script>
 </body>
 </html>
