@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@600;700;800&family=Exo+2:wght@500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./arena.css?v=22" />
+  <link rel="stylesheet" href="./arena.css?v=23" />
 </head>
 <body>
   <div class="fx" aria-hidden="true">
@@ -125,7 +125,7 @@
       <section class="view" id="view-roster" data-view="roster" hidden>
         <div class="section-head">
           <h2>Hero Vault</h2>
-          <p>Fuse twins. Unlock legends. Own the board.</p>
+          <p>0/21 unlocked · Fuse twins. Collect legends.</p>
         </div>
         <div class="roster-grid" id="rosterGrid"></div>
       </section>
@@ -172,6 +172,16 @@
             <h3>Epic Strike</h3>
             <p>Drop a heavy Epic and swing the fight.</p>
             <div class="offer__meta"><span>Exact epic</span><strong>90 ★</strong></div>
+          </div>
+          <button class="offer__cta" type="button">Grab</button>
+        </article>
+
+        <article class="offer offer--legend" data-buy="legend_summon">
+          <div class="offer__visual offer__visual--legend">👑</div>
+          <div class="offer__body">
+            <h3>Legend Call</h3>
+            <p>Pull a Legendary onto the board right now.</p>
+            <div class="offer__meta"><span>Exact legend</span><strong>180 ★</strong></div>
           </div>
           <button class="offer__cta" type="button">Grab</button>
         </article>
@@ -270,6 +280,6 @@
   </div>
 
   <script src="../config.js"></script>
-  <script src="./arena.js?v=22"></script>
+  <script src="./arena.js?v=23"></script>
 </body>
 </html>

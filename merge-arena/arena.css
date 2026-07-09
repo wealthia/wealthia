@@ -811,6 +811,35 @@ button {
 .unit[data-vibe="ghost"] .unit__char { animation-name: unitFloat; opacity: 0.95; }
 .unit[data-vibe="heavy"] .unit__char { animation-duration: 2.8s; }
 .unit[data-vibe="royal"] .unit__char { animation-name: unitRoyal; }
+.unit[data-vibe="fire"] .unit__glow { background: radial-gradient(circle, rgba(255, 120, 60, 0.75), transparent 70%); }
+.unit[data-vibe="fire"] .unit__char { animation-name: unitFire; }
+.unit[data-vibe="ice"] .unit__glow { background: radial-gradient(circle, rgba(160, 230, 255, 0.7), transparent 70%); }
+.unit[data-vibe="ice"] .unit__char { animation-duration: 2.4s; }
+.unit[data-vibe="beast"] .unit__char { animation-name: unitSlash; animation-duration: 1.5s; }
+.unit[data-vibe="bow"] .unit__char { animation-duration: 1.9s; }
+.unit[data-vibe="brew"] .unit__char { animation-name: unitFloat; }
+.unit[data-vibe="tide"] .unit__char { animation-name: unitTide; }
+.unit[data-vibe="quake"] .unit__char { animation-name: unitQuake; }
+.unit[data-vibe="venom"] .unit__char { animation-name: unitFloat; filter: drop-shadow(0 0 8px rgba(120, 255, 140, 0.55)); }
+.unit[data-vibe="storm"] .unit__char { animation-name: unitSlash; animation-duration: 1.2s; }
+.unit[data-vibe="eclipse"] .unit__char { animation-name: unitFloat; filter: drop-shadow(0 0 10px rgba(180, 120, 255, 0.65)); }
+.unit[data-vibe="aurora"] .unit__char { animation-name: unitRoyal; }
+
+@keyframes unitFire {
+  0%, 100% { transform: translateY(0) scale(1); filter: drop-shadow(0 0 6px rgba(255, 120, 40, 0.55)); }
+  50% { transform: translateY(-4px) scale(1.06); filter: drop-shadow(0 0 12px rgba(255, 160, 60, 0.85)); }
+}
+
+@keyframes unitTide {
+  0%, 100% { transform: translateX(0) translateY(0); }
+  50% { transform: translateX(2px) translateY(-3px); }
+}
+
+@keyframes unitQuake {
+  0%, 100% { transform: translateY(0); }
+  25% { transform: translateY(1px) rotate(-2deg); }
+  75% { transform: translateY(-2px) rotate(2deg); }
+}
 
 @keyframes unitBob {
   0%, 100% { transform: translateY(0) rotate(-2deg) scale(1); }
@@ -1008,17 +1037,36 @@ button {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+  padding-bottom: 8px;
 }
 
 .roster-card {
-  padding: 12px;
+  padding: 12px 10px;
   border-radius: 18px;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.04);
   display: grid;
-  gap: 8px;
+  gap: 6px;
   justify-items: center;
   text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.roster-card[data-rarity="rare"] {
+  border-color: rgba(78, 205, 196, 0.35);
+  background: linear-gradient(160deg, rgba(78, 205, 196, 0.1), rgba(255, 255, 255, 0.03));
+}
+
+.roster-card[data-rarity="epic"] {
+  border-color: rgba(255, 107, 74, 0.4);
+  background: linear-gradient(160deg, rgba(255, 107, 74, 0.12), rgba(255, 255, 255, 0.03));
+}
+
+.roster-card[data-rarity="legendary"] {
+  border-color: rgba(255, 209, 102, 0.45);
+  background: linear-gradient(160deg, rgba(255, 209, 102, 0.14), rgba(255, 255, 255, 0.03));
+  box-shadow: 0 0 18px rgba(255, 209, 102, 0.12);
 }
 
 .roster-card__unit {
@@ -1029,7 +1077,48 @@ button {
   place-items: center;
   font-size: 28px;
   border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.25),
+    0 8px 14px rgba(0, 0, 0, 0.25);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.14), rgba(0, 0, 0, 0.18));
 }
+
+.roster-card__unit[data-rarity="common"] {
+  background: linear-gradient(160deg, #9ed8ff, #4aa3e8 60%, #1f6fb0);
+}
+.roster-card__unit[data-rarity="rare"] {
+  background: linear-gradient(160deg, #7dffd8, #2ec9a8 55%, #0f8a72);
+}
+.roster-card__unit[data-rarity="epic"] {
+  background: linear-gradient(160deg, #ffb08f, #ff6b4a 55%, #c23418);
+}
+.roster-card__unit[data-rarity="legendary"] {
+  background: linear-gradient(160deg, #ffe29a, #ffd166 45%, #ef8d1c);
+}
+
+.roster-card__meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.roster-card__rarity,
+.roster-card__role {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--muted);
+}
+
+.roster-card[data-rarity="rare"] .roster-card__rarity { color: var(--rare); }
+.roster-card[data-rarity="epic"] .roster-card__rarity { color: var(--epic); }
+.roster-card[data-rarity="legendary"] .roster-card__rarity { color: var(--legend); }
 
 .roster-card h3 {
   margin: 0;
@@ -1041,11 +1130,21 @@ button {
   margin: 0;
   font-size: 11px;
   color: var(--muted);
+  line-height: 1.35;
 }
 
 .roster-card.is-locked {
   opacity: 0.45;
   filter: grayscale(0.6);
+}
+
+.offer--legend {
+  border-color: rgba(255, 209, 102, 0.45);
+  background: linear-gradient(135deg, rgba(255, 209, 102, 0.16), rgba(255, 107, 74, 0.08));
+}
+
+.offer__visual--legend {
+  background: linear-gradient(160deg, rgba(255, 209, 102, 0.35), rgba(239, 141, 28, 0.25));
 }
 
 .offer {
