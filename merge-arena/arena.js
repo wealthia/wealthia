@@ -8,13 +8,21 @@
   const ENERGY_MAX = 20;
 
   const UNIT_DEFS = [
-    { id: "spark", name: "Spark", icon: "⚡", rarity: "common", basePower: 12 },
-    { id: "blade", name: "Blade", icon: "🗡", rarity: "common", basePower: 14 },
-    { id: "ward", name: "Ward", icon: "🛡", rarity: "rare", basePower: 22 },
-    { id: "nova", name: "Nova", icon: "✦", rarity: "rare", basePower: 26 },
-    { id: "phantom", name: "Phantom", icon: "👁", rarity: "epic", basePower: 40 },
-    { id: "titan", name: "Titan", icon: "🏛", rarity: "epic", basePower: 48 },
-    { id: "sovereign", name: "Sovereign", icon: "👑", rarity: "legendary", basePower: 72 }
+    { id: "spark", name: "Spark", icon: "⚡", face: "⚡", rarity: "common", basePower: 12, vibe: "zap" },
+    { id: "blade", name: "Blade", icon: "🗡", face: "⚔", rarity: "common", basePower: 14, vibe: "slash" },
+    { id: "ward", name: "Ward", icon: "🛡", face: "🛡", rarity: "rare", basePower: 22, vibe: "guard" },
+    { id: "nova", name: "Nova", icon: "✦", face: "🌟", rarity: "rare", basePower: 26, vibe: "glow" },
+    { id: "phantom", name: "Phantom", icon: "👁", face: "👻", rarity: "epic", basePower: 40, vibe: "ghost" },
+    { id: "titan", name: "Titan", icon: "🏛", face: "🗿", rarity: "epic", basePower: 48, vibe: "heavy" },
+    { id: "sovereign", name: "Sovereign", icon: "👑", face: "🦁", rarity: "legendary", basePower: 72, vibe: "royal" }
+  ];
+
+  const BUDDY_LINES = [
+    { title: "Arena Panda", line: "Merge twins — I cheer louder every fuse!" },
+    { title: "Arena Panda", line: "Get Hero! Drop a fighter onto the floor." },
+    { title: "Arena Panda", line: "Same heroes? Drag them together — boom!" },
+    { title: "Arena Panda", line: "Squad looking spicy. Enter Fight when ready." },
+    { title: "Arena Panda", line: "Higher fuse = bigger punch. Keep stacking!" }
   ];
 
   const SHOP = {
@@ -129,6 +137,9 @@
     summonButton: $("summonButton"),
     battleButton: $("battleButton"),
     unitStrip: $("unitStrip"),
+    buddyTitle: $("buddyTitle"),
+    buddyLine: $("buddyLine"),
+    arenaBuddy: $("arenaBuddy"),
     rosterGrid: $("rosterGrid"),
     toast: $("toast"),
     battleModal: $("battleModal"),
@@ -442,6 +453,7 @@
     const wave = document.querySelector(".wave-bar");
     const hint = document.getElementById("boardHint");
     const strip = document.getElementById("unitStrip");
+    const buddy = document.getElementById("arenaBuddy");
     const appH = app ? app.clientHeight : window.innerHeight;
     // Bottom controls get priority; board stays compact
     const reserved =
@@ -450,8 +462,9 @@
       (hud ? hud.offsetHeight : 30) +
       (wave ? wave.offsetHeight : 36) +
       (hint ? Math.max(hint.offsetHeight, 18) : 18) +
-      (strip ? Math.max(strip.offsetHeight || 52, 52) : 52) +
-      40;
+      (strip ? Math.max(strip.offsetHeight || 48, 48) : 48) +
+      (buddy ? Math.max(buddy.offsetHeight || 54, 54) : 54) +
+      36;
     const appW = app ? app.clientWidth : window.innerWidth;
     const styles = window.getComputedStyle(wrap);
     const padX = (parseFloat(styles.paddingLeft) || 0) + (parseFloat(styles.paddingRight) || 0);
@@ -459,8 +472,8 @@
     const availW = Math.max(160, Math.min(appW - 28, (wrap.parentElement ? wrap.parentElement.clientWidth : appW) - 8) - padX);
     const fromViewport = Math.max(140, appH - reserved);
     if (availW < 40) return;
-    // Hard cap ~36% of height so lower UI dominates
-    const maxBoard = Math.floor(appH * 0.36);
+    // Hard cap ~34% of height so buddy + lower UI dominate
+    const maxBoard = Math.floor(appH * 0.34);
     const size = Math.floor(Math.min(availW, fromViewport, maxBoard));
     els.board.style.width = `${size}px`;
     els.board.style.height = `${size}px`;
@@ -518,6 +531,26 @@
     els.battleButton.disabled = battleBusy || state.energy < 1 || power <= 0;
   }
 
+  function cheerBuddy(kind) {
+    if (!els.buddyLine || !els.arenaBuddy) return;
+    const power = squadPower();
+    let pick = BUDDY_LINES[0];
+    if (kind === "summon") pick = BUDDY_LINES[1];
+    else if (kind === "merge") pick = { title: "Arena Panda", line: "Fusion pop! That one felt 3D." };
+    else if (kind === "fight") pick = { title: "Arena Panda", line: "Go go! Smash Arena " + state.wave + "!" };
+    else if (kind === "win") pick = { title: "Arena Panda", line: "Victory dance! You cleared it." };
+    else if (kind === "lose") pick = { title: "Arena Panda", line: "Shake it off — fuse stronger and retry." };
+    else if (power >= 80) pick = BUDDY_LINES[3];
+    else if (power >= 40) pick = BUDDY_LINES[4];
+    else if (!state.board.some(Boolean)) pick = BUDDY_LINES[1];
+    else pick = BUDDY_LINES[Math.floor(Math.random() * BUDDY_LINES.length)];
+    if (els.buddyTitle) els.buddyTitle.textContent = pick.title;
+    els.buddyLine.textContent = pick.line;
+    els.arenaBuddy.classList.remove("is-cheer");
+    void els.arenaBuddy.offsetWidth;
+    els.arenaBuddy.classList.add("is-cheer");
+  }
+
   function renderBoard() {
     els.board.innerHTML = "";
     for (let i = 0; i < SIZE; i += 1) {
@@ -530,10 +563,18 @@
         const node = document.createElement("div");
         node.className = "unit";
         node.dataset.rarity = unit.rarity || def.rarity;
+        node.dataset.vibe = def.vibe || "zap";
+        node.dataset.hero = def.id;
         node.dataset.index = String(i);
         node.innerHTML = `
           <span class="unit__lvl">L${unit.level}</span>
-          <span class="unit__icon">${def.icon}</span>
+          <div class="unit__stage">
+            <span class="unit__glow"></span>
+            <span class="unit__shadow"></span>
+            <span class="unit__char" aria-hidden="true">${def.face || def.icon}</span>
+            <span class="unit__ring"></span>
+          </div>
+          <span class="unit__name">${def.name}</span>
           <span class="unit__pow">${powerOf(unit)}</span>
         `;
         bindUnitDrag(node, i);
@@ -562,7 +603,7 @@
       .map(([key, count]) => {
         const [id, level] = key.split("_");
         const def = defById(id);
-        return `<div class="strip-card"><strong>${def.icon} ${def.name}</strong><span>L${level} · x${count}</span></div>`;
+        return `<div class="strip-card" data-rarity="${def.rarity}"><strong>${def.face || def.icon} ${def.name}</strong><span>L${level} · x${count}</span></div>`;
       })
       .join("");
   }
@@ -572,8 +613,8 @@
       const unlocked = state.discovered.includes(def.id);
       return `
         <article class="roster-card ${unlocked ? "" : "is-locked"}">
-          <div class="roster-card__unit" data-rarity="${def.rarity}" style="background:linear-gradient(160deg,rgba(255,255,255,.12),rgba(0,0,0,.2))">
-            ${unlocked ? def.icon : "?"}
+          <div class="roster-card__unit" data-rarity="${def.rarity}" data-hero="${def.id}">
+            ${unlocked ? (def.face || def.icon) : "?"}
           </div>
           <h3>${unlocked ? def.name : "Locked"}</h3>
           <p>${def.rarity} · base ${def.basePower}</p>
@@ -677,6 +718,7 @@
       discover(merged.id);
       saveState();
       renderBoard();
+      cheerBuddy("merge");
       showToast(`Fusion! ${defById(merged.id).name} L${merged.level}`);
       haptic("success");
       return;
@@ -713,7 +755,10 @@
     discover(id);
     saveState();
     renderBoard();
-    if (!forceId) showToast(`${defById(id).name} enters the arena`);
+    if (!forceId) {
+      cheerBuddy("summon");
+      showToast(`${defById(id).name} enters the arena`);
+    }
     haptic("light");
     return true;
   }
@@ -736,6 +781,7 @@
     state.lastEnergyAt = Date.now();
     saveState();
     renderHud();
+    cheerBuddy("fight");
 
     const wave = state.wave;
     const enemy = enemyPower(wave);
@@ -793,6 +839,7 @@
     }
 
     battleBusy = false;
+    cheerBuddy(won ? "win" : "lose");
     renderBoard();
   }
 
@@ -999,6 +1046,7 @@
     seedIfEmpty();
     bind();
     renderBoard();
+    cheerBuddy("idle");
     renderRoster();
     renderGlory();
     openTutorial();
