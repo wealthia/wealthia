@@ -412,6 +412,7 @@
     rankTitle: $("rankTitle"),
     rankProgress: $("rankProgress"),
     rankFill: $("rankFill"),
+    rankLadder: $("rankLadder"),
     eventCard: $("eventCard"),
     eventTitle: $("eventTitle"),
     eventText: $("eventText"),
@@ -1287,6 +1288,9 @@
       btn.classList.toggle("is-active", btn.dataset.nav === name);
     });
     if (name === "roster") renderRoster();
+    if (name === "ranks") {
+      renderRankPage();
+    }
     if (name === "rank") {
       renderGlory();
       loadLeaderboard();
@@ -1524,7 +1528,6 @@
     const tier = rankForTrophies(state.trophies);
     if (els.gloryRank) els.gloryRank.textContent = tier.name;
     renderRankCard();
-    renderEventCard();
     renderDaily();
     renderQuests();
     renderPass();
@@ -1532,6 +1535,31 @@
     renderInvite();
     renderSeasonPath();
     renderGhostCard();
+  }
+
+  function renderRankPage() {
+    renderRankCard();
+    renderEventCard();
+    renderRankLadder();
+  }
+
+  function renderRankLadder() {
+    if (!els.rankLadder) return;
+    const current = rankForTrophies(state.trophies);
+    els.rankLadder.innerHTML = RANK_TIERS.map((tier) => {
+      const unlocked = state.trophies >= tier.min;
+      const isCurrent = tier.id === current.id;
+      return `
+        <div class="rank-ladder__row ${unlocked ? "is-on" : ""} ${isCurrent ? "is-current" : ""}">
+          <span class="rank-ladder__emoji">${tier.emoji}</span>
+          <div>
+            <strong>${tier.name}</strong>
+            <em>${tier.min} 🏆</em>
+          </div>
+          <span class="rank-ladder__state">${isCurrent ? "NOW" : unlocked ? "OPEN" : "LOCKED"}</span>
+        </div>
+      `;
+    }).join("");
   }
 
   function renderRankCard() {
@@ -2400,7 +2428,7 @@
     if (els.dailyClaim) els.dailyClaim.addEventListener("click", () => claimDaily());
     if (els.ghostFight) els.ghostFight.addEventListener("click", () => startGhostFight());
     if (els.rankChip) {
-      els.rankChip.addEventListener("click", () => switchView("rank"));
+      els.rankChip.addEventListener("click", () => switchView("ranks"));
     }
     if (els.questList) {
       els.questList.addEventListener("click", (e) => {

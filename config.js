@@ -2,7 +2,7 @@
 // Full monetization guide: MONETIZATION.md
 window.WEALTHIA_CONFIG = {
   API_URL: "https://merge-arena-api.onrender.com",
-  GAME_URL: "https://wealthia.github.io/wealthia/merge-arena/app/?v=35",
+  GAME_URL: "https://wealthia.github.io/wealthia/merge-arena/app/?v=36",
   ADMIN_URL: "https://wealthia.github.io/wealthia/admin.html",
 
   // Your bot username without @ — used for invite links
