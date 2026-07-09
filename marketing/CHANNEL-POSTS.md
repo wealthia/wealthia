@@ -24,10 +24,10 @@ Copy and paste into your channel. Replace `[PLACEHOLDERS]`.
 ## Post 2 — Referral campaign
 
 ```
-👥 Invite a friend — you both earn +500 Wealth Coins!
+👥 Invite a friend — you get +2,000 Wealth Coins, they get +1,000!
 
 1️⃣ Open the game
-2️⃣ Go to Friends → Copy Invite Link
+2️⃣ Go to Friends → Share invite in Telegram
 3️⃣ Friend joins via your link
 4️⃣ Automatic reward!
 
@@ -112,7 +112,7 @@ Tap races with coin prizes:
 
 Prepare now:
 📺 Watch ads in Earn tab
-👥 Invite friends → +500 coins
+👥 Invite friends → +2,000 coins
 
 🎮 Play: https://t.me/[BOT_USERNAME]
 📢 Channel: https://t.me/[CHANNEL_USERNAME]

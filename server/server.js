@@ -109,8 +109,15 @@ const CONNECTION_ERROR_MESSAGE =
 let resolvedOfficialChannelChatId = "";
 let resolvedOfficialChannelUrl = "";
 const BOOST_DURATION_MS = 30 * 60 * 1000;
-const REFERRAL_BONUS = 500;
+const REFERRAL_BONUS = Math.max(0, Number(process.env.REFERRAL_BONUS) || 2000);
+const REFERRED_PLAYER_BONUS = Math.max(0, Number(process.env.REFERRED_PLAYER_BONUS) || 1000);
 const NEW_PLAYER_BONUS = 100;
+const REFERRAL_MILESTONES = Object.freeze({
+  1: 1500,
+  3: 5000,
+  5: 15000,
+  10: 50000
+});
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
 const AD_REWARD_COOLDOWN_MS = 60 * 1000;
 const BONUS_AD_REWARD_COOLDOWN_MS = 60 * 1000;
@@ -413,7 +420,7 @@ async function notifyReferrerQualified(referrerId, referredUserId = "") {
     chat_id: Number(referrer),
     text:
       "🎉 Your friend joined Wealthia through your invite link!\n\n" +
-      "+500 Wealth Coins added. Open the game → Friends tab to see your progress."
+      `+${REFERRAL_BONUS.toLocaleString("en-US")} Wealth Coins added. Open the game → Friends tab to invite more.`
   });
 
   if (!safe.ok) {
@@ -1875,38 +1882,73 @@ async function isOfficialChannelMember(telegramId) {
   return Boolean(check.isMember);
 }
 
-async function creditReferrerCoins(referrerId) {
-  const referrer = String(referrerId || "");
-  if (!referrer) return false;
+async function creditGameCoins(userId, amount, options = {}) {
+  const id = String(userId || "");
+  const bonus = Math.max(0, number(amount));
+  if (!id || !bonus) return false;
 
-  await tapPipeline.flushUser(referrer, tapHelpers);
+  await tapPipeline.flushUser(id, tapHelpers);
 
-  const { data: refRow } = await supabase
+  const { data: row } = await supabase
     .from("game_states")
     .select("*")
-    .eq("user_id", referrer)
+    .eq("user_id", id)
     .maybeSingle();
 
-  if (!refRow) return false;
+  if (!row) return false;
 
-  const bonus = REFERRAL_BONUS;
+  const patch = {
+    coins: number(row.coins) + bonus,
+    city_value: number(row.coins) + bonus + number(row.spent),
+    updated_at: new Date().toISOString()
+  };
+
+  if (options.inviteDone) {
+    patch.invite_done = true;
+  }
 
   const { data } = await supabase
     .from("game_states")
-    .update({
-      coins: number(refRow.coins) + bonus,
-      city_value: number(refRow.coins) + bonus + number(refRow.spent),
-      invite_done: true,
-      updated_at: new Date().toISOString()
-    })
-    .eq("user_id", referrer)
+    .update(patch)
+    .eq("user_id", id)
     .select("*")
     .single();
 
   if (!data) return false;
 
-  syncTapCache(referrer, data);
+  syncTapCache(id, data);
   return true;
+}
+
+async function creditReferrerCoins(referrerId) {
+  return creditGameCoins(referrerId, REFERRAL_BONUS, { inviteDone: true });
+}
+
+async function creditReferredPlayerBonus(referredUserId) {
+  return creditGameCoins(referredUserId, REFERRED_PLAYER_BONUS);
+}
+
+async function creditReferralMilestone(referrerId, referralCount) {
+  const bonus = Number(REFERRAL_MILESTONES[Number(referralCount)] || 0);
+  if (!bonus) return 0;
+
+  const credited = await creditGameCoins(referrerId, bonus);
+  if (!credited) return 0;
+
+  await logMetric("referral_milestone", bonus, `count=${referralCount}`, {
+    userId: String(referrerId || "")
+  });
+
+  if (TELEGRAM_BOT_TOKEN && referrerId) {
+    await telegramApiSafe("sendMessage", {
+      chat_id: Number(referrerId),
+      text:
+        `🏆 Invite milestone unlocked: ${referralCount} friend${referralCount === 1 ? "" : "s"}!\n\n` +
+        `+${bonus.toLocaleString("en-US")} Wealth Coins added. Keep sharing from the Friends tab.`
+    });
+  }
+
+  return bonus;
 }
 
 async function registerQualifiedReferral(referrerId, newUserId, options = {}) {
@@ -1964,6 +2006,7 @@ async function qualifyReferralIfPending(referredUserId, options = {}) {
   if (!updatedRows || !updatedRows.length) return false;
 
   const coinsCredited = await creditReferrerCoins(referrer);
+  await creditReferredPlayerBonus(referred);
 
   const qualifiedCount = await getReferralCount(referrer);
   await supabase
@@ -1975,6 +2018,7 @@ async function qualifyReferralIfPending(referredUserId, options = {}) {
 
   if (coinsCredited) {
     await notifyReferrerQualified(referrer, referred);
+    await creditReferralMilestone(referrer, qualifiedCount);
   }
 
   return true;
@@ -2043,6 +2087,7 @@ async function recordReferral(referrerId, referredUserId, options = {}) {
 
   if (status === REFERRAL_STATUS_QUALIFIED) {
     const coinsCredited = await creditReferrerCoins(referrer);
+    await creditReferredPlayerBonus(referred);
 
     const qualifiedCount = await getReferralCount(referrer);
     await supabase
@@ -2054,6 +2099,7 @@ async function recordReferral(referrerId, referredUserId, options = {}) {
 
     if (coinsCredited) {
       await notifyReferrerQualified(referrer, referred);
+      await creditReferralMilestone(referrer, qualifiedCount);
     }
   }
 
