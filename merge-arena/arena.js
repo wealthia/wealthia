@@ -1201,6 +1201,14 @@
     }
   }
 
+  let fitTimer = null;
+  let lastFitKey = "";
+
+  function scheduleFit(force = false) {
+    clearTimeout(fitTimer);
+    fitTimer = setTimeout(() => fitBoard(force), 80);
+  }
+
   function fitViewport() {
     const tg = window.Telegram && window.Telegram.WebApp;
     const h = Math.round(
@@ -1213,27 +1221,31 @@
     if (h > 0) {
       document.documentElement.style.setProperty("--app-h", `${h}px`);
     }
-    fitBoard();
+    scheduleFit();
   }
 
-  function fitBoard() {
+  function fitBoard(force = false) {
     const wrap = els.board && els.board.parentElement;
     if (!wrap || !els.board) return;
+    // Only size the play board when play view is visible
+    const play = document.getElementById("view-play");
+    if (play && play.hidden) return;
     const app = document.getElementById("app");
     const dock = document.querySelector(".dock");
     const actions = document.querySelector(".play-actions");
     const hud = document.querySelector(".hud");
+    const hudSub = document.querySelector(".hud-sub");
     const wave = document.querySelector(".wave-bar");
     const hint = document.getElementById("boardHint");
     const strip = document.getElementById("unitStrip");
     const buddy = document.getElementById("arenaBuddy");
     const clash = document.getElementById("clashPanel");
     const appH = app ? app.clientHeight : window.innerHeight;
-    // Bottom controls get priority; board stays compact
     const reserved =
       (dock ? Math.max(dock.offsetHeight, 52) : 52) +
       (actions ? Math.max(actions.offsetHeight, 56) : 56) +
       (hud ? hud.offsetHeight : 30) +
+      (hudSub ? hudSub.offsetHeight : 0) +
       (wave ? wave.offsetHeight : 36) +
       (hint ? Math.max(hint.offsetHeight, 18) : 18) +
       (strip ? Math.max(strip.offsetHeight || 48, 48) : 48) +
@@ -1243,13 +1255,14 @@
     const appW = app ? app.clientWidth : window.innerWidth;
     const styles = window.getComputedStyle(wrap);
     const padX = (parseFloat(styles.paddingLeft) || 0) + (parseFloat(styles.paddingRight) || 0);
-    const padY = (parseFloat(styles.paddingTop) || 0) + (parseFloat(styles.paddingBottom) || 0);
     const availW = Math.max(160, Math.min(appW - 28, (wrap.parentElement ? wrap.parentElement.clientWidth : appW) - 8) - padX);
     const fromViewport = Math.max(140, appH - reserved);
     if (availW < 40) return;
-    // Hard cap ~30% of height so clash panel stays visible
     const maxBoard = Math.floor(appH * 0.3);
     const size = Math.floor(Math.min(availW, fromViewport, maxBoard));
+    const key = `${size}x${padX}`;
+    if (!force && key === lastFitKey) return;
+    lastFitKey = key;
     els.board.style.width = `${size}px`;
     els.board.style.height = `${size}px`;
     els.board.style.maxWidth = "100%";
@@ -1279,6 +1292,7 @@
   }
 
   function switchView(name) {
+    // Switch tabs first so UI feels instant even if a render is heavy
     document.querySelectorAll(".view").forEach((view) => {
       const active = view.dataset.view === name;
       view.classList.toggle("is-active", active);
@@ -1287,15 +1301,15 @@
     document.querySelectorAll(".dock__item").forEach((btn) => {
       btn.classList.toggle("is-active", btn.dataset.nav === name);
     });
-    if (name === "roster") renderRoster();
-    if (name === "ranks") {
-      renderRankPage();
-    }
-    if (name === "rank") {
-      renderGlory();
-      loadLeaderboard();
-    }
-    if (name === "play") requestAnimationFrame(fitBoard);
+    requestAnimationFrame(() => {
+      if (name === "roster") renderRoster();
+      if (name === "ranks") renderRankPage();
+      if (name === "rank") {
+        renderGlory();
+        loadLeaderboard();
+      }
+      if (name === "play") scheduleFit(true);
+    });
   }
 
   function renderHud() {
@@ -1382,7 +1396,6 @@
         node.dataset.vibe = def.vibe || "zap";
         node.dataset.hero = def.id;
         node.dataset.index = String(i);
-        node.style.animationDelay = `${(i % 4) * 0.08}s, ${(i % 5) * 0.18}s`;
         node.innerHTML = `
           <span class="unit__lvl">L${unit.level}</span>
           <div class="unit__stage">
@@ -1403,7 +1416,7 @@
     renderClash();
     renderHud();
     applyArenaTheme();
-    requestAnimationFrame(fitBoard);
+    scheduleFit();
   }
 
   function renderClash() {
