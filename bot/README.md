@@ -1,52 +1,29 @@
 # MERGE ARENA Telegram Bot
 
-## Setup (5 minutes)
+## Setup
 
-### 1. Create bot via BotFather
-1. Open **@BotFather** in Telegram
-2. Send `/newbot`
-3. Name: `MERGE ARENA`
-4. Username: your unique bot name
-5. Copy the **token**
-
-### 2. Connect Mini App (Menu Button)
-BotFather:
+### 1. BotFather
+1. Open **@BotFather**
+2. `/mybots` → `@MergeArenaBot`
+3. Menu Button / Mini App URL:
 ```
-/mybots → your bot → Bot Settings → Menu Button → Configure
-```
-URL:
-```
-https://wealthia.github.io/wealthia/merge-arena/
+https://wealthia.github.io/wealthia/merge-arena/app/?v=47
 ```
 
-Or set Web App:
-```
-/mybots → your bot → Bot Settings → Configure Mini App
-```
-Same URL.
+### 2. Render worker / API
+Environment:
+- `TELEGRAM_BOT_TOKEN` — MergeArenaBot token
+- `WEBAPP_URL` — `https://wealthia.github.io/wealthia/merge-arena/app/?v=47`
+- `BOT_USERNAME` — `MergeArenaBot`
+- `PLAY_BUTTON_TEXT` — `Play MERGE ARENA`
+- `DISABLE_BOT_POLLING` — `false` (needed for `/start` welcome)
 
-### 3. Run the bot
+### 3. Test
+Send `/start` to `@MergeArenaBot`.
 
-**On Render (recommended):**
-- Worker service: `wealthia-bot` (see `render.yaml`)
-- Environment variables:
-  - `TELEGRAM_BOT_TOKEN` — from BotFather
-  - `WEBAPP_URL` — `https://wealthia.github.io/wealthia/merge-arena/`
-  - `BOT_USERNAME` — your bot username without @
-  - `CHANNEL_URL` — `https://t.me/your_channel` (optional)
+You should see:
+- English welcome explaining the game
+- **Play MERGE ARENA** button (opens the mini app)
+- How to play / Invite / Channel buttons
 
-**Locally:**
-```bash
-cd bot
-cp .env.example .env
-# edit .env with your token
-npm start
-```
-
-### 4. Test
-Send `/start` to your bot — Play button should open MERGE ARENA.
-
-Commands: `/start` `/play` `/channel` `/help`
-
-## Live game
-https://wealthia.github.io/wealthia/merge-arena/
+Commands: `/start` `/play` `/help`

@@ -30,9 +30,13 @@ services:
       - key: STARS_USE_POLLING
         value: "true"
       - key: WEBAPP_URL
-        value: https://wealthia.github.io/wealthia/merge-arena/app/?v=38
+        value: https://wealthia.github.io/wealthia/merge-arena/app/?v=47
       - key: CHANNEL_URL
         value: https://t.me/weathia_official
+      - key: BOT_USERNAME
+        value: MergeArenaBot
+      - key: PLAY_BUTTON_TEXT
+        value: Play MERGE ARENA
       - key: OFFICIAL_CHANNEL_USERNAME
         value: "@weathia_official"
       - key: OFFICIAL_CHANNEL_URL
@@ -62,9 +66,9 @@ services:
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: WEBAPP_URL
-        value: https://wealthia.github.io/wealthia/merge-arena/app/?v=38
+        value: https://wealthia.github.io/wealthia/merge-arena/app/?v=47
       - key: BOT_USERNAME
-        value: WealthiaGameBot
+        value: MergeArenaBot
       - key: CHANNEL_URL
         value: https://t.me/weathia_official
       - key: OFFICIAL_CHANNEL_USERNAME
@@ -72,10 +76,12 @@ services:
       - key: OFFICIAL_CHANNEL_URL
         value: https://t.me/weathia_official
       - key: BACKEND_URL
-        value: https://wealthia-backend.onrender.com
+        value: https://merge-arena-api.onrender.com
       - key: STARS_WEBHOOK_SECRET
         sync: false
       - key: DISABLE_BOT_POLLING
-        value: "true"
+        value: "false"
       - key: OWNER_TELEGRAM_ID
         sync: false
+      - key: PLAY_BUTTON_TEXT
+        value: Play MERGE ARENA

@@ -598,4 +598,10 @@ app.listen(port, () => {
   syncBotMenuButton().then((result) => {
     if (!result.ok) console.warn("Boot menu sync failed:", result.error);
   });
+  try {
+    const { startWelcomePolling } = require("./bot-welcome");
+    startWelcomePolling();
+  } catch (error) {
+    console.warn("Bot welcome polling skipped:", error.message);
+  }
 });

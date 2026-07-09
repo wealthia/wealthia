@@ -1,6 +1,7 @@
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
-const WEBAPP_URL = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/merge-arena/app/?v=38";
-const BACKEND_URL = process.env.BACKEND_URL || "https://wealthia-backend.onrender.com";
+const WEBAPP_URL =
+  process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/merge-arena/app/?v=47";
+const BACKEND_URL = process.env.BACKEND_URL || "https://merge-arena-api.onrender.com";
 const STARS_WEBHOOK_SECRET = process.env.STARS_WEBHOOK_SECRET || process.env.ADMIN_SECRET || "";
 const CRON_SECRET = process.env.CRON_SECRET || STARS_WEBHOOK_SECRET || "";
 const ENABLE_DAILY_PUSH = process.env.ENABLE_DAILY_PUSH === "true";
@@ -10,6 +11,7 @@ const telegramStars = require("../server/telegram-stars");
 const {
   apiSafe,
   handleBotMessage,
+  handleBotCallbackQuery,
   setupBotProfile,
   PLAY_BUTTON_TEXT
 } = require("./commands");
@@ -164,10 +166,12 @@ async function handleMessage(message) {
   const chatId = message.chat.id;
   await api("sendMessage", {
     chat_id: chatId,
-    text: "Use /start to play Wealthia.",
+    text:
+      "Welcome to MERGE ARENA.\n\nTap Play to fuse heroes, fight arenas, and climb the ranks.",
     reply_markup: {
       inline_keyboard: [[{ text: PLAY_BUTTON_TEXT, web_app: { url: WEBAPP_URL } }]]
-    }
+    },
+    disable_web_page_preview: true
   });
 }
 
@@ -176,7 +180,7 @@ async function poll() {
     const updates = await api("getUpdates", {
       offset,
       timeout: 30,
-      allowed_updates: ["message", "pre_checkout_query"]
+      allowed_updates: ["message", "callback_query", "pre_checkout_query"]
     });
 
     for (const update of updates) {
@@ -184,6 +188,14 @@ async function poll() {
 
       if (update.pre_checkout_query) {
         await handlePreCheckout(update.pre_checkout_query);
+      }
+
+      if (update.callback_query) {
+        try {
+          await handleBotCallbackQuery(update.callback_query, { telegramApiSafe: apiSafe });
+        } catch (error) {
+          console.warn("Callback error:", error.message);
+        }
       }
 
       if (update.message) {
