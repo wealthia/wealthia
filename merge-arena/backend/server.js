@@ -10,7 +10,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 // Hard pin so stale Render env cannot keep Telegram on an old cached URL.
-const WEBAPP_URL = "https://wealthia.github.io/wealthia/merge-arena/app/?v=47";
+const WEBAPP_URL = "https://wealthia.github.io/wealthia/merge-arena/app/?v=48";
 const PLAY_BUTTON_TEXT = process.env.PLAY_BUTTON_TEXT || "Play MERGE ARENA";
 const SESSION_SECRET =
   process.env.SESSION_SECRET || TELEGRAM_BOT_TOKEN || "merge-arena-dev-secret";
@@ -590,6 +590,14 @@ app.post("/api/merge-arena/state", requirePlayer, async (req, res) => {
       hint: error.hint || undefined
     });
   }
+});
+
+// AdsGram optional server callback (GET; [userId] replaced by AdsGram).
+// Client already grants energy on onReward; this endpoint just acknowledges.
+app.get("/api/adsgram/reward", (req, res) => {
+  const userId = String(req.query.userid || req.query.userId || "").trim();
+  if (userId) console.log("ADSGRAM_REWARD_PING:", userId);
+  res.status(200).type("text/plain").send("ok");
 });
 
 app.listen(port, () => {

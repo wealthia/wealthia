@@ -2,7 +2,7 @@
 // Full monetization guide: MONETIZATION.md
 window.WEALTHIA_CONFIG = {
   API_URL: "https://merge-arena-api.onrender.com",
-  GAME_URL: "https://wealthia.github.io/wealthia/merge-arena/app/?v=47",
+  GAME_URL: "https://wealthia.github.io/wealthia/merge-arena/app/?v=48",
   ADMIN_URL: "https://wealthia.github.io/wealthia/admin.html",
 
   // Your bot username without @ — used for invite links
@@ -13,11 +13,14 @@ window.WEALTHIA_CONFIG = {
 
   // AdsGram rewarded ads: https://partner.adsgram.ai
   // Setup guide: ADSGRAM-SETUP.md
-  // Leave empty for demo mode (no real ad revenue)
+  // MUST be Block IDs from a platform created for @MergeArenaBot (not WealthiaGameBot).
+  // Replace after you create Reward units on partner.adsgram.ai
   ADSGRAM_BLOCK_ID: "37147",
-  // Production bonus block — update when created on Production platform
   ADSGRAM_BONUS_BLOCK_ID: "37148",
   ADSGRAM_DEBUG: false,
+  // true = allow free energy confirm when AdsGram has no fill (dev / pending moderation)
+  // set false once Production ads fill so players must watch ads
+  ADSGRAM_ALLOW_SOFT_GRANT: true,
   // Repeatable every 1 minute (server: AD_REWARD_COOLDOWN_MS)
   AD_REWARD_COOLDOWN_MINUTES: 1,
   AD_REWARD: 1500,

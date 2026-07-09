@@ -1,6 +1,6 @@
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const WEBAPP_URL =
-  process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/merge-arena/app/?v=47";
+  process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/merge-arena/app/?v=48";
 const BACKEND_URL = process.env.BACKEND_URL || "https://merge-arena-api.onrender.com";
 const STARS_WEBHOOK_SECRET = process.env.STARS_WEBHOOK_SECRET || process.env.ADMIN_SECRET || "";
 const CRON_SECRET = process.env.CRON_SECRET || STARS_WEBHOOK_SECRET || "";
