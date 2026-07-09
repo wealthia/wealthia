@@ -295,7 +295,6 @@
       renderGlory();
       if (saved) {
         setCloudStatus("on", "ok");
-        showToast("Cloud save on");
       }
     } catch (error) {
       setCloudStatus("err", "bad");
@@ -305,10 +304,16 @@
   }
 
   function setCloudStatus(text, kind) {
-    if (els.cloudValue) els.cloudValue.textContent = text;
+    const short =
+      text === "on" ? "●" :
+      text === "off" || text === "err" || text === "save✗" ? "!" :
+      text === "local" ? "L" :
+      text === "auth…" || text === "…" || text === "…" ? "·" :
+      "·";
+    if (els.cloudValue) els.cloudValue.textContent = short;
     if (els.cloudChip) {
       els.cloudChip.dataset.kind = kind || "";
-      els.cloudChip.title = text;
+      els.cloudChip.title = `Cloud: ${text}`;
     }
   }
 
