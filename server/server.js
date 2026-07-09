@@ -118,6 +118,20 @@ const REFERRAL_MILESTONES = Object.freeze({
   5: 15000,
   10: 50000
 });
+function referralRewardConfig() {
+  return {
+    referrerBonus: REFERRAL_BONUS,
+    referredPlayerBonus: REFERRED_PLAYER_BONUS,
+    milestones: REFERRAL_MILESTONES
+  };
+}
+
+function earnedReferralMilestoneTotal(referralCount) {
+  const count = number(referralCount);
+  return Object.entries(REFERRAL_MILESTONES).reduce((total, [threshold, bonus]) => (
+    count >= Number(threshold) ? total + number(bonus) : total
+  ), 0);
+}
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
 const AD_REWARD_COOLDOWN_MS = 60 * 1000;
 const BONUS_AD_REWARD_COOLDOWN_MS = 60 * 1000;
@@ -1857,7 +1871,9 @@ function toClientUser(row, extra = {}) {
         count: referralCount,
         friendsInvited: referralCount,
         required: DAILY_PRIZE_MIN_REFERRALS,
-        eligible: dailyPrizeEligible(referralCount)
+        eligible: dailyPrizeEligible(referralCount),
+        earnedMilestoneRewards: earnedReferralMilestoneTotal(referralCount),
+        rewards: referralRewardConfig()
       }
     }
   };
@@ -1920,6 +1936,40 @@ async function creditGameCoins(userId, amount, options = {}) {
   return true;
 }
 
+async function debitGameCoins(userId, amount) {
+  const id = String(userId || "");
+  const debit = Math.max(0, number(amount));
+  if (!id || !debit) return false;
+
+  await tapPipeline.flushUser(id, tapHelpers);
+
+  const { data: row } = await supabase
+    .from("game_states")
+    .select("*")
+    .eq("user_id", id)
+    .maybeSingle();
+
+  if (!row) return false;
+
+  const coins = Math.max(0, number(row.coins) - debit);
+  const { data } = await supabase
+    .from("game_states")
+    .update({
+      coins,
+      city_value: coins + number(row.spent),
+      updated_at: new Date().toISOString()
+    })
+    .eq("user_id", id)
+    .select("*")
+    .single();
+
+  if (data) {
+    syncTapCache(id, data);
+  }
+
+  return Boolean(data);
+}
+
 async function creditReferrerCoins(referrerId) {
   return creditGameCoins(referrerId, REFERRAL_BONUS, { inviteDone: true });
 }
@@ -1928,14 +1978,33 @@ async function creditReferredPlayerBonus(referredUserId) {
   return creditGameCoins(referredUserId, REFERRED_PLAYER_BONUS);
 }
 
+async function referralMilestoneAlreadyCredited(referrerId, referralCount) {
+  const referrer = String(referrerId || "");
+  const milestone = Number(referralCount);
+  if (!referrer || !milestone) return true;
+
+  const { data, error } = await supabase
+    .from("admin_metrics")
+    .select("id")
+    .eq("metric_type", "referral_milestone")
+    .eq("user_id", referrer)
+    .eq("notes", `count=${milestone}`)
+    .limit(1);
+
+  if (error) throw error;
+  return Boolean(data && data.length);
+}
+
 async function creditReferralMilestone(referrerId, referralCount) {
-  const bonus = Number(REFERRAL_MILESTONES[Number(referralCount)] || 0);
+  const milestone = Number(referralCount);
+  const bonus = Number(REFERRAL_MILESTONES[milestone] || 0);
   if (!bonus) return 0;
+  if (await referralMilestoneAlreadyCredited(referrerId, milestone)) return 0;
 
   const credited = await creditGameCoins(referrerId, bonus);
   if (!credited) return 0;
 
-  await logMetric("referral_milestone", bonus, `count=${referralCount}`, {
+  await logMetric("referral_milestone", bonus, `count=${milestone}`, {
     userId: String(referrerId || "")
   });
 
@@ -1943,12 +2012,25 @@ async function creditReferralMilestone(referrerId, referralCount) {
     await telegramApiSafe("sendMessage", {
       chat_id: Number(referrerId),
       text:
-        `🏆 Invite milestone unlocked: ${referralCount} friend${referralCount === 1 ? "" : "s"}!\n\n` +
+        `🏆 Invite milestone unlocked: ${milestone} friend${milestone === 1 ? "" : "s"}!\n\n` +
         `+${bonus.toLocaleString("en-US")} Wealth Coins added. Keep sharing from the Friends tab.`
     });
   }
 
   return bonus;
+}
+
+async function creditPendingReferralMilestones(referrerId, referralCount) {
+  const count = number(referralCount);
+  let credited = 0;
+
+  for (const threshold of Object.keys(REFERRAL_MILESTONES).map(Number).sort((a, b) => a - b)) {
+    if (count >= threshold) {
+      credited += await creditReferralMilestone(referrerId, threshold);
+    }
+  }
+
+  return credited;
 }
 
 async function registerQualifiedReferral(referrerId, newUserId, options = {}) {
@@ -2018,8 +2100,8 @@ async function qualifyReferralIfPending(referredUserId, options = {}) {
 
   if (coinsCredited) {
     await notifyReferrerQualified(referrer, referred);
-    await creditReferralMilestone(referrer, qualifiedCount);
   }
+  await creditPendingReferralMilestones(referrer, qualifiedCount);
 
   return true;
 }
@@ -2099,8 +2181,8 @@ async function recordReferral(referrerId, referredUserId, options = {}) {
 
     if (coinsCredited) {
       await notifyReferrerQualified(referrer, referred);
-      await creditReferralMilestone(referrer, qualifiedCount);
     }
+    await creditPendingReferralMilestones(referrer, qualifiedCount);
   }
 
   return true;
@@ -2144,6 +2226,7 @@ async function buildReferralsAnalytics() {
     .map(([id]) => id);
 
   const userMap = new Map();
+  const milestoneRewardsByReferrer = new Map();
   if (referrerIds.length) {
     const { data: users, error: usersError } = await supabase
       .from("users")
@@ -2154,6 +2237,23 @@ async function buildReferralsAnalytics() {
 
     for (const user of users || []) {
       userMap.set(String(user.id), user);
+    }
+
+    const { data: milestoneRows, error: milestoneError } = await supabase
+      .from("admin_metrics")
+      .select("user_id, amount")
+      .eq("metric_type", "referral_milestone")
+      .in("user_id", referrerIds);
+
+    if (milestoneError && milestoneError.code !== "PGRST205") throw milestoneError;
+
+    for (const row of milestoneRows || []) {
+      const userId = String(row.user_id || "");
+      if (!userId) continue;
+      milestoneRewardsByReferrer.set(
+        userId,
+        number(milestoneRewardsByReferrer.get(userId)) + number(row.amount)
+      );
     }
   }
 
@@ -2166,7 +2266,9 @@ async function buildReferralsAnalytics() {
         username: String(user.username || ""),
         displayName: String(user.first_name || "Player"),
         referralCount,
-        totalRewardsDistributed: referralCount * REFERRAL_BONUS,
+        totalRewardsDistributed:
+          referralCount * (REFERRAL_BONUS + REFERRED_PLAYER_BONUS) +
+          number(milestoneRewardsByReferrer.get(telegramId)),
         status: user.is_banned ? "banned" : "active"
       };
     })
@@ -2624,31 +2726,7 @@ async function revokeReferralReward(referrerId) {
   const referrer = String(referrerId || "");
   if (!referrer) return false;
 
-  await tapPipeline.flushUser(referrer, tapHelpers);
-
-  const { data: refRow } = await supabase
-    .from("game_states")
-    .select("*")
-    .eq("user_id", referrer)
-    .maybeSingle();
-
-  if (!refRow) return false;
-
-  const coins = Math.max(0, number(refRow.coins) - REFERRAL_BONUS);
-  const { data } = await supabase
-    .from("game_states")
-    .update({
-      coins,
-      city_value: coins + number(refRow.spent),
-      updated_at: new Date().toISOString()
-    })
-    .eq("user_id", referrer)
-    .select("*")
-    .single();
-
-  if (data) {
-    syncTapCache(referrer, data);
-  }
+  const revoked = await debitGameCoins(referrer, REFERRAL_BONUS);
 
   const qualifiedCount = await getReferralCount(referrer);
   await supabase
@@ -2656,7 +2734,7 @@ async function revokeReferralReward(referrerId) {
     .update({ referral_count: qualifiedCount })
     .eq("id", referrer);
 
-  return true;
+  return revoked;
 }
 
 async function clearReferralForReferredUser(telegramId) {
@@ -2682,8 +2760,11 @@ async function clearReferralForReferredUser(telegramId) {
 
   if (deleteError) throw deleteError;
 
-  if (wasQualified && referrerId) {
-    await revokeReferralReward(referrerId);
+  if (wasQualified) {
+    if (referrerId) {
+      await revokeReferralReward(referrerId);
+    }
+    await debitGameCoins(referred, REFERRED_PLAYER_BONUS);
   }
 
   await supabase
@@ -2894,6 +2975,14 @@ async function completePlayerSession(telegramUser, referrerId = "") {
     referralCount = await syncStoredReferralCount(telegramId);
   } catch (countError) {
     console.warn("REFERRAL_COUNT_FAILED:", countError.message);
+  }
+
+  if (referralCount > 0) {
+    try {
+      await creditPendingReferralMilestones(telegramId, referralCount);
+    } catch (milestoneError) {
+      console.warn("REFERRAL_MILESTONE_CATCHUP_FAILED:", milestoneError.message);
+    }
   }
 
   const responseRow = await tapPipeline.getLiveRow(telegramId, row, tapHelpers);

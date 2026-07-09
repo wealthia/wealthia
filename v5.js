@@ -61,6 +61,16 @@ const PREMIUM_WHEEL_DECEL_MS = 4500;
 const PREMIUM_WHEEL_WIN_MODAL_DELAY_MS = 500;
 const PREMIUM_WHEEL_EXTRA_ROTATION_DEG = 1800;
 const SUPPORT_TELEGRAM_URL = CONFIG.SUPPORT_TELEGRAM_URL || "https://t.me/WealthiaGameBot";
+const DEFAULT_REFERRAL_REWARDS = {
+  referrerBonus: 2000,
+  referredPlayerBonus: 1000,
+  milestones: {
+    1: 1500,
+    3: 5000,
+    5: 15000,
+    10: 50000
+  }
+};
 
 const COIN_STORE_PACKS = Array.isArray(CONFIG.COIN_STORE_PACKS) && CONFIG.COIN_STORE_PACKS.length
   ? CONFIG.COIN_STORE_PACKS
@@ -152,11 +162,31 @@ const defaultState = {
   referrals: {
     count: 0,
     required: 3,
-    eligible: false
+    eligible: false,
+    earnedMilestoneRewards: 0,
+    rewards: CONFIG.REFERRAL_REWARDS || DEFAULT_REFERRAL_REWARDS
   }
 };
 
 let state = loadState();
+
+function getReferralRewards() {
+  const rewards = state.referrals?.rewards || CONFIG.REFERRAL_REWARDS || {};
+  return {
+    referrerBonus: Number(
+      rewards.referrerBonus ?? rewards.perInvite ?? DEFAULT_REFERRAL_REWARDS.referrerBonus
+    ),
+    referredPlayerBonus: Number(rewards.referredPlayerBonus ?? DEFAULT_REFERRAL_REWARDS.referredPlayerBonus),
+    milestones: rewards.milestones || DEFAULT_REFERRAL_REWARDS.milestones
+  };
+}
+
+function earnedReferralMilestoneTotal(referralCount, rewards = getReferralRewards()) {
+  const count = Number(referralCount || 0);
+  return Object.entries(rewards.milestones || {}).reduce((total, [threshold, bonus]) => (
+    count >= Number(threshold) ? total + Number(bonus || 0) : total
+  ), 0);
+}
 
 const els = {
   coins: document.getElementById("coins"),
@@ -2311,8 +2341,11 @@ function renderFriendsPanel() {
   const referrals = dailyReferralCount || Number(state.referrals?.count || 0);
   const required = prize?.minReferrals || dailyReferralsRequired || 1;
   const eligible = isDailyPrizeEligible();
-  const perInvite = 2000;
-  const referralCoins = referrals * perInvite;
+  const rewards = getReferralRewards();
+  const perInvite = rewards.referrerBonus;
+  const referredBonus = rewards.referredPlayerBonus;
+  const referralCoins = referrals * perInvite +
+    Number(state.referrals?.earnedMilestoneRewards ?? earnedReferralMilestoneTotal(referrals, rewards));
   const link = getInviteLink();
   const progressPct = Math.min(100, Math.round((referrals / required) * 100));
   const timeLeft = dailyPrizeTimeLeft(dailyContestResetsAt || state.dailyContest?.resetsAt);
@@ -2369,7 +2402,7 @@ function renderFriendsPanel() {
     <article class="friends-tips">
       <p><strong>1.</strong> Tap <strong>Share invite in Telegram</strong> and pick a friend</p>
       <p><strong>2.</strong> They open the link and tap <strong>Play Wealthia</strong></p>
-      <p><strong>3.</strong> You get <strong>+${format(perInvite)}</strong> · they get <strong>+1,000</strong></p>
+      <p><strong>3.</strong> You get <strong>+${format(perInvite)}</strong> · they get <strong>+${format(referredBonus)}</strong></p>
       <p><strong>4.</strong> Milestones: 1 / 3 / 5 / 10 friends = extra coin bonuses</p>
     </article>
   `;
@@ -3230,10 +3263,16 @@ function syncFromBackend(user, options = {}) {
   }
 
   if (game.referrals) {
+    const referralCount = Number(game.referrals.count || 0);
+    const referralRewards = game.referrals.rewards || getReferralRewards();
     state.referrals = {
-      count: Number(game.referrals.count || 0),
+      count: referralCount,
       required: Number(game.referrals.required || 1),
-      eligible: Boolean(game.referrals.eligible)
+      eligible: Boolean(game.referrals.eligible),
+      earnedMilestoneRewards: Number(
+        game.referrals.earnedMilestoneRewards ?? earnedReferralMilestoneTotal(referralCount, referralRewards)
+      ),
+      rewards: referralRewards
     };
     dailyReferralCount = Number(game.referrals.count || 0);
     dailyReferralsRequired = Number(game.referrals.required || 1);
@@ -3537,7 +3576,9 @@ async function syncReferralProgress(options = {}) {
     saveState();
     render();
     if (result.referralQualified && !options.silent) {
-      showReferralQualifiedToast("Referral linked! Your inviter earned +2,000 coins.");
+      showReferralQualifiedToast(
+        `Referral linked! Your inviter earned +${format(getReferralRewards().referrerBonus)} coins.`
+      );
     }
     return true;
   }
