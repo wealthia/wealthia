@@ -1,5 +1,5 @@
 const WEBAPP_URL =
-  process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/merge-arena/app/?v=47";
+  process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/merge-arena/app/?v=48";
 const PLAY_BUTTON_TEXT = process.env.PLAY_BUTTON_TEXT || "Play MERGE ARENA";
 const BOT_USERNAME = process.env.BOT_USERNAME || "MergeArenaBot";
 const CHANNEL_URL =

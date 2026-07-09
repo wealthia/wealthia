@@ -19,13 +19,17 @@ Details: `bot/README.md`
 
 ## 2. AdsGram Ads (monetization)
 
+Full guide: **`ADSGRAM-SETUP.md`** (platform must be **@MergeArenaBot**, not WealthiaGameBot).
+
 1. Sign up at https://partner.adsgram.ai
-2. Create a Rewarded ad block and copy the block ID
-3. Edit `config.js`:
+2. Create Ad Platform for `@MergeArenaBot` (BotFather Direct Link + Web App URL + numeric Bot ID)
+3. Create 2 Reward units → copy Block IDs
+4. Edit `config.js`:
    ```js
    ADSGRAM_BLOCK_ID: "12345",
+   ADSGRAM_BONUS_BLOCK_ID: "67890",
    ```
-4. Push to GitHub → site updates automatically
+5. Push to GitHub → site updates automatically
 
 ---
 

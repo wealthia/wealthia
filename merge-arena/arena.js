@@ -1311,11 +1311,14 @@
 
       showToast("Opening ad…");
       let shown = await showRewardedAd(controller);
-      // Empty inventory / platform mismatch: don't soft-lock energy — grant once with notice.
+      // Empty inventory / platform mismatch while AdsGram is pending.
       if (!shown.ok && (shown.code === "nofill" || shown.code === "reject" || shown.code === "error")) {
-        // Same blockId returns the same controller, so a second debug init won't help.
-        // Soft-grant so scarce energy stays playable while AdsGram fill/platform is fixed.
         showToast(shown.reason || "No live ad fill");
+        const softOk = Boolean(cfg.ADSGRAM_ALLOW_SOFT_GRANT);
+        if (!softOk) {
+          showToast("Ads warming up — try again soon.");
+          return;
+        }
         const allowSoft = window.confirm(
           `${label}\n\nNo live ad right now.\nClaim +${gain}⚡ free this time?`
         );

@@ -65,23 +65,26 @@ Text: `Play Wealthia`
 
 ## 2. AdsGram — rewarded ads (main ad income)
 
+Full guide: **`ADSGRAM-SETUP.md`**. Platform must be created for **@MergeArenaBot**.
+
 ### Sign up
 1. Go to https://partner.adsgram.ai
-2. Create account → add your Telegram Mini App
-3. App URL: `https://wealthia.github.io/wealthia/merge-arena/`
-4. Create ad block type: **Rewarded**
+2. Create Ad Platform for `@MergeArenaBot`
+3. App URL: `https://wealthia.github.io/wealthia/merge-arena/app/`
+4. Create 2 Reward units (Watch & Charge + Quick Charge)
 
 ### Connect to game
-1. Copy your **Block ID** from AdsGram dashboard
+1. Copy both **Block IDs** from AdsGram dashboard
 2. Edit `config.js`:
    ```js
-   ADSGRAM_BLOCK_ID: "YOUR_BLOCK_ID_HERE",
+   ADSGRAM_BLOCK_ID: "YOUR_MAIN_BLOCK_ID",
+   ADSGRAM_BONUS_BLOCK_ID: "YOUR_BONUS_BLOCK_ID",
    ```
 3. Push to GitHub — game updates in ~1 minute
 
 ### How players see it
-- Game → **Earn** tab → **Rewarded Ad** → watch ad → +300 coins
-- Demo mode works without Block ID (no real money until connected)
+- Shop → **Watch & Charge** / **Quick Charge** → watch ad → +energy
+- Soft grant stays on until Production ads fill (`ADSGRAM_ALLOW_SOFT_GRANT`)
 
 ### Track income
 - AdsGram dashboard shows daily earnings

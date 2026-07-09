@@ -7,13 +7,13 @@
 2. `/mybots` → `@MergeArenaBot`
 3. Menu Button / Mini App URL:
 ```
-https://wealthia.github.io/wealthia/merge-arena/app/?v=47
+https://wealthia.github.io/wealthia/merge-arena/app/?v=48
 ```
 
 ### 2. Render worker / API
 Environment:
 - `TELEGRAM_BOT_TOKEN` — MergeArenaBot token
-- `WEBAPP_URL` — `https://wealthia.github.io/wealthia/merge-arena/app/?v=47`
+- `WEBAPP_URL` — `https://wealthia.github.io/wealthia/merge-arena/app/?v=48`
 - `BOT_USERNAME` — `MergeArenaBot`
 - `PLAY_BUTTON_TEXT` — `Play MERGE ARENA`
 - `DISABLE_BOT_POLLING` — `true` when merge-arena-api owns `/start` polling (default for this worker)
