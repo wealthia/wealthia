@@ -435,6 +435,9 @@
     els.heroBox.style.animation = "none";
     void els.heroBox.offsetWidth;
     els.heroBox.style.animation = "bob 0.6s ease 2";
+    window.setTimeout(() => {
+      els.heroBox.style.animation = "";
+    }, 1200);
 
     switchPanel("atelier");
   }
