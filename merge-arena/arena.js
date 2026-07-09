@@ -441,6 +441,7 @@
   function renderHud() {
     regenEnergy();
     els.energyValue.textContent = String(state.energy);
+    if (els.energyChip) els.energyChip.title = `Energy ${state.energy}/${ENERGY_MAX}`;
     els.gemValue.textContent = String(state.gems);
     els.trophyValue.textContent = String(state.trophies);
     els.waveTitle.textContent = `Arena ${state.wave}`;
