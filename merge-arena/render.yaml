@@ -16,4 +16,4 @@ services:
       - key: SESSION_SECRET
         sync: false
       - key: WEBAPP_URL
-        value: https://wealthia.github.io/wealthia/merge-arena/app/?v=45
+        value: https://wealthia.github.io/wealthia/merge-arena/app/?v=46

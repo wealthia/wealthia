@@ -8,8 +8,9 @@
   // Mid energy economy — playable sessions, still need Stars/gems to spam.
   const ENERGY_MAX = 14;
   const ENERGY_REGEN_MS = 150000; // 1⚡ every 2.5 minutes
-  const AD_ENERGY_GAIN = 3;
-  const AD_ENERGY_COOLDOWN_MS = 2 * 60 * 1000;
+  const AD_ENERGY_GAIN = 4;
+  const AD_BONUS_ENERGY_GAIN = 3;
+  const AD_ENERGY_COOLDOWN_MS = 60 * 1000; // 1 min — keep ads useful when energy is scarce
 
   // 50 heroes — commons fuel merges; rares/epics/legends carry late gates
   const UNIT_DEFS = [
@@ -261,6 +262,7 @@
     referredBy: "",
     referralClaimed: false,
     adLastClaimAt: 0,
+    adBonusLastClaimAt: 0,
     soundOn: true,
     discovered: ["spark", "blade"],
     board: Array(SIZE).fill(null),
@@ -403,6 +405,8 @@
   let syncing = false;
   let tutorialIndex = 0;
   let adsgramController = null;
+  let adsgramBonusController = null;
+  let adsInitTries = 0;
   let playerId = "";
   let audioCtx = null;
 
@@ -476,6 +480,9 @@
     battleFx: $("battleFx"),
     payNote: $("payNote"),
     adEnergyBtn: $("adEnergyBtn"),
+    adBonusBtn: $("adBonusBtn"),
+    adEnergyOffer: $("adEnergyOffer"),
+    adBonusOffer: $("adBonusOffer"),
     toast: $("toast"),
     battleModal: $("battleModal"),
     fighterYou: $("fighterYou"),
@@ -1075,50 +1082,105 @@
   function initAdsGram() {
     const cfg = window.WEALTHIA_CONFIG || {};
     const blockId = String(cfg.ADSGRAM_BLOCK_ID || "").trim();
-    if (!blockId || !window.Adsgram) return;
+    const bonusBlockId = String(cfg.ADSGRAM_BONUS_BLOCK_ID || blockId).trim();
+    if (!blockId) {
+      adsgramController = null;
+      adsgramBonusController = null;
+      return;
+    }
+    if (!window.Adsgram) {
+      // SDK still loading — retry a few times so Watch & Charge actually works.
+      if (adsInitTries < 12) {
+        adsInitTries += 1;
+        setTimeout(initAdsGram, 500);
+      }
+      return;
+    }
     try {
       adsgramController = window.Adsgram.init({
         blockId,
-        debug: Boolean(cfg.ADSGRAM_DEBUG)
+        debug: Boolean(cfg.ADSGRAM_DEBUG),
+        debugBannerType: "RewardedVideo"
       });
-    } catch {
+    } catch (error) {
+      console.warn("ADSGRAM_INIT_FAIL", error);
       adsgramController = null;
+    }
+    try {
+      adsgramBonusController = window.Adsgram.init({
+        blockId: bonusBlockId,
+        debug: Boolean(cfg.ADSGRAM_DEBUG),
+        debugBannerType: "RewardedVideo"
+      });
+    } catch (error) {
+      console.warn("ADSGRAM_BONUS_INIT_FAIL", error);
+      adsgramBonusController = null;
     }
   }
 
-  async function watchAdForEnergy() {
+  function adsReady(kind = "main") {
+    return kind === "bonus" ? Boolean(adsgramBonusController) : Boolean(adsgramController);
+  }
+
+  async function showRewardedAd(controller) {
+    if (!controller) return { ok: false, reason: "not_ready" };
+    try {
+      const result = await controller.show();
+      if (result && result.done) return { ok: true, result };
+      return {
+        ok: false,
+        reason: (result && result.description) || "Watch the full ad to charge."
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        reason: (error && error.description) || "Ad skipped or unavailable."
+      };
+    }
+  }
+
+  async function watchAdForEnergy(kind = "main") {
     const now = Date.now();
-    if (now - Number(state.adLastClaimAt || 0) < AD_ENERGY_COOLDOWN_MS) {
-      const left = Math.ceil((AD_ENERGY_COOLDOWN_MS - (now - Number(state.adLastClaimAt || 0))) / 60000);
-      showToast(`Ad cooldown — wait ~${Math.max(1, left)} min.`);
+    const cooldownKey = kind === "bonus" ? "adBonusLastClaimAt" : "adLastClaimAt";
+    const gain = kind === "bonus" ? AD_BONUS_ENERGY_GAIN : AD_ENERGY_GAIN;
+    const label = kind === "bonus" ? "Quick Charge" : "Watch & Charge";
+    if (now - Number(state[cooldownKey] || 0) < AD_ENERGY_COOLDOWN_MS) {
+      const leftSec = Math.ceil((AD_ENERGY_COOLDOWN_MS - (now - Number(state[cooldownKey] || 0))) / 1000);
+      showToast(`${label} cooldown — ${Math.max(1, leftSec)}s`);
       return;
     }
+
+    // Late SDK / first open: try init again before giving up.
+    if (!adsReady(kind)) initAdsGram();
+    const controller = kind === "bonus" ? adsgramBonusController : adsgramController;
+    const cfg = window.WEALTHIA_CONFIG || {};
+    const hasBlock = Boolean(String(cfg.ADSGRAM_BLOCK_ID || "").trim());
+
     let watched = false;
-    if (adsgramController) {
-      try {
-        const result = await adsgramController.show();
-        watched = Boolean(result && result.done);
-        if (!watched) {
-          showToast((result && result.description) || "Watch the full ad to charge.");
-          return;
-        }
-      } catch (error) {
-        showToast((error && error.description) || "Ad unavailable right now.");
+    if (controller) {
+      const shown = await showRewardedAd(controller);
+      if (!shown.ok) {
+        showToast(shown.reason || "Ad unavailable right now.");
         return;
       }
+      watched = true;
+    } else if (hasBlock) {
+      showToast("Ad loading — open in Telegram and tap again.");
+      setTimeout(initAdsGram, 300);
+      return;
     } else {
-      // Demo fallback when AdsGram block is missing / not ready
-      watched = window.confirm(`Demo ad complete?\n\nOK = grant +${AD_ENERGY_GAIN} energy`);
+      watched = window.confirm(`Demo ad complete?\n\nOK = grant +${gain} energy`);
       if (!watched) return;
     }
-    state.adLastClaimAt = now;
-    state.energy = Math.min(ENERGY_MAX, state.energy + AD_ENERGY_GAIN);
+
+    state[cooldownKey] = now;
+    state.energy = Math.min(ENERGY_MAX, state.energy + gain);
     state.lastEnergyAt = now;
     saveState();
     renderHud();
     playTone("claim");
     haptic("success");
-    showToast(`+${AD_ENERGY_GAIN} energy from Watch & Charge`);
+    showToast(`+${gain} ⚡ from ${label}`);
   }
 
   function isBossWave(wave) {
@@ -2218,17 +2280,17 @@
     if (won) {
       // Slow trophy drip so ranks take real climb sessions
       let trophyGain = 3 + Math.floor(wave * 0.9);
-      // Lean crystal drip — wins feel good, but Crystal Sip still needs Stars/gems buys
-      let gemGain = 5 + Math.floor(wave * 1.5);
+      // Flat crystal payout — every win feels the same (+20 base)
+      let gemGain = 20;
       if (boss) {
         trophyGain += 6;
-        gemGain += 14;
+        gemGain += 10;
         const ev = todayEvent();
         if (ev.bossGems) gemGain += ev.bossGems;
       }
       if (hard) {
         trophyGain += 10;
-        gemGain += 28;
+        gemGain += 15;
       }
       const ev = todayEvent();
       if (ev.gemMult) gemGain = Math.round(gemGain * ev.gemMult);
@@ -2329,7 +2391,7 @@
 
     const won = power >= rival;
     if (won) {
-      const gems = 8 + Math.floor(state.wave * 0.8);
+      const gems = 20;
       const trophies = 2 + Math.floor(state.wave / 5);
       state.ghostWins = Number(state.ghostWins || 0) + 1;
       state.gems += gems;
@@ -2410,7 +2472,11 @@
 
   function openPay(productId) {
     if (productId === "ad_energy") {
-      watchAdForEnergy();
+      watchAdForEnergy("main");
+      return;
+    }
+    if (productId === "ad_energy_bonus") {
+      watchAdForEnergy("bonus");
       return;
     }
     if (GEM_SHOP[productId]) {
@@ -2669,7 +2735,13 @@
     if (els.adEnergyBtn) {
       els.adEnergyBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        watchAdForEnergy();
+        watchAdForEnergy("main");
+      });
+    }
+    if (els.adBonusBtn) {
+      els.adBonusBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        watchAdForEnergy("bonus");
       });
     }
     if (els.soundToggle) {
@@ -2762,13 +2834,13 @@
     });
     const tag = document.getElementById("buildTag");
     if (tag) {
-      setTimeout(() => showToast(`Build ${tag.textContent} · admin reset`), 500);
+      setTimeout(() => showToast(`Build ${tag.textContent} · ads +20 gems`), 500);
     }
     if (state.dailyClaimDate !== todayKey()) {
       setTimeout(() => showToast("Daily Chest ready in Glory"), 1400);
     }
     if (state.energy <= 3) {
-      setTimeout(() => showToast("Energy scarce — Star Market or Crystal Sip."), 2200);
+      setTimeout(() => showToast("Energy low — Watch ads or Star Market."), 2200);
     }
   }
 

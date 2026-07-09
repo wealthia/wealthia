@@ -10,7 +10,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 // Hard pin so stale Render env cannot keep Telegram on an old cached URL.
-const WEBAPP_URL = "https://wealthia.github.io/wealthia/merge-arena/app/?v=45";
+const WEBAPP_URL = "https://wealthia.github.io/wealthia/merge-arena/app/?v=46";
 const PLAY_BUTTON_TEXT = process.env.PLAY_BUTTON_TEXT || "Play MERGE ARENA";
 const SESSION_SECRET =
   process.env.SESSION_SECRET || TELEGRAM_BOT_TOKEN || "merge-arena-dev-secret";
@@ -199,6 +199,7 @@ function freshArenaState(extra = {}) {
     referredBy: "",
     referralClaimed: false,
     adLastClaimAt: 0,
+    adBonusLastClaimAt: 0,
     soundOn: true,
     discovered: ["spark", "blade"],
     board: Array(16).fill(null),
@@ -240,6 +241,7 @@ function sanitizeState(input) {
     referredBy: String(raw.referredBy || "").slice(0, 32),
     referralClaimed: Boolean(raw.referralClaimed),
     adLastClaimAt: Math.max(0, Math.floor(Number(raw.adLastClaimAt) || 0)),
+    adBonusLastClaimAt: Math.max(0, Math.floor(Number(raw.adBonusLastClaimAt) || 0)),
     soundOn: raw.soundOn !== false,
     discovered: Array.isArray(raw.discovered) ? raw.discovered.map(String).slice(0, 64) : [],
     board,
