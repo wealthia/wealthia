@@ -375,28 +375,68 @@
     tutorialSkip: $("tutorialSkip")
   };
 
+  function normalizeState(raw) {
+    const base = defaultState();
+    const parsed = raw && typeof raw === "object" ? raw : {};
+    return {
+      ...base,
+      ...parsed,
+      board: Array.isArray(parsed.board) && parsed.board.length === SIZE
+        ? parsed.board
+        : base.board,
+      discovered: Array.isArray(parsed.discovered) ? parsed.discovered : base.discovered
+    };
+  }
+
+  function progressScore(s) {
+    if (!s || typeof s !== "object") return -1;
+    const units = Array.isArray(s.board) ? s.board.filter(Boolean).length : 0;
+    return (
+      Number(s.bestWave || 1) * 10000 +
+      Number(s.wave || 1) * 1000 +
+      Number(s.trophies || 0) * 3 +
+      Number(s.wins || 0) * 20 +
+      Number(s.merges || 0) * 2 +
+      units * 15 +
+      Number(s.gems || 0) * 0.01 +
+      Number(s.highestPower || 0) * 0.1
+    );
+  }
+
+  function pickRicherState(a, b) {
+    const left = normalizeState(a);
+    const right = normalizeState(b);
+    return progressScore(left) >= progressScore(right) ? left : right;
+  }
+
   function loadState() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return defaultState();
-      const parsed = JSON.parse(raw);
-      const base = defaultState();
-      return {
-        ...base,
-        ...parsed,
-        board: Array.isArray(parsed.board) && parsed.board.length === SIZE
-          ? parsed.board
-          : base.board,
-        discovered: Array.isArray(parsed.discovered) ? parsed.discovered : base.discovered
-      };
+      return normalizeState(JSON.parse(raw));
     } catch {
       return defaultState();
     }
   }
 
   function saveState() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (error) {
+      console.warn("MERGE_ARENA_LOCAL_SAVE_FAIL", error);
+    }
     queueCloudSave();
+  }
+
+  function flushSaveNow() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch {
+      /* ignore */
+    }
+    if (!cloudReady || !sessionToken) return;
+    clearTimeout(saveTimer);
+    pushCloudState().catch(() => {});
   }
 
   function getTelegramInitData() {
@@ -450,18 +490,18 @@
   }
 
   async function loadCloudState() {
+    const localSnapshot = normalizeState(state);
     const { ok, result } = await api("/api/merge-arena/state");
-    if (!ok || !result?.state) return false;
-    const remote = result.state;
-    const base = defaultState();
-    state = {
-      ...base,
-      ...remote,
-      board: Array.isArray(remote.board) && remote.board.length === SIZE
-        ? remote.board
-        : base.board,
-      discovered: Array.isArray(remote.discovered) ? remote.discovered : base.discovered
-    };
+    if (!ok) return false;
+    if (!result?.state) {
+      // No cloud row yet — keep local progress and upload it after connect.
+      state = localSnapshot;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      return true;
+    }
+    // Prefer whichever side has more real progress so a wiped/default cloud
+    // cannot erase a good local save (and vice versa).
+    state = pickRicherState(localSnapshot, result.state);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     return true;
   }
@@ -1929,6 +1969,11 @@
     if (window.visualViewport) {
       window.visualViewport.addEventListener("resize", fitViewport);
     }
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") flushSaveNow();
+    });
+    window.addEventListener("pagehide", flushSaveNow);
+    window.addEventListener("beforeunload", flushSaveNow);
     seedIfEmpty();
     bind();
     if (els.soundToggle) els.soundToggle.textContent = state.soundOn ? "🔊" : "🔇";
@@ -1947,7 +1992,7 @@
     });
     const tag = document.getElementById("buildTag");
     if (tag) {
-      setTimeout(() => showToast(`Build ${tag.textContent} · themes + bosses live`), 500);
+      setTimeout(() => showToast(`Build ${tag.textContent} · progress saves`), 500);
     }
     if (state.dailyClaimDate !== todayKey()) {
       setTimeout(() => showToast("Daily Chest ready in Glory"), 1400);
