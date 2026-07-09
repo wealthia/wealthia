@@ -15,7 +15,7 @@ Copy and paste into your channel. Replace `[PLACEHOLDERS]`.
 🏭 Factory for faster energy recovery
 🏆 Compete on the global leaderboard
 
-🎮 Play: https://wealthia.github.io/wealthia/v5.html
+🎮 Play: https://wealthia.github.io/wealthia/merge-arena/
 🤖 Bot: https://t.me/[BOT_USERNAME]
 ```
 
@@ -48,7 +48,7 @@ New missions every 12 hours:
 
 🎁 Daily Streak increases your bonus every day!
 
-👉 Play now: https://wealthia.github.io/wealthia/v5.html
+👉 Play now: https://wealthia.github.io/wealthia/merge-arena/
 ```
 
 ---
@@ -64,7 +64,7 @@ New missions every 12 hours:
 
 Where do you rank? Check the Rank tab!
 
-🎮 Play: https://wealthia.github.io/wealthia/v5.html
+🎮 Play: https://wealthia.github.io/wealthia/merge-arena/
 ```
 
 ---
@@ -81,7 +81,7 @@ This weekend only:
 
 Activate from the Earn tab!
 
-🎮 https://wealthia.github.io/wealthia/v5.html
+🎮 https://wealthia.github.io/wealthia/merge-arena/
 ```
 
 ---
@@ -129,7 +129,7 @@ Prepare now:
 📢 Join channel → +500 coins
 🤝 Partner tasks → +750 coins
 
-🎮 https://wealthia.github.io/wealthia/v5.html
+🎮 https://wealthia.github.io/wealthia/merge-arena/
 ```
 
 ---

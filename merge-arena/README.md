@@ -15,5 +15,15 @@ Telegram mini-app: combine heroes, grow power, win fights.
 - Power Boost — 35★
 - Gem Pack — 50★
 
-## Open
-- `https://wealthia.github.io/wealthia/merge-arena/`
+## Live links
+- Game: https://wealthia.github.io/wealthia/merge-arena/
+- Root redirect: https://wealthia.github.io/wealthia/
+
+## BotFather
+Menu Button / Mini App URL:
+```
+https://wealthia.github.io/wealthia/merge-arena/
+```
+
+## Render
+Set `WEBAPP_URL` to the same link (also in `render.yaml`).

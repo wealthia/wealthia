@@ -4,7 +4,7 @@ Step-by-step guide to connect rewarded ads and earn money.
 
 **Game URL for AdsGram dashboard:**
 ```
-https://wealthia.github.io/wealthia/v5.html?v=2019
+https://wealthia.github.io/wealthia/merge-arena/
 ```
 
 **Bot:** @WealthiaGameBot
@@ -25,7 +25,7 @@ https://wealthia.github.io/wealthia/v5.html?v=2019
 2. Fill in:
    - **App name:** `Wealthia`
    - **Telegram direct link:** from BotFather → `/myapps` → your app → Direct Link
-   - **Web app url:** `https://wealthia.github.io/wealthia/v5.html?v=2019`
+   - **Web app url:** `https://wealthia.github.io/wealthia/merge-arena/`
    - **Bot ID:** your bot numeric ID from BotFather
 
 ### Get links from BotFather
@@ -79,7 +79,7 @@ AdsGram avtomatik yoxlayır: **Bot ID**, **Direct Link** və **Web App URL** Bot
 | AdsGram sahəsi | BotFather-dan |
 |----------------|---------------|
 | Telegram direct link | **Direct Link** (məs: `https://t.me/WealthiaGameBot/wealthia`) |
-| Web app url | **Web App URL** (məs: `https://wealthia.github.io/wealthia/v5.html`) |
+| Web app url | **Web App URL** (məs: `https://wealthia.github.io/wealthia/merge-arena/`) |
 | Bot ID | `/mybots` → bot → **API Token** → `:` işarəsindən **əvvəl** olan rəqəm |
 
 **Bot ID nümunəsi:** Token `7123456789:AAHxxx...` → Bot ID = `7123456789`
@@ -92,7 +92,7 @@ AdsGram avtomatik yoxlayır: **Bot ID**, **Direct Link** və **Web App URL** Bot
 BotFather-dakı URL ilə AdsGram-dakı **simvol-simvol eyni** olmalıdır:
 
 ```
-https://wealthia.github.io/wealthia/v5.html?v=2019
+https://wealthia.github.io/wealthia/merge-arena/
 ```
 
 Əgər BotFather-da `?v=` yoxdursa, **BotFather-da da eyni URL-i təyin et** (Edit Web App URL).

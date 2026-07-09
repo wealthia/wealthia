@@ -5529,7 +5529,7 @@ async function sendPushMessage(telegramId, text) {
   if (!TELEGRAM_BOT_TOKEN) return false;
 
   try {
-    const webAppUrl = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2108";
+    const webAppUrl = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/merge-arena/";
     await telegramApi("sendMessage", {
       chat_id: telegramId,
       text,

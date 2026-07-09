@@ -52,7 +52,7 @@ You should see `"version":"full-v6-fix1"` or newer.
 
 Then refresh the game:
 ```
-https://wealthia.github.io/wealthia/v5.html
+https://wealthia.github.io/wealthia/merge-arena/
 ```
 
 ---

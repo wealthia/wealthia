@@ -91,5 +91,5 @@ Players see live tournaments on the **Rank** tab. They pay the entry fee in coin
 
 ## Links
 
-- Game: https://wealthia.github.io/wealthia/v5.html
+- Game: https://wealthia.github.io/wealthia/merge-arena/
 - Backend health: https://wealthia-backend.onrender.com/health

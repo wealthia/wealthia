@@ -1,4 +1,4 @@
-const WEBAPP_URL = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2115";
+const WEBAPP_URL = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/merge-arena/";
 const BOT_USERNAME = process.env.BOT_USERNAME || "WealthiaGameBot";
 const CHANNEL_URL =
   String(process.env.CHANNEL_URL || "").trim() ||
@@ -6,29 +6,28 @@ const CHANNEL_URL =
   "https://t.me/weathia_official";
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 
-const START_WELCOME_TEXT = `🏰 Welcome to Wealthia! 🏰
+const START_WELCOME_TEXT = `🔥 Welcome to MERGE ARENA! 🔥
 
-Your journey to building an unstoppable empire starts right here, right now. 🚀
+Combine heroes. Upgrade. Fight. Win.
 
-⚡️ Energy Refilled & Ready!
-🎲 Spin the Lucky Wheel!
-🏗️ Build, Upgrade, and Dominate!
+⚡ Get a hero
+🧩 Drag same heroes together
+⚔️ Fight when your power is ready
 
-👇 Tap Play Wealthia to enter the game. Join our channel anytime for news & rewards.`;
+👇 Tap Play to enter the arena.`;
 
-const PLAY_BUTTON_TEXT = "🎮  Play Wealthia  🎮";
+const PLAY_BUTTON_TEXT = "🔥  Play MERGE ARENA  🔥";
 
 const BOT_DESCRIPTION = process.env.BOT_DESCRIPTION || [
-  "🏙️ Wealthia — Build your wealth empire in Telegram!",
+  "🔥 MERGE ARENA — Combine heroes and win fights in Telegram!",
   "",
-  "Tap for coins, upgrade your city, complete daily missions and climb the leaderboard.",
-  "Invite friends for +2,000 bonus coins (they get +1,000 too).",
+  "Get heroes, merge upgrades, battle levels, and shop with Stars.",
   "",
   "Press Start to play free."
 ].join("\n");
 
 const BOT_SHORT_DESCRIPTION = process.env.BOT_SHORT_DESCRIPTION ||
-  "Tap. Build. Earn. Free city-building clicker game in Telegram.";
+  "Merge heroes. Fight. Upgrade. Free Telegram mini-game.";
 
 function getApiBase() {
   if (!TELEGRAM_BOT_TOKEN) {
@@ -92,7 +91,7 @@ function startKeyboard(userId, startParam) {
     [
       {
         text: "Invite Friends",
-        url: `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${BOT_USERNAME}?start=${ref}`)}&text=${encodeURIComponent("Play Wealthia with me — free Telegram game. Tap Play and we both get bonus coins!")}`
+        url: `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${BOT_USERNAME}?start=${ref}`)}&text=${encodeURIComponent("Play MERGE ARENA with me — merge heroes and fight!")}`
       }
     ]
   ];
@@ -128,8 +127,8 @@ async function setupBotProfile() {
     await api("setMyShortDescription", { short_description: BOT_SHORT_DESCRIPTION });
     await api("setMyCommands", {
       commands: [
-        { command: "start", description: "Play Wealthia" },
-        { command: "play", description: "Open the game" },
+        { command: "start", description: "Play MERGE ARENA" },
+        { command: "play", description: "Open the arena" },
         { command: "help", description: "Show help" }
       ]
     });
@@ -177,7 +176,7 @@ async function handleBotMessage(message, options = {}) {
   if (text === "/channel") {
     await sendMessage({
       chat_id: chatId,
-      text: `Join the official Wealthia channel first, then open the game:\n${CHANNEL_URL}`,
+      text: `Join the official channel, then open MERGE ARENA:\n${CHANNEL_URL}`,
       reply_markup: {
         inline_keyboard: [[{ text: "📢 Join the Channel", url: CHANNEL_URL }]]
       }
@@ -189,9 +188,9 @@ async function handleBotMessage(message, options = {}) {
     await sendMessage({
       chat_id: chatId,
       text:
-        "Wealthia Commands:\n" +
-        "/start — Open the game\n" +
-        "/play — Play Wealthia\n" +
+        "MERGE ARENA Commands:\n" +
+        "/start — Open the arena\n" +
+        "/play — Play MERGE ARENA\n" +
         "/channel — Official channel\n" +
         "/help — This message\n\n" +
         `Game: ${WEBAPP_URL}`

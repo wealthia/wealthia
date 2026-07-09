@@ -1,9 +1,7 @@
-# MERGE ARENA
+# MERGE ARENA (clean pack)
 
-Combine heroes. Fight. Upgrade.
+Same game as `../merge-arena/`.
 
-## Play
-https://wealthia.github.io/merge-arena/
+**Use the existing wealthia repo** (no new GitHub repo needed):
 
-## GitHub Pages
-Settings → Pages → Deploy from a branch → `main` / `/ (root)`
+https://wealthia.github.io/wealthia/merge-arena/
