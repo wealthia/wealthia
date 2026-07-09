@@ -10,7 +10,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 // Hard pin so stale Render env cannot keep Telegram on an old cached URL.
-const WEBAPP_URL = "https://wealthia.github.io/wealthia/merge-arena/app/?v=33";
+const WEBAPP_URL = "https://wealthia.github.io/wealthia/merge-arena/app/?v=34";
 const PLAY_BUTTON_TEXT = process.env.PLAY_BUTTON_TEXT || "Play MERGE ARENA";
 const SESSION_SECRET =
   process.env.SESSION_SECRET || TELEGRAM_BOT_TOKEN || "merge-arena-dev-secret";
@@ -200,7 +200,14 @@ function sanitizeState(input) {
     soundOn: raw.soundOn !== false,
     discovered: Array.isArray(raw.discovered) ? raw.discovered.map(String).slice(0, 64) : [],
     board,
-    lastEnergyAt: Math.max(0, Math.floor(Number(raw.lastEnergyAt) || Date.now()))
+    lastEnergyAt: Math.max(0, Math.floor(Number(raw.lastEnergyAt) || Date.now())),
+    passXp: Math.max(0, Math.floor(Number(raw.passXp) || 0)),
+    passClaimed: Array.isArray(raw.passClaimed) ? raw.passClaimed.map((n) => Math.floor(Number(n) || 0)).slice(0, 16) : [],
+    questDate: String(raw.questDate || "").slice(0, 16),
+    quests: raw.quests && typeof raw.quests === "object" ? raw.quests : {},
+    ghostWins: Math.max(0, Math.floor(Number(raw.ghostWins) || 0)),
+    lastGhostAt: Math.max(0, Math.floor(Number(raw.lastGhostAt) || 0)),
+    lastRankId: String(raw.lastRankId || "recruit").slice(0, 24)
   };
 }
 

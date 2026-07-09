@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@600;700;800&family=Exo+2:wght@500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="../arena.css?v=33" />
+  <link rel="stylesheet" href="../arena.css?v=34" />
 </head>
 <body>
   <div class="fx" aria-hidden="true">
@@ -44,7 +44,7 @@
     <header class="hud">
       <div class="brand">
         <span class="brand__mark" aria-hidden="true">MA</span>
-        <strong class="brand__name">MERGE ARENA <em class="build-tag" id="buildTag">v33</em></strong>
+        <strong class="brand__name">MERGE ARENA <em class="build-tag" id="buildTag">v34</em></strong>
       </div>
       <div class="hud__stats">
         <button class="chip chip--energy" id="energyChip" type="button" title="Buy energy">
@@ -56,6 +56,9 @@
         <div class="chip chip--trophy">
           <span>🏆</span><strong id="trophyValue">0</strong>
         </div>
+        <button class="chip chip--rank" id="rankChip" type="button" title="Your rank">
+          <span id="rankEmoji">🎖</span><strong id="rankValue">Recruit</strong>
+        </button>
       </div>
       <button class="cloud-dot" id="cloudChip" type="button" title="Cloud" aria-label="Cloud status">
         <strong id="cloudValue">·</strong>
@@ -283,7 +286,28 @@
       <section class="view" id="view-rank" data-view="rank" hidden>
         <div class="section-head">
           <h2>Glory Track</h2>
-          <p>Daily loot. Global climb. Invite friends.</p>
+          <p>Daily loot. Ranks. Events. Quests.</p>
+        </div>
+
+        <div class="rank-card" id="rankCard">
+          <div class="rank-card__badge" id="rankBadge">🎖</div>
+          <div class="rank-card__body">
+            <p class="rank-card__label">Arena Rank</p>
+            <strong id="rankTitle">Recruit</strong>
+            <p id="rankProgress">0 / 50 🏆 to Scout</p>
+            <div class="rank-bar"><i id="rankFill"></i></div>
+          </div>
+        </div>
+
+        <div class="event-card" id="eventCard">
+          <div class="event-card__top">
+            <div>
+              <p class="event-card__label">Today’s Event</p>
+              <strong id="eventTitle">Power Hour</strong>
+            </div>
+            <span class="event-card__tag" id="eventTag">LIVE</span>
+          </div>
+          <p id="eventText">+10% squad power all day.</p>
         </div>
 
         <div class="daily-card" id="dailyCard">
@@ -295,6 +319,23 @@
             <button class="btn btn--battle daily-card__cta" id="dailyClaim" type="button">Claim</button>
           </div>
           <p class="daily-card__tip" id="dailyTip">Come back every day for bigger gem + energy loot.</p>
+          <div class="streak-ladder" id="streakLadder" aria-label="7-day streak ladder"></div>
+        </div>
+
+        <div class="quest-card" id="questCard">
+          <div class="section-head section-head--compact">
+            <h2>Daily Quests</h2>
+            <p>Reset every day</p>
+          </div>
+          <div class="quest-list" id="questList"></div>
+        </div>
+
+        <div class="pass-card" id="passCard">
+          <div class="section-head section-head--compact">
+            <h2>Glory Pass</h2>
+            <p id="passXpLabel">0 XP</p>
+          </div>
+          <div class="pass-track" id="passTrack"></div>
         </div>
 
         <div class="glory-card">
@@ -307,7 +348,15 @@
             <li><span>Wins</span><strong id="gloryWins">0</strong></li>
             <li><span>Fusions</span><strong id="gloryMerges">0</strong></li>
             <li><span>Peak Power</span><strong id="gloryPower">0</strong></li>
+            <li><span>Ghost Wins</span><strong id="gloryGhost">0</strong></li>
+            <li><span>Rank</span><strong id="gloryRank">Recruit</strong></li>
           </ul>
+        </div>
+
+        <div class="ghost-card">
+          <h3>Ghost Rival</h3>
+          <p id="ghostTip">Fight a shadow squad scaled to your climb — no energy cost.</p>
+          <button class="btn btn--summon" id="ghostFight" type="button"><span>Challenge Ghost</span><small>Free duel</small></button>
         </div>
 
         <div class="season-card">
@@ -411,6 +460,6 @@
 
   <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
   <script src="../../config.js"></script>
-  <script src="../arena.js?v=33"></script>
+  <script src="../arena.js?v=34"></script>
 </body>
 </html>
