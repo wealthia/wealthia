@@ -54,15 +54,20 @@ async function telegramApi(method, body) {
 async function syncBotMenuButton() {
   if (!TELEGRAM_BOT_TOKEN) return { ok: false, error: "BOT_TOKEN_MISSING" };
   try {
-    // Clear first — Telegram sometimes keeps a stale web_app URL if only the query changes.
+    // Telegram often keeps a stale web_app URL when only ?v=N changes.
+    // Clear → pause → set with a versioned label so the button is treated as new.
     await telegramApi("setChatMenuButton", { menu_button: { type: "commands" } });
+    await new Promise((r) => setTimeout(r, 400));
+    const versionTag = (String(WEBAPP_URL).match(/[?&]v=(\d+)/) || [])[1] || "";
+    const label = versionTag ? `${PLAY_BUTTON_TEXT} v${versionTag}` : PLAY_BUTTON_TEXT;
     await telegramApi("setChatMenuButton", {
       menu_button: {
         type: "web_app",
-        text: PLAY_BUTTON_TEXT,
+        text: label.slice(0, 64),
         web_app: { url: WEBAPP_URL }
       }
     });
+    await new Promise((r) => setTimeout(r, 300));
     let current = null;
     try {
       current = await telegramApi("getChatMenuButton", {});
@@ -72,7 +77,7 @@ async function syncBotMenuButton() {
     const pinned = current?.web_app?.url || "";
     const matched = pinned === WEBAPP_URL;
     console.log("Menu button synced:", WEBAPP_URL, "telegram:", pinned || "(none)", matched ? "OK" : "MISMATCH");
-    return { ok: true, webAppUrl: WEBAPP_URL, menuButton: current, matched };
+    return { ok: true, webAppUrl: WEBAPP_URL, menuButton: current, matched, label };
   } catch (error) {
     console.warn("Menu button sync failed:", error.message);
     return { ok: false, error: error.message || "SYNC_FAILED", webAppUrl: WEBAPP_URL };
