@@ -620,7 +620,7 @@
     state.referredBy = ref;
     state.referralClaimed = true;
     state.gems += 25;
-    state.energy = Math.min(ENERGY_MAX, state.energy + 2);
+    state.energy = ENERGY_MAX;
     state.lastEnergyAt = Date.now();
     // Credit inviter locally when this device is the inviter later via invite meta;
     // also stash a one-time inviter bonus marker for cloud-aware clients.
@@ -632,7 +632,7 @@
       // ignore
     }
     saveState();
-    showToast("Welcome gift: +25 💎 +2 ⚡");
+    showToast(`Welcome gift: +25 💎 · full ${ENERGY_MAX} ⚡`);
   }
 
   function collectPendingInviteBonus() {
@@ -644,10 +644,10 @@
       localStorage.removeItem(key);
       state.referralCount = Number(state.referralCount || 0) + n;
       state.gems += n * 40;
-      state.energy = Math.min(ENERGY_MAX, state.energy + n * 3);
+      state.energy = ENERGY_MAX;
       state.lastEnergyAt = Date.now();
       saveState();
-      showToast(`Invite bonus · ${n} friend${n > 1 ? "s" : ""} · +${n * 40} 💎`);
+      showToast(`Invite bonus · ${n} friend${n > 1 ? "s" : ""} · +${n * 40} 💎 · full ${ENERGY_MAX} ⚡`);
     } catch {
       // ignore
     }
