@@ -2734,7 +2734,7 @@
     });
     const tag = document.getElementById("buildTag");
     if (tag) {
-      setTimeout(() => showToast(`Build ${tag.textContent} · slower ranks`), 500);
+      setTimeout(() => showToast(`Build ${tag.textContent} · harder ranks`), 500);
     }
     if (state.dailyClaimDate !== todayKey()) {
       setTimeout(() => showToast("Daily Chest ready in Glory"), 1400);
