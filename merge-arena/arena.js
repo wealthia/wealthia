@@ -443,14 +443,15 @@
     const hint = document.getElementById("boardHint");
     const strip = document.getElementById("unitStrip");
     const appH = app ? app.clientHeight : window.innerHeight;
+    // Keep bottom controls roomy: buttons + strip + dock get priority
     const reserved =
-      (dock ? dock.offsetHeight : 48) +
-      (actions ? actions.offsetHeight : 44) +
+      (dock ? Math.max(dock.offsetHeight, 58) : 58) +
+      (actions ? Math.max(actions.offsetHeight, 52) : 52) +
       (hud ? hud.offsetHeight : 30) +
       (wave ? wave.offsetHeight : 36) +
-      (hint ? hint.offsetHeight : 16) +
-      (strip ? Math.min(strip.offsetHeight || 42, 42) : 42) +
-      20;
+      (hint ? Math.max(hint.offsetHeight, 18) : 18) +
+      (strip ? Math.max(strip.offsetHeight || 52, 52) : 52) +
+      32;
     const styles = window.getComputedStyle(wrap);
     const padX = (parseFloat(styles.paddingLeft) || 0) + (parseFloat(styles.paddingRight) || 0);
     const padY = (parseFloat(styles.paddingTop) || 0) + (parseFloat(styles.paddingBottom) || 0);
@@ -459,8 +460,9 @@
     const fromViewport = Math.max(120, appH - reserved);
     const availH = Math.max(120, Math.min(fromWrap || fromViewport, fromViewport));
     if (availW < 40) return;
-    // Square board that leaves room for buttons + strip + dock
-    const size = Math.floor(Math.min(availW, availH));
+    // Cap board (~42% height) so Get Hero / Fight + dock stay large
+    const maxBoard = Math.floor(appH * 0.42);
+    const size = Math.floor(Math.min(availW, availH, maxBoard));
     els.board.style.width = `${size}px`;
     els.board.style.height = `${size}px`;
     els.board.style.maxWidth = "100%";

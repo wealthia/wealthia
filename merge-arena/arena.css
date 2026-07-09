@@ -271,36 +271,60 @@ button {
   grid-template-rows: auto minmax(0, 1fr) auto auto auto;
   align-content: stretch;
   overflow: hidden;
-  gap: 4px;
+  gap: 6px;
 }
 
 #view-play .board-hint {
   display: block !important;
   margin: 0;
   text-align: center;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
   letter-spacing: 0.02em;
-  line-height: 1.2;
+  line-height: 1.25;
   flex: 0 0 auto;
+  padding: 2px 0;
 }
 
 #view-play .unit-strip {
   display: flex !important;
-  gap: 6px;
+  gap: 8px;
   overflow-x: auto;
   overflow-y: hidden;
   max-width: 100%;
   width: 100%;
   min-width: 0;
-  min-height: 0;
-  max-height: 42px;
-  padding: 0;
+  min-height: 52px;
+  max-height: 60px;
+  padding: 2px 0;
   scrollbar-width: none;
   flex: 0 0 auto;
 }
 
 #view-play .unit-strip::-webkit-scrollbar { display: none; }
+
+#view-play .strip-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 128px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  text-align: left;
+}
+
+#view-play .strip-card strong {
+  display: block;
+  font-size: 12px;
+  margin-top: 0;
+}
+
+#view-play .strip-card span {
+  font-size: 10px;
+  color: var(--muted);
+}
 
 .board-wrap {
   position: relative;
@@ -342,10 +366,11 @@ button {
 .play-actions {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-  gap: 6px;
+  gap: 8px;
   width: 100%;
   min-width: 0;
   flex: 0 0 auto;
+  padding: 2px 0;
 }
 
 .play-bar {
@@ -353,17 +378,17 @@ button {
 }
 
 .btn {
-  min-height: 40px;
-  border-radius: 14px;
+  min-height: 50px;
+  border-radius: 16px;
   display: grid;
   place-items: center;
-  gap: 0;
+  gap: 1px;
   font-weight: 800;
   transition: transform 140ms ease, opacity 140ms ease, box-shadow 140ms ease;
 }
 
-.btn span { font-size: 13px; letter-spacing: 0.02em; }
-.btn small { font-size: 10px; opacity: 0.8; font-weight: 700; }
+.btn span { font-size: 14px; letter-spacing: 0.03em; }
+.btn small { font-size: 11px; opacity: 0.85; font-weight: 700; }
 
 .strip-card {
   flex: 0 0 auto;
@@ -824,30 +849,31 @@ button {
 .dock {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 2px;
-  padding: 3px;
-  border-radius: 14px;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 18px;
   border: 1px solid var(--line);
-  background: rgba(8, 12, 22, 0.92);
+  background: rgba(8, 12, 22, 0.94);
   backdrop-filter: blur(14px);
   flex: 0 0 auto;
   z-index: 5;
+  min-height: 58px;
 }
 
 .dock__item {
   display: grid;
-  gap: 0;
+  gap: 2px;
   place-items: center;
-  padding: 5px 2px;
-  border-radius: 10px;
+  padding: 8px 2px;
+  border-radius: 14px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 700;
 }
 
 .dock__item i {
   font-style: normal;
-  font-size: 14px;
+  font-size: 16px;
   color: #7ec8ff;
 }
 
@@ -1016,29 +1042,31 @@ button {
 }
 
 @media (max-width: 380px) {
-  .btn { min-height: 36px; }
-  .btn span { font-size: 12px; }
+  .btn { min-height: 48px; }
+  .btn span { font-size: 13px; }
   .section-head h2 { font-size: 17px; }
   .brand__name { font-size: 11px; }
-  .dock__item span { font-size: 8px; }
+  .dock__item span { font-size: 9px; }
 }
 
 @media (max-height: 740px) {
-  .wave-bar { padding: 4px 7px; }
+  .wave-bar { padding: 5px 8px; }
   .wave-bar h2 { font-size: 13px; }
-  .wave-bar__power strong { font-size: 14px; }
+  .wave-bar__power strong { font-size: 15px; }
   .wave-bar__label,
   .wave-bar__power span { font-size: 8px; }
-  .btn { min-height: 36px; }
-  .btn span { font-size: 12px; }
-  .btn small { font-size: 9px; }
-  .dock__item { padding: 4px 1px; }
+  .btn { min-height: 48px; }
+  .btn span { font-size: 13px; }
+  .btn small { font-size: 10px; }
+  .dock { min-height: 56px; padding: 5px; }
+  .dock__item { padding: 7px 2px; font-size: 9px; }
+  .dock__item i { font-size: 15px; }
   .brand__mark { width: 24px; height: 24px; }
   .unit__icon { font-size: clamp(14px, 4vw, 20px); }
   .unit__lvl,
   .unit__pow { font-size: 8px; }
-  #view-play .unit-strip { max-height: 38px; }
-  .strip-card { min-width: 72px; padding: 4px 6px; }
+  #view-play .unit-strip { min-height: 48px; max-height: 56px; }
+  #view-play .strip-card { min-width: 112px; padding: 8px 10px; }
 }
 
 /* PRE-GAME TUTORIAL */
