@@ -21,7 +21,7 @@ const PLAY_BUTTON_TEXT = "🔥  Play MERGE ARENA  🔥";
 const BOT_DESCRIPTION = process.env.BOT_DESCRIPTION || [
   "🔥 MERGE ARENA — Combine heroes and win fights in Telegram!",
   "",
-  "Get heroes, merge upgrades, battle levels, and shop with Stars.",
+  "Get heroes, merge upgrades, battle levels, and use the demo shop.",
   "",
   "Press Start to play free."
 ].join("\n");

@@ -58,7 +58,7 @@ Tap. Build. Earn. Free city-building clicker game in Telegram.
 ```
 /mybots → Bot Settings → Menu Button → Configure
 ```
-URL: `https://wealthia.github.io/wealthia/merge-arena/`
+URL: `https://wealthia.github.io/wealthia/v5.html`
 Text: `Play Wealthia`
 
 ---
@@ -68,7 +68,7 @@ Text: `Play Wealthia`
 ### Sign up
 1. Go to https://partner.adsgram.ai
 2. Create account → add your Telegram Mini App
-3. App URL: `https://wealthia.github.io/wealthia/merge-arena/`
+3. App URL: `https://wealthia.github.io/wealthia/v5.html`
 4. Create ad block type: **Rewarded**
 
 ### Connect to game
@@ -204,7 +204,7 @@ AdsGram    Tournaments
 
 ## Links
 
-- Game: https://wealthia.github.io/wealthia/merge-arena/
+- Game: https://wealthia.github.io/wealthia/v5.html
 - Admin: https://wealthia.github.io/wealthia/admin.html
 - AdsGram: https://partner.adsgram.ai
 - Channel posts: `marketing/CHANNEL-POSTS.md`

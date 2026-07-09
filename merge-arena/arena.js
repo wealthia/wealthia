@@ -4,6 +4,9 @@
   const ROWS = 4;
   const SIZE = COLS * ROWS;
   const ENERGY_MAX = 20;
+  const API_URL = (window.WEALTHIA_CONFIG && window.WEALTHIA_CONFIG.API_URL) ||
+    "https://wealthia-backend.onrender.com";
+  const REFERRAL_SYNC_KEY = "merge_arena_referral_sync_v1";
 
   const UNIT_DEFS = [
     { id: "spark", name: "Spark", icon: "⚡", rarity: "common", basePower: 12 },
@@ -261,6 +264,88 @@
     } catch {
       // browser
     }
+  }
+
+  function getTelegramInitData() {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    return String((tg && tg.initData) || "");
+  }
+
+  function getTelegramUser() {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    const user = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+    if (!user || !user.id) return null;
+
+    return {
+      id: user.id,
+      first_name: user.first_name || "Player",
+      username: user.username || "",
+      is_bot: Boolean(user.is_bot)
+    };
+  }
+
+  function readStartParam() {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    const fromInitData = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param;
+    if (fromInitData) return String(fromInitData);
+
+    try {
+      const search = new URLSearchParams(window.location.search || "");
+      const fromQuery = search.get("tgWebAppStartParam") || search.get("startapp") || "";
+      if (fromQuery) return fromQuery;
+
+      const hash = String(window.location.hash || "").replace(/^#/, "");
+      if (!hash) return "";
+
+      const hashParams = new URLSearchParams(hash);
+      return hashParams.get("tgWebAppStartParam") || hashParams.get("startapp") || "";
+    } catch {
+      return "";
+    }
+  }
+
+  function referrerFromStartParam(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+
+    const referrerId = raw.startsWith("ref_") ? raw.slice(4) : raw;
+    const user = getTelegramUser();
+    if (!referrerId || (user && String(user.id) === String(referrerId))) return "";
+
+    return referrerId;
+  }
+
+  function syncReferralAttribution() {
+    const initData = getTelegramInitData();
+    const referrerId = referrerFromStartParam(readStartParam());
+    if (!initData || !referrerId) return;
+
+    const user = getTelegramUser();
+    const syncKey = `${REFERRAL_SYNC_KEY}:${user && user.id ? user.id : "unknown"}:${referrerId}`;
+    try {
+      if (localStorage.getItem(syncKey)) return;
+    } catch {
+      // ignore storage errors
+    }
+
+    fetch(`${API_URL}/api/referral/continue`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        initData,
+        telegramUser: user,
+        referrerId
+      })
+    }).then((response) => {
+      if (!response.ok) return;
+      try {
+        localStorage.setItem(syncKey, "1");
+      } catch {
+        // ignore storage errors
+      }
+    }).catch(() => {
+      // referral sync is best-effort and should not block offline play
+    });
   }
 
   function switchView(name) {
@@ -695,6 +780,7 @@
 
   function boot() {
     initTelegram();
+    syncReferralAttribution();
     seedIfEmpty();
     bind();
     renderBoard();

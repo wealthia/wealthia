@@ -5535,7 +5535,7 @@ async function sendPushMessage(telegramId, text) {
       text,
       reply_markup: {
         inline_keyboard: [[{
-          text: "🎮 Play Wealthia",
+          text: "🎮 Play MERGE ARENA",
           web_app: { url: webAppUrl }
         }]]
       }
@@ -5613,13 +5613,13 @@ app.post("/api/cron/daily-push", async (req, res) => {
     for (const user of users || []) {
       const name = user.first_name || "Builder";
       const text = [
-        "🏆 Wealthia Daily Reminder",
+        "🏆 MERGE ARENA Daily Reminder",
         "",
-        "⚡ Gold Rush — 2x tap coins for 15 min (once daily)",
-        "🎁 Claim your daily streak in Tasks",
-        "🏅 Join your level bracket tournament in Rank",
+        "⚡ Spend energy to summon heroes",
+        "🧩 Merge matching heroes to grow stronger",
+        "⚔️ Fight levels when your squad is ready",
         "",
-        `Hi ${name}, tap Play to continue your empire!`
+        `Hi ${name}, tap Play to enter the arena!`
       ].join("\n");
 
       const ok = await sendPushMessage(user.id, text);
