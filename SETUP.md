@@ -93,3 +93,12 @@ Players see live tournaments on the **Rank** tab. They pay the entry fee in coin
 
 - Game: https://wealthia.github.io/wealthia/merge-arena/
 - Backend health: https://wealthia-backend.onrender.com/health
+
+## 7. MERGE ARENA cloud save (Supabase)
+
+1. Supabase → **SQL Editor**
+2. Run `supabase/migration-merge-arena.sql`
+3. Render → redeploy `wealthia-backend`
+4. Open game in Telegram — progress syncs to cloud
+
+Details: `merge-arena/BACKEND.md`

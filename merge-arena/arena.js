@@ -1,5 +1,7 @@
 (() => {
   const STORAGE_KEY = "merge_arena_v2";
+  const API_URL = (window.WEALTHIA_CONFIG && window.WEALTHIA_CONFIG.API_URL) ||
+    "https://wealthia-backend.onrender.com";
   const COLS = 4;
   const ROWS = 4;
   const SIZE = COLS * ROWS;
@@ -86,6 +88,10 @@
   let drag = null;
   let pendingPurchase = null;
   let battleBusy = false;
+  let sessionToken = "";
+  let cloudReady = false;
+  let saveTimer = null;
+  let syncing = false;
 
   const $ = (id) => document.getElementById(id);
 
@@ -148,6 +154,99 @@
 
   function saveState() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    queueCloudSave();
+  }
+
+  function getTelegramInitData() {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    return tg && tg.initData ? String(tg.initData) : "";
+  }
+
+  async function api(path, options = {}) {
+    const headers = {
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    };
+    if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`;
+    const response = await fetch(`${API_URL}${path}`, {
+      method: options.method || "GET",
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      cache: "no-store"
+    });
+    let result = null;
+    try {
+      result = await response.json();
+    } catch {
+      result = null;
+    }
+    return { ok: response.ok, status: response.status, result };
+  }
+
+  async function ensureSession() {
+    const initData = getTelegramInitData();
+    if (!initData) return false;
+    const { ok, result } = await api("/api/session", {
+      method: "POST",
+      body: { initData }
+    });
+    if (!ok || !result?.token) return false;
+    sessionToken = String(result.token);
+    return true;
+  }
+
+  async function loadCloudState() {
+    const { ok, result } = await api("/api/merge-arena/state");
+    if (!ok || !result?.state) return false;
+    const remote = result.state;
+    const base = defaultState();
+    state = {
+      ...base,
+      ...remote,
+      board: Array.isArray(remote.board) && remote.board.length === SIZE
+        ? remote.board
+        : base.board,
+      discovered: Array.isArray(remote.discovered) ? remote.discovered : base.discovered
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    return true;
+  }
+
+  function queueCloudSave() {
+    if (!cloudReady || !sessionToken) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      pushCloudState().catch(() => {});
+    }, 700);
+  }
+
+  async function pushCloudState() {
+    if (!sessionToken || syncing) return;
+    syncing = true;
+    try {
+      await api("/api/merge-arena/state", {
+        method: "POST",
+        body: { state }
+      });
+    } finally {
+      syncing = false;
+    }
+  }
+
+  async function connectCloud() {
+    try {
+      const authed = await ensureSession();
+      if (!authed) return;
+      await loadCloudState();
+      cloudReady = true;
+      seedIfEmpty();
+      renderBoard();
+      renderRoster();
+      renderGlory();
+      showToast("Cloud save on");
+    } catch {
+      // keep local play if backend is waking up
+    }
   }
 
   function showToast(msg) {
@@ -700,6 +799,7 @@
     renderBoard();
     renderRoster();
     renderGlory();
+    connectCloud();
     // soft energy tip
     if (state.energy <= 3) {
       setTimeout(() => showToast("Low energy — Shop keeps you playing."), 900);

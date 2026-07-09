@@ -2949,6 +2949,106 @@ app.post("/api/session", async (req, res) => {
   }
 });
 
+function sanitizeMergeArenaState(input) {
+  const raw = input && typeof input === "object" ? input : {};
+  const board = Array.isArray(raw.board) ? raw.board.slice(0, 16) : [];
+  while (board.length < 16) board.push(null);
+
+  return {
+    energy: Math.max(0, Math.min(20, Math.floor(Number(raw.energy) || 0))),
+    gems: Math.max(0, Math.floor(Number(raw.gems) || 0)),
+    trophies: Math.max(0, Math.floor(Number(raw.trophies) || 0)),
+    wave: Math.max(1, Math.floor(Number(raw.wave) || 1)),
+    bestWave: Math.max(1, Math.floor(Number(raw.bestWave) || 1)),
+    wins: Math.max(0, Math.floor(Number(raw.wins) || 0)),
+    merges: Math.max(0, Math.floor(Number(raw.merges) || 0)),
+    highestPower: Math.max(0, Math.floor(Number(raw.highestPower) || 0)),
+    surgeBattles: Math.max(0, Math.floor(Number(raw.surgeBattles) || 0)),
+    discovered: Array.isArray(raw.discovered)
+      ? raw.discovered.map(String).slice(0, 32)
+      : [],
+    board,
+    lastEnergyAt: Math.max(0, Math.floor(Number(raw.lastEnergyAt) || Date.now()))
+  };
+}
+
+app.get("/api/merge-arena/state", requirePlayer, async (req, res) => {
+  try {
+    const userId = String(req.playerId);
+    const { data, error } = await supabase
+      .from("merge_arena_states")
+      .select("state, trophies, best_wave, wins, merges, updated_at")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (error) {
+      if (isMissingColumnError(error) || String(error.message || "").includes("merge_arena_states")) {
+        res.status(503).json({
+          error: "MERGE_ARENA_TABLE_MISSING",
+          message: "Run supabase/migration-merge-arena.sql in Supabase SQL Editor."
+        });
+        return;
+      }
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      state: data?.state || null,
+      meta: data
+        ? {
+            trophies: data.trophies,
+            bestWave: data.best_wave,
+            wins: data.wins,
+            merges: data.merges,
+            updatedAt: data.updated_at
+          }
+        : null
+    });
+  } catch (error) {
+    console.error("MERGE_ARENA_LOAD_ERROR:", error);
+    res.status(500).json({ error: error.message || "LOAD_FAILED" });
+  }
+});
+
+app.post("/api/merge-arena/state", requirePlayer, async (req, res) => {
+  try {
+    const userId = String(req.playerId);
+    const state = sanitizeMergeArenaState(req.body?.state);
+    const payload = {
+      user_id: userId,
+      state,
+      trophies: state.trophies,
+      best_wave: state.bestWave,
+      wins: state.wins,
+      merges: state.merges,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from("merge_arena_states")
+      .upsert(payload, { onConflict: "user_id" })
+      .select("updated_at")
+      .single();
+
+    if (error) {
+      if (isMissingColumnError(error) || String(error.message || "").includes("merge_arena_states")) {
+        res.status(503).json({
+          error: "MERGE_ARENA_TABLE_MISSING",
+          message: "Run supabase/migration-merge-arena.sql in Supabase SQL Editor."
+        });
+        return;
+      }
+      throw error;
+    }
+
+    res.json({ ok: true, updatedAt: data?.updated_at || payload.updated_at });
+  } catch (error) {
+    console.error("MERGE_ARENA_SAVE_ERROR:", error);
+    res.status(500).json({ error: error.message || "SAVE_FAILED" });
+  }
+});
+
 app.post("/api/referral/continue", async (req, res) => {
   try {
     const telegramUser = resolveTelegramUser(req);
