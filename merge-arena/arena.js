@@ -1157,6 +1157,10 @@
     renderGlory();
     openTutorial();
     connectCloud();
+    const tag = document.getElementById("buildTag");
+    if (tag) {
+      setTimeout(() => showToast(`Build ${tag.textContent} · ${UNIT_DEFS.length} heroes live`), 500);
+    }
     if (state.energy <= 3) {
       setTimeout(() => showToast("Energy low — Star Market keeps you climbing."), 900);
     }
