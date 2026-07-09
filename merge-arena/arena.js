@@ -530,19 +530,58 @@
     return (
       Number(s.bestWave || 1) * 10000 +
       Number(s.wave || 1) * 1000 +
-      Number(s.trophies || 0) * 3 +
-      Number(s.wins || 0) * 20 +
+      Number(s.trophies || 0) * 5 +
+      Number(s.wins || 0) * 25 +
       Number(s.merges || 0) * 2 +
+      Number(s.passXp || 0) * 0.5 +
+      Number(s.ghostWins || 0) * 8 +
       units * 15 +
       Number(s.gems || 0) * 0.01 +
       Number(s.highestPower || 0) * 0.1
     );
   }
 
-  function pickRicherState(a, b) {
+  function mergeProgressStates(a, b) {
+    // Field-wise keep the best climb so a stale/empty cloud (or day reload)
+    // cannot wipe rank, trophies, vault, or board progress.
     const left = normalizeState(a);
     const right = normalizeState(b);
-    return progressScore(left) >= progressScore(right) ? left : right;
+    const primary = progressScore(left) >= progressScore(right) ? left : right;
+    const secondary = primary === left ? right : left;
+    const merged = { ...primary };
+    ["bestWave", "wave", "trophies", "wins", "merges", "highestPower", "passXp", "ghostWins", "gems", "referralCount"].forEach((key) => {
+      merged[key] = Math.max(Number(primary[key] || 0), Number(secondary[key] || 0));
+    });
+    merged.energy = Math.max(Number(primary.energy || 0), Number(secondary.energy || 0));
+    merged.energy = Math.min(ENERGY_MAX, merged.energy);
+    merged.dailyStreak = Math.max(Number(primary.dailyStreak || 0), Number(secondary.dailyStreak || 0));
+    // Keep the newer daily claim / quest day when dates differ
+    if (String(secondary.dailyClaimDate || "") > String(primary.dailyClaimDate || "")) {
+      merged.dailyClaimDate = secondary.dailyClaimDate;
+    }
+    if (String(secondary.questDate || "") > String(primary.questDate || "")) {
+      merged.questDate = secondary.questDate;
+      merged.quests = secondary.quests && typeof secondary.quests === "object" ? secondary.quests : merged.quests;
+    }
+    const disc = new Set([...(primary.discovered || []), ...(secondary.discovered || [])]);
+    merged.discovered = UNIT_DEFS.map((d) => d.id).filter((id) => disc.has(id));
+    const passClaimed = new Set([...(primary.passClaimed || []), ...(secondary.passClaimed || [])]);
+    merged.passClaimed = [...passClaimed].map((n) => Math.floor(Number(n) || 0)).filter((n) => n > 0);
+    // Prefer the board with more real units / power
+    const boardScore = (board) => (Array.isArray(board) ? board : []).reduce((sum, u) => sum + (u ? powerOf(u) : 0), 0);
+    if (boardScore(secondary.board) > boardScore(primary.board)) merged.board = secondary.board;
+    const rankP = rankForTrophies(Number(merged.trophies || 0));
+    const rankIdx = (id) => Math.max(0, RANK_TIERS.findIndex((t) => t.id === id));
+    const bestRankId = [left.lastRankId, right.lastRankId, rankP.id].sort((a, b) => rankIdx(b) - rankIdx(a))[0];
+    merged.lastRankId = bestRankId || rankP.id;
+    // Keep referral flags if either side earned them
+    merged.referralClaimed = Boolean(primary.referralClaimed || secondary.referralClaimed);
+    if (!merged.referredBy && secondary.referredBy) merged.referredBy = secondary.referredBy;
+    return normalizeState(merged);
+  }
+
+  function pickRicherState(a, b) {
+    return mergeProgressStates(a, b);
   }
 
   function loadState() {
@@ -635,9 +674,15 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       return true;
     }
-    // Prefer whichever side has more real progress so a wiped/default cloud
-    // cannot erase a good local save (and vice versa).
-    state = pickRicherState(localSnapshot, result.state);
+    // Hydrate blob from SQL meta columns (survives if JSON state was thin/stale).
+    const cloudRaw = { ...result.state };
+    const meta = result.meta || {};
+    if (meta.trophies != null) cloudRaw.trophies = Math.max(Number(cloudRaw.trophies || 0), Number(meta.trophies || 0));
+    if (meta.bestWave != null) cloudRaw.bestWave = Math.max(Number(cloudRaw.bestWave || 1), Number(meta.bestWave || 1));
+    if (meta.wins != null) cloudRaw.wins = Math.max(Number(cloudRaw.wins || 0), Number(meta.wins || 0));
+    if (meta.merges != null) cloudRaw.merges = Math.max(Number(cloudRaw.merges || 0), Number(meta.merges || 0));
+    // Field-wise merge — never let a day reload / empty cloud wipe rank climb.
+    state = pickRicherState(localSnapshot, cloudRaw);
     pruneDiscovered();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     return true;
@@ -1058,13 +1103,32 @@
 
   function enemyPower(wave) {
     const w = Math.max(1, Number(wave) || 1);
-    // Steeper climb than before — merges matter, raw spam stalls.
-    let power = 34 + w * 22 + Math.pow(w, 1.48) * 5.2;
-    // Soft compounding so late arenas keep biting.
-    power *= 1 + Math.floor((w - 1) / 5) * 0.06;
-    if (isBossWave(w)) power *= 1.42;
-    if (isHardGate(w)) power *= 1.72; // every 10: much harder to pass
+    // Mid curve: early arenas beatable with light merges; late still needs fuses.
+    let power = 22 + w * 14 + Math.pow(w, 1.28) * 3.1;
+    power *= 1 + Math.floor((w - 1) / 5) * 0.035;
+    if (isBossWave(w)) power *= 1.22;
+    if (isHardGate(w)) power *= 1.38;
     return Math.round(power);
+  }
+
+  function foeHeroForWave(wave, seed = 0) {
+    // Visual foes come from climb-appropriate heroes (not locked legends).
+    const floor = Math.max(1, Number(wave) || 1);
+    const pool = UNIT_DEFS.filter((d) => unlockWaveOf(d) <= floor + 2);
+    const list = pool.length ? pool : UNIT_DEFS.filter((d) => d.rarity === "common");
+    const idx = Math.abs(Math.floor(floor * 3 + seed)) % list.length;
+    return list[idx];
+  }
+
+  function foeLabelForWave(wave) {
+    const w = Math.max(1, Number(wave) || 1);
+    if (isHardGate(w)) return `Hard Gate ${w}`;
+    if (isBossWave(w)) {
+      const boss = foeHeroForWave(w, 7);
+      return `${boss.name} Boss`;
+    }
+    const foe = foeHeroForWave(w, 1);
+    return foe.name;
   }
 
   function themeForWave(wave) {
@@ -1543,13 +1607,14 @@
       status = you >= enemy ? "Gate ready" : "Hard Gate";
       tip = you >= enemy
         ? `Arena ${state.wave} Hard Gate is crackable — Enter Fight!`
-        : `Every 10 is brutal. Need ~${enemy} power (you: ${you}).`;
+        : `Hard Gate needs ~${enemy} power (you: ${you}). Fuse a bit more.`;
       tone = you >= enemy ? "ready" : "warn";
     } else if (isBossWave(state.wave)) {
-      status = you >= enemy ? "Boss ready" : "Boss too strong";
+      const foeName = foeLabelForWave(state.wave);
+      status = you >= enemy ? "Boss ready" : "Boss ahead";
       tip = you >= enemy
-        ? `${themeForWave(state.wave).boss} is vulnerable — Enter Fight!`
-        : `Boss arena! Need more power vs ${themeForWave(state.wave).boss}.`;
+        ? `${foeName} is vulnerable — Enter Fight!`
+        : `Boss arena vs ${foeName}. Need ~${enemy} (you: ${you}).`;
       tone = you >= enemy ? "ready" : "warn";
     } else if (you >= enemy) {
       status = "Ready to smash";
@@ -1761,7 +1826,7 @@
 
   function renderGhostCard() {
     if (!els.ghostTip) return;
-    const rival = Math.round(squadPower() * 0.92 + state.wave * 8);
+    const rival = Math.round(squadPower() * 0.82 + state.wave * 4);
     els.ghostTip.textContent = `Shadow rival ~${rival} power · free duel · wins: ${state.ghostWins || 0}`;
   }
 
@@ -2062,6 +2127,8 @@
     const boss = isBossWave(wave);
     const hard = isHardGate(wave);
     const enemy = enemyPower(wave);
+    const foe = hard ? null : foeHeroForWave(wave, boss ? 7 : 1);
+    const foeName = foeLabelForWave(wave);
     const syn = activeSynergies();
     els.battleModal.hidden = false;
     if (els.battleStage) {
@@ -2073,20 +2140,20 @@
     }
     els.fighterYou.textContent = `YOU ${power}`;
     els.fighterEnemy.textContent = hard
-      ? `GATE ${enemy}`
-      : boss
-        ? `${theme.boss} ${enemy}`
-        : `L${wave} ${enemy}`;
+      ? `⛓ GATE ${enemy}`
+      : `${(foe && (foe.face || foe.icon)) || theme.emoji} ${foeName} ${enemy}`;
     els.youBar.style.width = "100%";
     els.enemyBar.style.width = "100%";
     els.battleLog.textContent = hard
-      ? `${theme.emoji} Hard Gate ${wave} — no mercy…`
+      ? `${theme.emoji} Hard Gate ${wave} — climb check…`
       : boss
-        ? `${theme.emoji} Boss clash vs ${theme.boss}…`
+        ? `${theme.emoji} Boss clash vs ${foeName}…`
         : syn.length
           ? `${syn[0].label} ignites the clash…`
-          : `${theme.emoji} ${theme.name} clash…`;
-    if (els.battleFx) els.battleFx.textContent = hard ? "⛓" : boss ? "👹" : "💥";
+          : `${theme.emoji} vs ${foeName}…`;
+    if (els.battleFx) {
+      els.battleFx.textContent = hard ? "⛓" : (foe && (foe.face || foe.icon)) || (boss ? "👹" : "💥");
+    }
 
     await wait(500);
     els.battleLog.textContent = hard ? "Gate pressure!" : boss ? "Boss rage!" : "Heroes collide!";
@@ -2094,11 +2161,11 @@
     await wait(400);
 
     const youRatio = power / (power + enemy);
-    const steps = hard ? 14 : boss ? 12 : 10;
+    const steps = hard ? 12 : boss ? 11 : 9;
     for (let i = 1; i <= steps; i += 1) {
       const progress = i / steps;
-      const youLeft = Math.max(0, 100 - progress * 100 * (1 - youRatio) * 1.35);
-      const enemyLeft = Math.max(0, 100 - progress * 100 * youRatio * 1.35);
+      const youLeft = Math.max(0, 100 - progress * 100 * (1 - youRatio) * 1.25);
+      const enemyLeft = Math.max(0, 100 - progress * 100 * youRatio * 1.25);
       els.youBar.style.width = `${youLeft}%`;
       els.enemyBar.style.width = `${enemyLeft}%`;
       if (els.battleStage) {
@@ -2108,8 +2175,8 @@
         els.battleFx.textContent = hard
           ? (i % 2 === 0 ? "⛓" : "💥")
           : boss
-            ? (i % 2 === 0 ? "🔥" : "💥")
-            : (i % 3 === 0 ? "⚡" : i % 2 === 0 ? "💥" : "✦");
+            ? (i % 2 === 0 ? ((foe && (foe.face || foe.icon)) || "🔥") : "💥")
+            : (i % 3 === 0 ? ((foe && (foe.face || foe.icon)) || "⚡") : i % 2 === 0 ? "💥" : "✦");
       }
       if (i % 2 === 0) playTone("hit");
       await wait(hard ? 95 : boss ? 100 : 110);
@@ -2145,38 +2212,39 @@
       bumpQuest("wins");
       addPassXp(hard ? 25 : boss ? 18 : 12);
       checkRankUp();
-      consumeWeakest();
+      // Wins keep the full squad — no post-fight wipe.
       saveState();
       els.battleModal.hidden = true;
       if (els.battleStage) {
         els.battleStage.classList.remove("is-fighting", "is-shake", "is-boss", "is-hard", "is-night");
       }
-      const foeLabel = hard ? `Hard Gate ${wave}` : boss ? theme.boss : "";
+      const foeLabel = hard ? `Hard Gate ${wave}` : boss ? foeName : "";
       showResult(true, wave, trophyGain, gemGain, foeLabel);
       playTone(hard ? "gate" : "win");
       haptic("success");
       if (hard) {
         setTimeout(() => showPandaStory("season", `Hard Gate ${wave} shattered.`), 700);
       } else if (boss) {
-        setTimeout(() => showPandaStory("bossWin", `${theme.boss} defeated.`), 700);
+        setTimeout(() => showPandaStory("bossWin", `${foeName} defeated.`), 700);
       } else if (themeForWave(state.wave).id !== prevTheme) {
         setTimeout(() => showPandaStory("themeShift", `Welcome to ${themeForWave(state.wave).name}.`), 700);
       } else if (SEASON_MILESTONES.some((m) => m.wave === wave)) {
         setTimeout(() => showPandaStory("season", `Arena ${wave} milestone!`), 700);
       }
     } else {
-      const loss = Math.min(state.trophies, (hard ? 12 : boss ? 8 : 4) + Math.floor(wave / 2));
+      const loss = Math.min(state.trophies, (hard ? 8 : boss ? 5 : 3) + Math.floor(wave / 3));
       const gemGain = hard ? 6 : boss ? 4 : 2;
       state.trophies = Math.max(0, state.trophies - loss);
       state.gems += gemGain;
       checkRankUp();
-      consumeWeakest();
+      // Soft loss tax: sometimes drop the weakest unit (not every fight).
+      if (Math.random() < 0.45) consumeWeakest();
       saveState();
       els.battleModal.hidden = true;
       if (els.battleStage) {
         els.battleStage.classList.remove("is-fighting", "is-shake", "is-boss", "is-hard", "is-night");
       }
-      const foeLabel = hard ? `Hard Gate ${wave}` : boss ? theme.boss : "";
+      const foeLabel = hard ? `Hard Gate ${wave}` : boss ? foeName : "";
       showResult(false, wave, -loss, gemGain, foeLabel);
       playTone("lose");
       haptic("error");
@@ -2664,7 +2732,7 @@
     });
     const tag = document.getElementById("buildTag");
     if (tag) {
-      setTimeout(() => showToast(`Build ${tag.textContent} · mid economy`), 500);
+      setTimeout(() => showToast(`Build ${tag.textContent} · progress kept`), 500);
     }
     if (state.dailyClaimDate !== todayKey()) {
       setTimeout(() => showToast("Daily Chest ready in Glory"), 1400);

@@ -10,7 +10,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 // Hard pin so stale Render env cannot keep Telegram on an old cached URL.
-const WEBAPP_URL = "https://wealthia.github.io/wealthia/merge-arena/app/?v=41";
+const WEBAPP_URL = "https://wealthia.github.io/wealthia/merge-arena/app/?v=42";
 const PLAY_BUTTON_TEXT = process.env.PLAY_BUTTON_TEXT || "Play MERGE ARENA";
 const SESSION_SECRET =
   process.env.SESSION_SECRET || TELEGRAM_BOT_TOKEN || "merge-arena-dev-secret";
@@ -470,9 +470,17 @@ app.get("/api/merge-arena/state", requirePlayer, async (req, res) => {
       .maybeSingle();
 
     if (error) throw error;
+    const blob = data?.state && typeof data.state === "object" ? { ...data.state } : null;
+    if (blob && data) {
+      // SQL meta columns are the durable climb — hydrate so thin JSON can't day-wipe rank.
+      blob.trophies = Math.max(Number(blob.trophies || 0), Number(data.trophies || 0));
+      blob.bestWave = Math.max(Number(blob.bestWave || 1), Number(data.best_wave || 1));
+      blob.wins = Math.max(Number(blob.wins || 0), Number(data.wins || 0));
+      blob.merges = Math.max(Number(blob.merges || 0), Number(data.merges || 0));
+    }
     res.json({
       ok: true,
-      state: data?.state || null,
+      state: blob,
       meta: data
         ? {
             trophies: data.trophies,
