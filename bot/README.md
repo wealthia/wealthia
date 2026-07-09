@@ -4,11 +4,20 @@
 
 ### 1. BotFather
 1. Open **@BotFather**
-2. `/mybots` → `@MergeArenaBot`
-3. Menu Button / Mini App URL:
+2. Create Mini App (needed for AdsGram Direct Link):
+   - `/newapp` → choose `@MergeArenaBot`
+   - Title: `MERGE ARENA`
+   - Description: `Fuse twin heroes, build your squad, climb arenas.`
+   - Photo: `merge-arena/assets/merge-arena-app-icon-640.png`
+   - GIF: `/empty`
+   - Web App URL: `https://wealthia.github.io/wealthia/merge-arena/app/`
+   - Short name: `arena`
+3. Menu Button:
+   - `/mybots` → `@MergeArenaBot` → Bot Settings → Menu Button
 ```
 https://wealthia.github.io/wealthia/merge-arena/app/?v=48
 ```
+4. After `/newapp`, `/myapps` should list MERGE ARENA with Direct Link `t.me/MergeArenaBot/arena`
 
 ### 2. Render worker / API
 Environment:
