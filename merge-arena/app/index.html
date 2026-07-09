@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@600;700;800&family=Exo+2:wght@500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="../arena.css?v=35" />
+  <link rel="stylesheet" href="../arena.css?v=36" />
 </head>
 <body>
   <div class="fx" aria-hidden="true">
@@ -44,7 +44,7 @@
     <header class="hud">
       <div class="brand">
         <span class="brand__mark" aria-hidden="true">MA</span>
-        <strong class="brand__name">MERGE ARENA <em class="build-tag" id="buildTag">v35</em></strong>
+        <strong class="brand__name">MERGE ARENA <em class="build-tag" id="buildTag">v36</em></strong>
       </div>
       <div class="hud__stats">
         <button class="chip chip--energy" id="energyChip" type="button" title="Buy energy">
@@ -288,16 +288,16 @@
         </article>
       </section>
 
-      <section class="view" id="view-rank" data-view="rank" hidden>
+      <section class="view" id="view-ranks" data-view="ranks" hidden>
         <div class="section-head">
-          <h2>Glory Track</h2>
-          <p>Daily loot. Ranks. Events. Quests.</p>
+          <h2>Arena Ranks</h2>
+          <p>Trophy titles · climb the ladder</p>
         </div>
 
         <div class="rank-card" id="rankCard">
           <div class="rank-card__badge" id="rankBadge">🎖</div>
           <div class="rank-card__body">
-            <p class="rank-card__label">Arena Rank</p>
+            <p class="rank-card__label">Your Rank</p>
             <strong id="rankTitle">Recruit</strong>
             <p id="rankProgress">0 / 50 🏆 to Scout</p>
             <div class="rank-bar"><i id="rankFill"></i></div>
@@ -313,6 +313,21 @@
             <span class="event-card__tag" id="eventTag">LIVE</span>
           </div>
           <p id="eventText">+10% squad power all day.</p>
+        </div>
+
+        <div class="rank-ladder-card">
+          <div class="section-head section-head--compact">
+            <h2>Rank Ladder</h2>
+            <p>Unlock with trophies</p>
+          </div>
+          <div class="rank-ladder" id="rankLadder"></div>
+        </div>
+      </section>
+
+      <section class="view" id="view-rank" data-view="rank" hidden>
+        <div class="section-head">
+          <h2>Glory Track</h2>
+          <p>Daily · Quests · Pass · Top Arena</p>
         </div>
 
         <div class="daily-card" id="dailyCard">
@@ -396,11 +411,6 @@
             <div class="leaderboard__empty">Loading ranks…</div>
           </div>
         </div>
-
-        <div class="tip-card">
-          <h3>Pro rhythm</h3>
-          <p>Claim daily → Get Hero → fuse matches → Enter Fight when power leads → Shop if you stall.</p>
-        </div>
       </section>
     </main>
 
@@ -408,6 +418,7 @@
       <button class="dock__item is-active" type="button" data-nav="play"><i>⚔</i><span>Arena</span></button>
       <button class="dock__item" type="button" data-nav="roster"><i>◈</i><span>Heroes</span></button>
       <button class="dock__item dock__item--shop" type="button" data-nav="shop"><i>★</i><span>Shop</span></button>
+      <button class="dock__item dock__item--ranks" type="button" data-nav="ranks"><i>🎖</i><span>Rank</span></button>
       <button class="dock__item" type="button" data-nav="rank"><i>▲</i><span>Glory</span></button>
     </nav>
   </div>
@@ -465,6 +476,6 @@
 
   <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
   <script src="../../config.js"></script>
-  <script src="../arena.js?v=35"></script>
+  <script src="../arena.js?v=36"></script>
 </body>
 </html>
