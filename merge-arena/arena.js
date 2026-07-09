@@ -8,21 +8,43 @@
   const ENERGY_MAX = 20;
 
   const UNIT_DEFS = [
-    { id: "spark", name: "Spark", icon: "⚡", face: "⚡", rarity: "common", basePower: 12, vibe: "zap" },
-    { id: "blade", name: "Blade", icon: "🗡", face: "⚔", rarity: "common", basePower: 14, vibe: "slash" },
-    { id: "ward", name: "Ward", icon: "🛡", face: "🛡", rarity: "rare", basePower: 22, vibe: "guard" },
-    { id: "nova", name: "Nova", icon: "✦", face: "🌟", rarity: "rare", basePower: 26, vibe: "glow" },
-    { id: "phantom", name: "Phantom", icon: "👁", face: "👻", rarity: "epic", basePower: 40, vibe: "ghost" },
-    { id: "titan", name: "Titan", icon: "🏛", face: "🗿", rarity: "epic", basePower: 48, vibe: "heavy" },
-    { id: "sovereign", name: "Sovereign", icon: "👑", face: "🦁", rarity: "legendary", basePower: 72, vibe: "royal" }
+    // Commons — Get Hero pool
+    { id: "spark", name: "Spark", icon: "⚡", face: "⚡", rarity: "common", role: "Striker", basePower: 12, vibe: "zap", blurb: "Fast fuse fuel." },
+    { id: "blade", name: "Blade", icon: "🗡", face: "⚔", rarity: "common", role: "Duelist", basePower: 14, vibe: "slash", blurb: "Clean edge damage." },
+    { id: "ember", name: "Ember", icon: "🔥", face: "🔥", rarity: "common", role: "Burner", basePower: 13, vibe: "fire", blurb: "Leaves a hot trail." },
+    { id: "frost", name: "Frost", icon: "❄️", face: "❄️", rarity: "common", role: "Freezer", basePower: 13, vibe: "ice", blurb: "Chills the lane." },
+    { id: "fang", name: "Fang", icon: "🐺", face: "🐺", rarity: "common", role: "Beast", basePower: 15, vibe: "beast", blurb: "Bites above weight." },
+    { id: "dart", name: "Dart", icon: "🏹", face: "🏹", rarity: "common", role: "Archer", basePower: 12, vibe: "bow", blurb: "Picks soft targets." },
+    { id: "brew", name: "Brew", icon: "🧪", face: "🧪", rarity: "common", role: "Alchemist", basePower: 11, vibe: "brew", blurb: "Weird flask power." },
+    { id: "cobble", name: "Cobble", icon: "🪨", face: "🪨", rarity: "common", role: "Tanklet", basePower: 16, vibe: "heavy", blurb: "Slow, stubborn rock." },
+
+    // Rares — fuse L3+ or shop
+    { id: "ward", name: "Ward", icon: "🛡", face: "🛡", rarity: "rare", role: "Guardian", basePower: 22, vibe: "guard", blurb: "Holds the line." },
+    { id: "nova", name: "Nova", icon: "✦", face: "🌟", rarity: "rare", role: "Burst", basePower: 26, vibe: "glow", blurb: "Starflash strike." },
+    { id: "tide", name: "Tide", icon: "🌊", face: "🌊", rarity: "rare", role: "Wave", basePower: 24, vibe: "tide", blurb: "Pushes the board." },
+    { id: "quake", name: "Quake", icon: "🌋", face: "🌋", rarity: "rare", role: "Breaker", basePower: 25, vibe: "quake", blurb: "Cracks enemy armor." },
+    { id: "mirage", name: "Mirage", icon: "🪞", face: "🪞", rarity: "rare", role: "Trickster", basePower: 23, vibe: "ghost", blurb: "Hard to pin down." },
+
+    // Epics
+    { id: "phantom", name: "Phantom", icon: "👁", face: "👻", rarity: "epic", role: "Haunt", basePower: 40, vibe: "ghost", blurb: "Slips through steel." },
+    { id: "titan", name: "Titan", icon: "🏛", face: "🗿", rarity: "epic", role: "Colossus", basePower: 48, vibe: "heavy", blurb: "Arena-shaking mass." },
+    { id: "venom", name: "Venom", icon: "🐍", face: "🐍", rarity: "epic", role: "Assassin", basePower: 44, vibe: "venom", blurb: "Toxic finishers." },
+    { id: "tempest", name: "Tempest", icon: "🌪", face: "🌪", rarity: "epic", role: "Storm", basePower: 46, vibe: "storm", blurb: "Spins the fight wild." },
+
+    // Legendaries
+    { id: "sovereign", name: "Sovereign", icon: "👑", face: "🦁", rarity: "legendary", role: "King", basePower: 72, vibe: "royal", blurb: "Rules the clash." },
+    { id: "eclipse", name: "Eclipse", icon: "🌑", face: "🌑", rarity: "legendary", role: "Void", basePower: 78, vibe: "eclipse", blurb: "Eats the light." },
+    { id: "aurora", name: "Aurora", icon: "🌈", face: "🦊", rarity: "legendary", role: "Myth", basePower: 75, vibe: "aurora", blurb: "Skyfire legend." },
+    { id: "panda", name: "Panda King", icon: "🐼", face: "🐼", rarity: "legendary", role: "Mascot", basePower: 80, vibe: "royal", blurb: "Arena’s secret boss cheer." }
   ];
 
   const BUDDY_LINES = [
     { title: "Arena Panda", line: "Merge twins — I cheer louder every fuse!" },
-    { title: "Arena Panda", line: "Get Hero! Drop a fighter onto the floor." },
+    { title: "Arena Panda", line: "Get Hero! New fighters can surprise you." },
     { title: "Arena Panda", line: "Same heroes? Drag them together — boom!" },
     { title: "Arena Panda", line: "Squad looking spicy. Enter Fight when ready." },
-    { title: "Arena Panda", line: "Higher fuse = bigger punch. Keep stacking!" }
+    { title: "Arena Panda", line: "Hero Vault is huge now — unlock them all!" },
+    { title: "Arena Panda", line: "Rare drop? Lucky! Fuse it higher." }
   ];
 
   const SHOP = {
@@ -56,6 +78,14 @@
       stars: 90,
       apply(state) {
         return placeGuaranteed(state, "epic");
+      }
+    },
+    legend_summon: {
+      title: "Legend Call",
+      text: "Summon a Legendary onto your board now.",
+      stars: 180,
+      apply(state) {
+        return placeGuaranteed(state, "legendary");
       }
     },
     power_surge: {
@@ -388,6 +418,14 @@
     return commons[Math.floor(Math.random() * commons.length)].id;
   }
 
+  function randomSummonId() {
+    // Mostly commons, with spicy rare/epic spice so the vault fills up
+    const roll = Math.random();
+    if (roll < 0.78) return randomCommonId();
+    if (roll < 0.96) return unitForRarity("rare").id;
+    return unitForRarity("epic").id;
+  }
+
   function unitForRarity(rarity) {
     const pool = UNIT_DEFS.filter((u) => u.rarity === rarity);
     return pool[Math.floor(Math.random() * pool.length)] || UNIT_DEFS[0];
@@ -414,7 +452,7 @@
     });
     if (!slots.length) return "Board is full. Merge first.";
     const def = unitForRarity(rarity);
-    const level = rarity === "epic" ? 4 : 3;
+    const level = rarity === "legendary" ? 5 : rarity === "epic" ? 4 : 3;
     const unit = makeUnit(def.id, level);
     unit.rarity = rarity;
     st.board[slots[0]] = unit;
@@ -664,15 +702,26 @@
   }
 
   function renderRoster() {
-    els.rosterGrid.innerHTML = UNIT_DEFS.map((def) => {
+    const unlockedCount = UNIT_DEFS.filter((d) => state.discovered.includes(d.id)).length;
+    const headP = document.querySelector("#view-roster .section-head p");
+    if (headP) {
+      headP.textContent = `${unlockedCount}/${UNIT_DEFS.length} unlocked · Fuse twins. Collect legends.`;
+    }
+    const order = ["common", "rare", "epic", "legendary"];
+    const sorted = [...UNIT_DEFS].sort((a, b) => order.indexOf(a.rarity) - order.indexOf(b.rarity));
+    els.rosterGrid.innerHTML = sorted.map((def) => {
       const unlocked = state.discovered.includes(def.id);
       return `
-        <article class="roster-card ${unlocked ? "" : "is-locked"}">
-          <div class="roster-card__unit" data-rarity="${def.rarity}" data-hero="${def.id}">
+        <article class="roster-card ${unlocked ? "" : "is-locked"}" data-rarity="${def.rarity}">
+          <div class="roster-card__unit" data-rarity="${def.rarity}" data-hero="${def.id}" data-vibe="${def.vibe}">
             ${unlocked ? (def.face || def.icon) : "?"}
           </div>
+          <div class="roster-card__meta">
+            <span class="roster-card__rarity">${def.rarity}</span>
+            <span class="roster-card__role">${def.role || "Hero"}</span>
+          </div>
           <h3>${unlocked ? def.name : "Locked"}</h3>
-          <p>${def.rarity} · base ${def.basePower}</p>
+          <p>${unlocked ? (def.blurb || `${def.rarity} fighter`) : "Keep merging to reveal"} · ${def.basePower}⚡</p>
         </article>
       `;
     }).join("");
@@ -802,9 +851,11 @@
       state.lastEnergyAt = Date.now();
     }
 
-    const id = forceId || randomCommonId();
+    const id = forceId || randomSummonId();
     const unit = makeUnit(id, forceLevel || 1);
     if (forceLevel) unit.rarity = rarityForLevel(forceLevel);
+    // Keep natural rarity for spicy Get Hero drops
+    if (!forceId && !forceLevel) unit.rarity = defById(id).rarity;
     const slot = slots[Math.floor(Math.random() * slots.length)];
     state.board[slot] = unit;
     discover(id);
@@ -965,7 +1016,7 @@
     renderHud();
     showToast(`${product.title} secured`);
     haptic("success");
-    if (productId === "rare_summon" || productId === "epic_summon") {
+    if (productId === "rare_summon" || productId === "epic_summon" || productId === "legend_summon") {
       switchView("play");
     }
   }
