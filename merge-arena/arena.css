@@ -170,7 +170,7 @@ button {
   max-height: 100%;
   margin: 0 auto;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 3px;
   padding: calc(2px + var(--safe-t)) 6px calc(2px + var(--safe-b));
   overflow: hidden;
@@ -180,11 +180,30 @@ button {
 
 .hud {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
   width: 100%;
+  flex: 0 0 auto;
+}
+
+.hud-sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  flex: 0 0 auto;
+  margin-top: -1px;
+  margin-bottom: 1px;
+}
+
+.hud-sub__tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   flex: 0 0 auto;
 }
 
@@ -193,7 +212,7 @@ button {
   align-items: center;
   gap: 6px;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .brand__mark {
@@ -227,12 +246,12 @@ button {
 .brand__name {
   display: block;
   font-family: var(--display);
-  font-size: clamp(11px, 3.4vw, 14px);
+  font-size: clamp(13px, 3.8vw, 16px);
   letter-spacing: 0.02em;
   font-weight: 800;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: clip;
   min-width: 0;
 }
 
@@ -2023,7 +2042,7 @@ button {
   .btn { min-height: 50px; }
   .btn span { font-size: 14px; }
   .section-head h2 { font-size: 17px; }
-  .brand__name { font-size: 11px; }
+  .brand__name { font-size: 13px; }
   .dock__item span { font-size: 10px; }
 }
 
@@ -2567,12 +2586,15 @@ body.is-night .app {
 .chip--rank {
   border-color: rgba(255, 224, 138, 0.45);
   color: var(--gold);
-  max-width: 88px;
+  max-width: none;
+  min-height: 26px;
+  padding: 0 8px;
+  font-size: 11px;
 }
 
 .chip--rank strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .rank-card {

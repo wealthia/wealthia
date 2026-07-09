@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@600;700;800&family=Exo+2:wght@500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="../arena.css?v=34" />
+  <link rel="stylesheet" href="../arena.css?v=35" />
 </head>
 <body>
   <div class="fx" aria-hidden="true">
@@ -44,7 +44,7 @@
     <header class="hud">
       <div class="brand">
         <span class="brand__mark" aria-hidden="true">MA</span>
-        <strong class="brand__name">MERGE ARENA <em class="build-tag" id="buildTag">v34</em></strong>
+        <strong class="brand__name">MERGE ARENA <em class="build-tag" id="buildTag">v35</em></strong>
       </div>
       <div class="hud__stats">
         <button class="chip chip--energy" id="energyChip" type="button" title="Buy energy">
@@ -56,15 +56,20 @@
         <div class="chip chip--trophy">
           <span>🏆</span><strong id="trophyValue">0</strong>
         </div>
-        <button class="chip chip--rank" id="rankChip" type="button" title="Your rank">
-          <span id="rankEmoji">🎖</span><strong id="rankValue">Recruit</strong>
-        </button>
       </div>
-      <button class="cloud-dot" id="cloudChip" type="button" title="Cloud" aria-label="Cloud status">
-        <strong id="cloudValue">·</strong>
-      </button>
-      <button class="sound-dot" id="soundToggle" type="button" title="Sound" aria-label="Toggle sound">🔊</button>
     </header>
+
+    <div class="hud-sub" aria-label="Status row">
+      <button class="chip chip--rank" id="rankChip" type="button" title="Your rank">
+        <span id="rankEmoji">🎖</span><strong id="rankValue">Recruit</strong>
+      </button>
+      <div class="hud-sub__tools">
+        <button class="cloud-dot" id="cloudChip" type="button" title="Cloud" aria-label="Cloud status">
+          <strong id="cloudValue">·</strong>
+        </button>
+        <button class="sound-dot" id="soundToggle" type="button" title="Sound" aria-label="Toggle sound">🔊</button>
+      </div>
+    </div>
 
     <main class="stage">
       <section class="view is-active" id="view-play" data-view="play">
@@ -460,6 +465,6 @@
 
   <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
   <script src="../../config.js"></script>
-  <script src="../arena.js?v=34"></script>
+  <script src="../arena.js?v=35"></script>
 </body>
 </html>
