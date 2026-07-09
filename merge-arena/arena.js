@@ -7,35 +7,65 @@
   const SIZE = COLS * ROWS;
   const ENERGY_MAX = 20;
 
+  // 50 heroes — commons fuel merges; rares/epics/legends carry late gates
   const UNIT_DEFS = [
-    // Commons — Get Hero pool
-    { id: "spark", name: "Spark", icon: "⚡", face: "⚡", rarity: "common", role: "Striker", basePower: 12, vibe: "zap", blurb: "Fast fuse fuel." },
-    { id: "blade", name: "Blade", icon: "🗡", face: "⚔", rarity: "common", role: "Duelist", basePower: 14, vibe: "slash", blurb: "Clean edge damage." },
-    { id: "ember", name: "Ember", icon: "🔥", face: "🔥", rarity: "common", role: "Burner", basePower: 13, vibe: "fire", blurb: "Leaves a hot trail." },
-    { id: "frost", name: "Frost", icon: "❄️", face: "❄️", rarity: "common", role: "Freezer", basePower: 13, vibe: "ice", blurb: "Chills the lane." },
-    { id: "fang", name: "Fang", icon: "🐺", face: "🐺", rarity: "common", role: "Beast", basePower: 15, vibe: "beast", blurb: "Bites above weight." },
-    { id: "dart", name: "Dart", icon: "🏹", face: "🏹", rarity: "common", role: "Archer", basePower: 12, vibe: "bow", blurb: "Picks soft targets." },
-    { id: "brew", name: "Brew", icon: "🧪", face: "🧪", rarity: "common", role: "Alchemist", basePower: 11, vibe: "brew", blurb: "Weird flask power." },
-    { id: "cobble", name: "Cobble", icon: "🪨", face: "🪨", rarity: "common", role: "Tanklet", basePower: 16, vibe: "heavy", blurb: "Slow, stubborn rock." },
+    // Commons (20)
+    { id: "spark", name: "Spark", icon: "⚡", face: "⚡", rarity: "common", role: "Striker", basePower: 11, vibe: "zap", blurb: "Fast fuse fuel." },
+    { id: "blade", name: "Blade", icon: "🗡", face: "⚔", rarity: "common", role: "Duelist", basePower: 13, vibe: "slash", blurb: "Clean edge damage." },
+    { id: "ember", name: "Ember", icon: "🔥", face: "🔥", rarity: "common", role: "Burner", basePower: 12, vibe: "fire", blurb: "Leaves a hot trail." },
+    { id: "frost", name: "Frost", icon: "❄️", face: "❄️", rarity: "common", role: "Freezer", basePower: 12, vibe: "ice", blurb: "Chills the lane." },
+    { id: "fang", name: "Fang", icon: "🐺", face: "🐺", rarity: "common", role: "Beast", basePower: 14, vibe: "beast", blurb: "Bites above weight." },
+    { id: "dart", name: "Dart", icon: "🏹", face: "🏹", rarity: "common", role: "Archer", basePower: 11, vibe: "bow", blurb: "Picks soft targets." },
+    { id: "brew", name: "Brew", icon: "🧪", face: "🧪", rarity: "common", role: "Alchemist", basePower: 10, vibe: "brew", blurb: "Weird flask power." },
+    { id: "cobble", name: "Cobble", icon: "🪨", face: "🪨", rarity: "common", role: "Tanklet", basePower: 15, vibe: "heavy", blurb: "Slow, stubborn rock." },
+    { id: "pebble", name: "Pebble", icon: "🪨", face: "🪨", rarity: "common", role: "Tanklet", basePower: 14, vibe: "heavy", blurb: "Small stone, big block." },
+    { id: "pixie", name: "Pixie", icon: "✨", face: "✨", rarity: "common", role: "Trickster", basePower: 10, vibe: "glow", blurb: "Sparkle and dodge." },
+    { id: "scout", name: "Scout", icon: "🧭", face: "🧭", rarity: "common", role: "Archer", basePower: 11, vibe: "bow", blurb: "Maps the next clash." },
+    { id: "cinder", name: "Cinder", icon: "🪵", face: "🪵", rarity: "common", role: "Burner", basePower: 12, vibe: "fire", blurb: "Smoldering scrap." },
+    { id: "drizzle", name: "Drizzle", icon: "💧", face: "💧", rarity: "common", role: "Wave", basePower: 11, vibe: "tide", blurb: "Soft rain pressure." },
+    { id: "sprout", name: "Sprout", icon: "🌱", face: "🌱", rarity: "common", role: "Healer", basePower: 10, vibe: "glow", blurb: "Tiny green grit." },
+    { id: "buzz", name: "Buzz", icon: "🐝", face: "🐝", rarity: "common", role: "Striker", basePower: 12, vibe: "zap", blurb: "Stings then zips." },
+    { id: "crumb", name: "Crumb", icon: "🍪", face: "🍪", rarity: "common", role: "Mascot", basePower: 9, vibe: "brew", blurb: "Snack-powered punch." },
+    { id: "shade", name: "Shade", icon: "🕶", face: "🕶", rarity: "common", role: "Haunt", basePower: 12, vibe: "ghost", blurb: "Sneaks past guards." },
+    { id: "bolt", name: "Bolt", icon: "🔩", face: "🔩", rarity: "common", role: "Breaker", basePower: 13, vibe: "quake", blurb: "Nuts-and-bolts bash." },
+    { id: "howl", name: "Howl", icon: "🌙", face: "🌙", rarity: "common", role: "Beast", basePower: 13, vibe: "beast", blurb: "Night pack call." },
+    { id: "glint", name: "Glint", icon: "💎", face: "💎", rarity: "common", role: "Burst", basePower: 11, vibe: "glow", blurb: "Tiny crystal flash." },
 
-    // Rares — fuse L3+ or shop
-    { id: "ward", name: "Ward", icon: "🛡", face: "🛡", rarity: "rare", role: "Guardian", basePower: 22, vibe: "guard", blurb: "Holds the line." },
-    { id: "nova", name: "Nova", icon: "✦", face: "🌟", rarity: "rare", role: "Burst", basePower: 26, vibe: "glow", blurb: "Starflash strike." },
-    { id: "tide", name: "Tide", icon: "🌊", face: "🌊", rarity: "rare", role: "Wave", basePower: 24, vibe: "tide", blurb: "Pushes the board." },
-    { id: "quake", name: "Quake", icon: "🌋", face: "🌋", rarity: "rare", role: "Breaker", basePower: 25, vibe: "quake", blurb: "Cracks enemy armor." },
-    { id: "mirage", name: "Mirage", icon: "🪞", face: "🪞", rarity: "rare", role: "Trickster", basePower: 23, vibe: "ghost", blurb: "Hard to pin down." },
+    // Rares (15)
+    { id: "ward", name: "Ward", icon: "🛡", face: "🛡", rarity: "rare", role: "Guardian", basePower: 21, vibe: "guard", blurb: "Holds the line." },
+    { id: "nova", name: "Nova", icon: "✦", face: "🌟", rarity: "rare", role: "Burst", basePower: 25, vibe: "glow", blurb: "Starflash strike." },
+    { id: "tide", name: "Tide", icon: "🌊", face: "🌊", rarity: "rare", role: "Wave", basePower: 23, vibe: "tide", blurb: "Pushes the board." },
+    { id: "quake", name: "Quake", icon: "🌋", face: "🌋", rarity: "rare", role: "Breaker", basePower: 24, vibe: "quake", blurb: "Cracks enemy armor." },
+    { id: "mirage", name: "Mirage", icon: "🪞", face: "🪞", rarity: "rare", role: "Trickster", basePower: 22, vibe: "ghost", blurb: "Hard to pin down." },
+    { id: "basil", name: "Basilisk", icon: "🦎", face: "🦎", rarity: "rare", role: "Assassin", basePower: 24, vibe: "venom", blurb: "Stone-cold stare." },
+    { id: "aegis", name: "Aegis", icon: "🔰", face: "🔰", rarity: "rare", role: "Guardian", basePower: 23, vibe: "guard", blurb: "Shield wall specialist." },
+    { id: "flare", name: "Flare", icon: "☄", face: "☄", rarity: "rare", role: "Burner", basePower: 24, vibe: "fire", blurb: "Comet-trail burn." },
+    { id: "glacier", name: "Glacier", icon: "🧊", face: "🧊", rarity: "rare", role: "Freezer", basePower: 23, vibe: "ice", blurb: "Locks the lane cold." },
+    { id: "raptor", name: "Raptor", icon: "🦖", face: "🦖", rarity: "rare", role: "Beast", basePower: 25, vibe: "beast", blurb: "Claws for days." },
+    { id: "oracle", name: "Oracle", icon: "🔮", face: "🔮", rarity: "rare", role: "Myth", basePower: 22, vibe: "aurora", blurb: "Sees the next fuse." },
+    { id: "volt", name: "Volt", icon: "⚡", face: "⚡", rarity: "rare", role: "Storm", basePower: 24, vibe: "storm", blurb: "Chain-zap specialist." },
+    { id: "monk", name: "Monk", icon: "🧘", face: "🧘", rarity: "rare", role: "Healer", basePower: 21, vibe: "glow", blurb: "Calm power surge." },
+    { id: "duelist", name: "Duelist", icon: "🤺", face: "🤺", rarity: "rare", role: "Duelist", basePower: 25, vibe: "slash", blurb: "One clean finish." },
+    { id: "hex", name: "Hex", icon: "🧿", face: "🧿", rarity: "rare", role: "Haunt", basePower: 23, vibe: "ghost", blurb: "Curses the clash." },
 
-    // Epics
-    { id: "phantom", name: "Phantom", icon: "👁", face: "👻", rarity: "epic", role: "Haunt", basePower: 40, vibe: "ghost", blurb: "Slips through steel." },
-    { id: "titan", name: "Titan", icon: "🏛", face: "🗿", rarity: "epic", role: "Colossus", basePower: 48, vibe: "heavy", blurb: "Arena-shaking mass." },
-    { id: "venom", name: "Venom", icon: "🐍", face: "🐍", rarity: "epic", role: "Assassin", basePower: 44, vibe: "venom", blurb: "Toxic finishers." },
-    { id: "tempest", name: "Tempest", icon: "🌪", face: "🌪", rarity: "epic", role: "Storm", basePower: 46, vibe: "storm", blurb: "Spins the fight wild." },
+    // Epics (10)
+    { id: "phantom", name: "Phantom", icon: "👁", face: "👻", rarity: "epic", role: "Haunt", basePower: 38, vibe: "ghost", blurb: "Slips through steel." },
+    { id: "titan", name: "Titan", icon: "🏛", face: "🗿", rarity: "epic", role: "Colossus", basePower: 46, vibe: "heavy", blurb: "Arena-shaking mass." },
+    { id: "venom", name: "Venom", icon: "🐍", face: "🐍", rarity: "epic", role: "Assassin", basePower: 42, vibe: "venom", blurb: "Toxic finishers." },
+    { id: "tempest", name: "Tempest", icon: "🌪", face: "🌪", rarity: "epic", role: "Storm", basePower: 44, vibe: "storm", blurb: "Spins the fight wild." },
+    { id: "inferno", name: "Inferno", icon: "🔥", face: "🔥", rarity: "epic", role: "Burner", basePower: 45, vibe: "fire", blurb: "Whole-board heat." },
+    { id: "cryo", name: "Cryo", icon: "❄️", face: "❄️", rarity: "epic", role: "Freezer", basePower: 43, vibe: "ice", blurb: "Deep-freeze lockdown." },
+    { id: "behemoth", name: "Behemoth", icon: "🦏", face: "🦏", rarity: "epic", role: "Colossus", basePower: 47, vibe: "heavy", blurb: "Unstoppable charge." },
+    { id: "specter", name: "Specter", icon: "💀", face: "💀", rarity: "epic", role: "Haunt", basePower: 41, vibe: "eclipse", blurb: "Drains enemy will." },
+    { id: "raiden", name: "Raiden", icon: "⛈", face: "⛈", rarity: "epic", role: "Storm", basePower: 45, vibe: "storm", blurb: "Thunderclap finish." },
+    { id: "bloom", name: "Bloom", icon: "🌸", face: "🌸", rarity: "epic", role: "Healer", basePower: 40, vibe: "aurora", blurb: "Petal-powered surge." },
 
-    // Legendaries
-    { id: "sovereign", name: "Sovereign", icon: "👑", face: "🦁", rarity: "legendary", role: "King", basePower: 72, vibe: "royal", blurb: "Rules the clash." },
-    { id: "eclipse", name: "Eclipse", icon: "🌑", face: "🌑", rarity: "legendary", role: "Void", basePower: 78, vibe: "eclipse", blurb: "Eats the light." },
-    { id: "aurora", name: "Aurora", icon: "🌈", face: "🦊", rarity: "legendary", role: "Myth", basePower: 75, vibe: "aurora", blurb: "Skyfire legend." },
-    { id: "panda", name: "Panda King", icon: "🐼", face: "🐼", rarity: "legendary", role: "Mascot", basePower: 80, vibe: "royal", blurb: "Arena’s secret boss cheer." }
+    // Legendaries (5)
+    { id: "sovereign", name: "Sovereign", icon: "👑", face: "🦁", rarity: "legendary", role: "King", basePower: 70, vibe: "royal", blurb: "Rules the clash." },
+    { id: "eclipse", name: "Eclipse", icon: "🌑", face: "🌑", rarity: "legendary", role: "Void", basePower: 76, vibe: "eclipse", blurb: "Eats the light." },
+    { id: "aurora", name: "Aurora", icon: "🌈", face: "🦊", rarity: "legendary", role: "Myth", basePower: 73, vibe: "aurora", blurb: "Skyfire legend." },
+    { id: "panda", name: "Panda King", icon: "🐼", face: "🐼", rarity: "legendary", role: "Mascot", basePower: 78, vibe: "royal", blurb: "Arena’s secret boss cheer." },
+    { id: "chronos", name: "Chronos", icon: "⏳", face: "⏳", rarity: "legendary", role: "Myth", basePower: 80, vibe: "aurora", blurb: "Bends the gate clock." }
   ];
 
   const BUDDY_LINES = [
@@ -237,7 +267,11 @@
     { roles: ["Assassin", "Haunt"], bonus: 0.14, label: "Shadow Pair" },
     { roles: ["Storm", "Burst"], bonus: 0.12, label: "Sky Burst" },
     { roles: ["Beast", "Duelist"], bonus: 0.1, label: "Blood Duel" },
-    { roles: ["King", "Mascot"], bonus: 0.18, label: "Royal Panda" }
+    { roles: ["King", "Mascot"], bonus: 0.18, label: "Royal Panda" },
+    { roles: ["Healer", "Guardian"], bonus: 0.11, label: "Sanctuary" },
+    { roles: ["Wave", "Storm"], bonus: 0.12, label: "Tempest Tide" },
+    { roles: ["Myth", "Void"], bonus: 0.16, label: "Cosmic Gate" },
+    { roles: ["Colossus", "Breaker"], bonus: 0.13, label: "Siege Crush" }
   ];
 
   const ARENA_THEMES = [
@@ -249,15 +283,15 @@
   ];
 
   const SEASON_MILESTONES = [
-    { wave: 3, reward: "Warm-up", reward: "+20 💎" },
+    { wave: 3, label: "Warm-up", reward: "+20 💎" },
     { wave: 5, label: "First Boss", reward: "Boss chest" },
-    { wave: 10, label: "Double Digits", reward: "+50 💎" },
+    { wave: 10, label: "Hard Gate 10", reward: "Gate chest" },
     { wave: 15, label: "Storm Gate", reward: "Boss chest" },
-    { wave: 20, label: "Neon Elite", reward: "+80 💎" },
+    { wave: 20, label: "Hard Gate 20", reward: "Gate chest" },
     { wave: 25, label: "Void Trial", reward: "Boss chest" },
-    { wave: 30, label: "Half Century Run", reward: "+120 💎" },
-    { wave: 40, label: "Legend Road", reward: "+160 💎" },
-    { wave: 50, label: "Season Crown", reward: "Panda title" }
+    { wave: 30, label: "Hard Gate 30", reward: "Gate chest" },
+    { wave: 40, label: "Hard Gate 40", reward: "Gate chest" },
+    { wave: 50, label: "Hard Gate 50", reward: "Panda title" }
   ];
 
   const PANDA_BEATS = {
@@ -788,9 +822,24 @@
     showToast("+4 energy from Watch & Charge");
   }
 
+  function isBossWave(wave) {
+    return wave > 0 && wave % 5 === 0;
+  }
+
+  function isHardGate(wave) {
+    // Every 10 arenas: brutal checkpoint (10, 20, 30…)
+    return wave > 0 && wave % 10 === 0;
+  }
+
   function enemyPower(wave) {
-    const base = Math.round(28 + wave * 18 + Math.pow(wave, 1.35) * 4);
-    return isBossWave(wave) ? Math.round(base * 1.35) : base;
+    const w = Math.max(1, Number(wave) || 1);
+    // Steeper climb than before — merges matter, raw spam stalls.
+    let power = 34 + w * 22 + Math.pow(w, 1.48) * 5.2;
+    // Soft compounding so late arenas keep biting.
+    power *= 1 + Math.floor((w - 1) / 5) * 0.06;
+    if (isBossWave(w)) power *= 1.42;
+    if (isHardGate(w)) power *= 1.72; // every 10: much harder to pass
+    return Math.round(power);
   }
 
   function themeForWave(wave) {
@@ -798,27 +847,28 @@
     return ARENA_THEMES[idx];
   }
 
-  function isBossWave(wave) {
-    return wave > 0 && wave % 5 === 0;
-  }
-
   function applyArenaTheme() {
     const theme = themeForWave(state.wave);
     const boss = isBossWave(state.wave);
+    const hard = isHardGate(state.wave);
     document.body.dataset.theme = theme.id;
     document.body.dataset.boss = boss ? "1" : "0";
-    document.body.classList.toggle("is-night", theme.id === "void" || boss);
+    document.body.dataset.hard = hard ? "1" : "0";
+    document.body.classList.toggle("is-night", theme.id === "void" || boss || hard);
     if (els.themeChip) {
-      els.themeChip.textContent = boss
-        ? `${theme.emoji} BOSS · ${theme.boss}`
-        : `${theme.emoji} ${theme.name}`;
+      els.themeChip.textContent = hard
+        ? `${theme.emoji} HARD GATE · A${state.wave}`
+        : boss
+          ? `${theme.emoji} BOSS · ${theme.boss}`
+          : `${theme.emoji} ${theme.name}`;
     }
     if (els.waveLabel) {
-      els.waveLabel.textContent = boss ? "Boss Arena" : "Arena";
+      els.waveLabel.textContent = hard ? "Hard Gate" : boss ? "Boss Arena" : "Arena";
     }
     if (els.boardWrap) {
       els.boardWrap.dataset.theme = theme.id;
       els.boardWrap.classList.toggle("is-boss", boss);
+      els.boardWrap.classList.toggle("is-hard", hard);
     }
     return theme;
   }
@@ -1045,9 +1095,12 @@
     els.trophyValue.textContent = String(state.trophies);
     const theme = applyArenaTheme();
     const boss = isBossWave(state.wave);
-    els.waveTitle.textContent = boss
-      ? `Arena ${state.wave} · ${theme.boss}`
-      : `Arena ${state.wave}`;
+    const hard = isHardGate(state.wave);
+    els.waveTitle.textContent = hard
+      ? `Hard Gate ${state.wave}`
+      : boss
+        ? `Arena ${state.wave} · ${theme.boss}`
+        : `Arena ${state.wave}`;
     const power = squadPower();
     els.powerValue.textContent = String(power);
     state.highestPower = Math.max(state.highestPower, power);
@@ -1055,7 +1108,9 @@
     els.battleButton.disabled = battleBusy || state.energy < 1 || power <= 0;
     if (els.battleButton) {
       const small = els.battleButton.querySelector("small");
-      if (small && !battleBusy) small.textContent = boss ? "BOSS · 1 energy" : "1 energy";
+      if (small && !battleBusy) {
+        small.textContent = hard ? "HARD · 1 energy" : boss ? "BOSS · 1 energy" : "1 energy";
+      }
     }
   }
 
@@ -1066,16 +1121,24 @@
     if (kind === "summon") pick = BUDDY_LINES[1];
     else if (kind === "merge") pick = { title: "Arena Panda", line: "Fusion pop! That one felt 3D." };
     else if (kind === "fight") {
-      pick = isBossWave(state.wave)
-        ? { title: "Arena Panda", line: `Boss time! ${themeForWave(state.wave).boss} awaits.` }
-        : { title: "Arena Panda", line: "Go go! Smash Arena " + state.wave + "!" };
+      pick = isHardGate(state.wave)
+        ? { title: "Arena Panda", line: `Hard Gate ${state.wave}! Fuse hard — this one bites.` }
+        : isBossWave(state.wave)
+          ? { title: "Arena Panda", line: `Boss time! ${themeForWave(state.wave).boss} awaits.` }
+          : { title: "Arena Panda", line: "Go go! Smash Arena " + state.wave + "!" };
     }
     else if (kind === "win") {
-      pick = isBossWave(Math.max(1, state.wave - 1))
-        ? { title: "Arena Panda", line: "Boss crushed! Season path lights up." }
-        : { title: "Arena Panda", line: "Victory dance! You cleared it." };
+      pick = isHardGate(Math.max(1, state.wave - 1))
+        ? { title: "Arena Panda", line: "Hard Gate cleared! That was a real climb." }
+        : isBossWave(Math.max(1, state.wave - 1))
+          ? { title: "Arena Panda", line: "Boss crushed! Season path lights up." }
+          : { title: "Arena Panda", line: "Victory dance! You cleared it." };
     }
-    else if (kind === "lose") pick = { title: "Arena Panda", line: "Shake it off — fuse stronger and retry." };
+    else if (kind === "lose") {
+      pick = isHardGate(state.wave)
+        ? { title: "Arena Panda", line: "Gate too tall — merge higher before retry." }
+        : { title: "Arena Panda", line: "Shake it off — fuse stronger and retry." };
+    }
     else if (power >= 80) pick = BUDDY_LINES[3];
     else if (power >= 40) pick = BUDDY_LINES[4];
     else if (!state.board.some(Boolean)) pick = BUDDY_LINES[1];
@@ -1148,6 +1211,12 @@
       status = "Need heroes";
       tip = "Tap Get Hero — drop fighters onto the floor.";
       tone = "idle";
+    } else if (isHardGate(state.wave)) {
+      status = you >= enemy ? "Gate ready" : "Hard Gate";
+      tip = you >= enemy
+        ? `Arena ${state.wave} Hard Gate is crackable — Enter Fight!`
+        : `Every 10 is brutal. Need ~${enemy} power (you: ${you}).`;
+      tone = you >= enemy ? "ready" : "warn";
     } else if (isBossWave(state.wave)) {
       status = you >= enemy ? "Boss ready" : "Boss too strong";
       tip = you >= enemy
@@ -1516,6 +1585,7 @@
     const wave = state.wave;
     const theme = themeForWave(wave);
     const boss = isBossWave(wave);
+    const hard = isHardGate(wave);
     const enemy = enemyPower(wave);
     const syn = activeSynergies();
     els.battleModal.hidden = false;
@@ -1523,26 +1593,33 @@
       els.battleStage.classList.add("is-fighting");
       els.battleStage.dataset.theme = theme.id;
       els.battleStage.classList.toggle("is-boss", boss);
-      els.battleStage.classList.toggle("is-night", theme.id === "void" || boss);
+      els.battleStage.classList.toggle("is-hard", hard);
+      els.battleStage.classList.toggle("is-night", theme.id === "void" || boss || hard);
     }
     els.fighterYou.textContent = `YOU ${power}`;
-    els.fighterEnemy.textContent = boss ? `${theme.boss} ${enemy}` : `L${wave} ${enemy}`;
+    els.fighterEnemy.textContent = hard
+      ? `GATE ${enemy}`
+      : boss
+        ? `${theme.boss} ${enemy}`
+        : `L${wave} ${enemy}`;
     els.youBar.style.width = "100%";
     els.enemyBar.style.width = "100%";
-    els.battleLog.textContent = boss
-      ? `${theme.emoji} Boss clash vs ${theme.boss}…`
-      : syn.length
-        ? `${syn[0].label} ignites the clash…`
-        : `${theme.emoji} ${theme.name} clash…`;
-    if (els.battleFx) els.battleFx.textContent = boss ? "👹" : "💥";
+    els.battleLog.textContent = hard
+      ? `${theme.emoji} Hard Gate ${wave} — no mercy…`
+      : boss
+        ? `${theme.emoji} Boss clash vs ${theme.boss}…`
+        : syn.length
+          ? `${syn[0].label} ignites the clash…`
+          : `${theme.emoji} ${theme.name} clash…`;
+    if (els.battleFx) els.battleFx.textContent = hard ? "⛓" : boss ? "👹" : "💥";
 
     await wait(500);
-    els.battleLog.textContent = boss ? "Boss rage!" : "Heroes collide!";
+    els.battleLog.textContent = hard ? "Gate pressure!" : boss ? "Boss rage!" : "Heroes collide!";
     playTone("hit");
     await wait(400);
 
     const youRatio = power / (power + enemy);
-    const steps = boss ? 12 : 10;
+    const steps = hard ? 14 : boss ? 12 : 10;
     for (let i = 1; i <= steps; i += 1) {
       const progress = i / steps;
       const youLeft = Math.max(0, 100 - progress * 100 * (1 - youRatio) * 1.35);
@@ -1553,12 +1630,14 @@
         els.battleStage.classList.toggle("is-shake", i % 2 === 0);
       }
       if (els.battleFx) {
-        els.battleFx.textContent = boss
-          ? (i % 2 === 0 ? "🔥" : "💥")
-          : (i % 3 === 0 ? "⚡" : i % 2 === 0 ? "💥" : "✦");
+        els.battleFx.textContent = hard
+          ? (i % 2 === 0 ? "⛓" : "💥")
+          : boss
+            ? (i % 2 === 0 ? "🔥" : "💥")
+            : (i % 3 === 0 ? "⚡" : i % 2 === 0 ? "💥" : "✦");
       }
       if (i % 2 === 0) playTone("hit");
-      await wait(boss ? 100 : 110);
+      await wait(hard ? 95 : boss ? 100 : 110);
     }
 
     const won = power >= enemy;
@@ -1572,6 +1651,10 @@
         trophyGain += 20;
         gemGain += 60;
       }
+      if (hard) {
+        trophyGain += 35;
+        gemGain += 120;
+      }
       const prevTheme = themeForWave(wave).id;
       state.wins += 1;
       state.trophies += trophyGain;
@@ -1582,12 +1665,15 @@
       saveState();
       els.battleModal.hidden = true;
       if (els.battleStage) {
-        els.battleStage.classList.remove("is-fighting", "is-shake", "is-boss", "is-night");
+        els.battleStage.classList.remove("is-fighting", "is-shake", "is-boss", "is-hard", "is-night");
       }
-      showResult(true, wave, trophyGain, gemGain, boss ? theme.boss : "");
+      const foeLabel = hard ? `Hard Gate ${wave}` : boss ? theme.boss : "";
+      showResult(true, wave, trophyGain, gemGain, foeLabel);
       playTone("win");
       haptic("success");
-      if (boss) {
+      if (hard) {
+        setTimeout(() => showPandaStory("season", `Hard Gate ${wave} shattered.`), 700);
+      } else if (boss) {
         setTimeout(() => showPandaStory("bossWin", `${theme.boss} defeated.`), 700);
       } else if (themeForWave(state.wave).id !== prevTheme) {
         setTimeout(() => showPandaStory("themeShift", `Welcome to ${themeForWave(state.wave).name}.`), 700);
@@ -1595,17 +1681,18 @@
         setTimeout(() => showPandaStory("season", `Arena ${wave} milestone!`), 700);
       }
     } else {
-      const loss = Math.min(state.trophies, (boss ? 8 : 4) + Math.floor(wave / 2));
-      const gemGain = boss ? 12 : 5;
+      const loss = Math.min(state.trophies, (hard ? 12 : boss ? 8 : 4) + Math.floor(wave / 2));
+      const gemGain = hard ? 18 : boss ? 12 : 5;
       state.trophies = Math.max(0, state.trophies - loss);
       state.gems += gemGain;
       consumeWeakest();
       saveState();
       els.battleModal.hidden = true;
       if (els.battleStage) {
-        els.battleStage.classList.remove("is-fighting", "is-shake", "is-boss", "is-night");
+        els.battleStage.classList.remove("is-fighting", "is-shake", "is-boss", "is-hard", "is-night");
       }
-      showResult(false, wave, -loss, gemGain, boss ? theme.boss : "");
+      const foeLabel = hard ? `Hard Gate ${wave}` : boss ? theme.boss : "";
+      showResult(false, wave, -loss, gemGain, foeLabel);
       playTone("lose");
       haptic("error");
     }
@@ -1629,27 +1716,30 @@
     if (weakestIdx >= 0) state.board[weakestIdx] = null;
   }
 
-  function showResult(won, wave, trophies, gems, bossName) {
+  function showResult(won, wave, trophies, gems, foeName) {
     els.resultModal.hidden = false;
-    const boss = Boolean(bossName);
+    const hard = String(foeName || "").startsWith("Hard Gate");
+    const boss = Boolean(foeName) && !hard;
     els.resultEyebrow.textContent = won
-      ? (boss ? "Boss Victory" : "Victory")
-      : (boss ? "Boss Hold" : "Defeat");
+      ? (hard ? "Gate Cleared" : boss ? "Boss Victory" : "Victory")
+      : (hard ? "Gate Hold" : boss ? "Boss Hold" : "Defeat");
     els.resultTitle.textContent = won
-      ? (boss ? `${bossName} Cleared` : `Arena ${wave} Cleared`)
-      : (boss ? `${bossName} Holds` : `Arena ${wave} Hold`);
+      ? (hard ? `Hard Gate ${wave} Cleared` : boss ? `${foeName} Down` : `Arena ${wave} Cleared`)
+      : (hard ? `Hard Gate ${wave} Holds` : boss ? `${foeName} Holds` : `Arena ${wave} Holds`);
     els.resultText.textContent = won
-      ? (boss
-        ? "Boss chest smashed. Season path advances!"
-        : "Your squad dominated. Next arena unlocked!")
-      : (boss
-        ? "Boss still stands. Fuse higher and return."
+      ? (hard
+        ? "Brutal checkpoint beaten — keep climbing."
+        : boss
+          ? "Boss chest vibes. Keep climbing."
+          : "Your squad smashed the gate.")
+      : (hard
+        ? "Every 10 is meant to hurt — fuse higher and retry."
         : "Fuse higher and come back swinging.");
     els.resultRewards.innerHTML = `
       <span>${trophies >= 0 ? "+" : ""}${trophies} 🏆</span>
       <span>+${Math.max(0, gems)} 💎</span>
       ${won
-        ? (boss ? "<span>Boss chest</span>" : "<span>Next arena unlocked</span>")
+        ? (hard ? "<span>Gate chest</span>" : boss ? "<span>Boss chest</span>" : "<span>Next arena unlocked</span>")
         : "<span>Forge stronger</span>"}
     `;
   }
