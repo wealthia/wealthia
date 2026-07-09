@@ -406,7 +406,10 @@
   let tutorialIndex = 0;
   let adsgramController = null;
   let adsgramBonusController = null;
+  let adsgramDebugController = null;
   let adsInitTries = 0;
+  let adsBusy = false;
+  let adsStatus = "boot";
   let playerId = "";
   let audioCtx = null;
 
@@ -1079,67 +1082,190 @@
     }
   }
 
+  function ensureAdsgramGlobal() {
+    // SDK UMD exports as window.SAD and also sets window.Adsgram.init
+    if (window.Adsgram && typeof window.Adsgram.init === "function") return window.Adsgram;
+    if (window.SAD && typeof window.SAD.init === "function") {
+      window.Adsgram = Object.assign({}, window.Adsgram || {}, window.SAD);
+      return window.Adsgram;
+    }
+    return null;
+  }
+
+  function loadAdsgramScript() {
+    return new Promise((resolve) => {
+      if (ensureAdsgramGlobal()) {
+        resolve(true);
+        return;
+      }
+      const existing = document.querySelector('script[data-adsgram="1"]');
+      if (existing) {
+        existing.addEventListener("load", () => resolve(Boolean(ensureAdsgramGlobal())));
+        existing.addEventListener("error", () => resolve(false));
+        setTimeout(() => resolve(Boolean(ensureAdsgramGlobal())), 2500);
+        return;
+      }
+      const s = document.createElement("script");
+      s.src = "https://sad.adsgram.ai/js/sad.min.js";
+      s.async = true;
+      s.dataset.adsgram = "1";
+      s.onload = () => resolve(Boolean(ensureAdsgramGlobal()));
+      s.onerror = () => resolve(false);
+      document.head.appendChild(s);
+      setTimeout(() => resolve(Boolean(ensureAdsgramGlobal())), 4000);
+    });
+  }
+
   function initAdsGram() {
     const cfg = window.WEALTHIA_CONFIG || {};
     const blockId = String(cfg.ADSGRAM_BLOCK_ID || "").trim();
     const bonusBlockId = String(cfg.ADSGRAM_BONUS_BLOCK_ID || blockId).trim();
+    const forceDebug = Boolean(cfg.ADSGRAM_DEBUG) || /[?&]adsdebug=1\b/.test(location.search);
     if (!blockId) {
       adsgramController = null;
       adsgramBonusController = null;
+      adsStatus = "no_block";
       return;
     }
-    if (!window.Adsgram) {
-      // SDK still loading — retry a few times so Watch & Charge actually works.
-      if (adsInitTries < 12) {
+    const api = ensureAdsgramGlobal();
+    if (!api) {
+      adsStatus = "sdk_missing";
+      if (adsInitTries < 20) {
         adsInitTries += 1;
-        setTimeout(initAdsGram, 500);
+        loadAdsgramScript().then((ok) => {
+          if (ok) initAdsGram();
+          else setTimeout(initAdsGram, 600);
+        });
       }
       return;
     }
     try {
-      adsgramController = window.Adsgram.init({
+      adsgramController = api.init({
         blockId,
-        debug: Boolean(cfg.ADSGRAM_DEBUG),
+        debug: forceDebug,
+        debugConsole: forceDebug,
         debugBannerType: "RewardedVideo"
       });
+      adsStatus = "ready";
     } catch (error) {
       console.warn("ADSGRAM_INIT_FAIL", error);
       adsgramController = null;
+      adsStatus = "init_fail";
     }
     try {
-      adsgramBonusController = window.Adsgram.init({
+      adsgramBonusController = api.init({
         blockId: bonusBlockId,
-        debug: Boolean(cfg.ADSGRAM_DEBUG),
+        debug: forceDebug,
+        debugConsole: forceDebug,
         debugBannerType: "RewardedVideo"
       });
     } catch (error) {
       console.warn("ADSGRAM_BONUS_INIT_FAIL", error);
       adsgramBonusController = null;
     }
+    // Always keep a debug controller as last-resort fill when inventory is empty.
+    try {
+      adsgramDebugController = api.init({
+        blockId,
+        debug: true,
+        debugConsole: true,
+        debugBannerType: "RewardedVideo"
+      });
+    } catch {
+      adsgramDebugController = null;
+    }
+    renderAdOffers();
   }
 
   function adsReady(kind = "main") {
     return kind === "bonus" ? Boolean(adsgramBonusController) : Boolean(adsgramController);
   }
 
+  function describeAdError(err) {
+    if (!err) return "Ad unavailable.";
+    if (typeof err === "string") return err;
+    return err.description || err.message || (err.error ? "Ad error" : "Ad skipped or unavailable.");
+  }
+
   async function showRewardedAd(controller) {
     if (!controller) return { ok: false, reason: "not_ready" };
-    try {
-      const result = await controller.show();
-      if (result && result.done) return { ok: true, result };
-      return {
-        ok: false,
-        reason: (result && result.description) || "Watch the full ad to charge."
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (payload) => {
+        if (settled) return;
+        settled = true;
+        try {
+          controller.removeEventListener("onReward", onReward);
+          controller.removeEventListener("onError", onError);
+          controller.removeEventListener("onBannerNotFound", onMissing);
+          controller.removeEventListener("onTooLongSession", onLong);
+        } catch {
+          /* ignore */
+        }
+        resolve(payload);
       };
-    } catch (error) {
-      return {
-        ok: false,
-        reason: (error && error.description) || "Ad skipped or unavailable."
-      };
-    }
+      const onReward = () => finish({ ok: true, via: "onReward" });
+      const onError = (e) => finish({ ok: false, reason: describeAdError(e), code: "error" });
+      const onMissing = () => finish({ ok: false, reason: "No ad fill right now.", code: "nofill" });
+      const onLong = () => finish({ ok: false, reason: "Session too long — reopen the bot.", code: "long" });
+      try {
+        controller.addEventListener("onReward", onReward);
+        controller.addEventListener("onError", onError);
+        controller.addEventListener("onBannerNotFound", onMissing);
+        controller.addEventListener("onTooLongSession", onLong);
+      } catch {
+        /* older SDK */
+      }
+      Promise.resolve()
+        .then(() => controller.show())
+        .then((result) => {
+          if (result && result.done) finish({ ok: true, via: "show", result });
+          else finish({ ok: false, reason: describeAdError(result), code: "skip" });
+        })
+        .catch((error) => {
+          finish({ ok: false, reason: describeAdError(error), code: "reject" });
+        });
+      // Safety timeout so UI never hangs forever
+      setTimeout(() => finish({ ok: false, reason: "Ad timed out.", code: "timeout" }), 45000);
+    });
+  }
+
+  function renderAdOffers() {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    const inTelegram = Boolean(tg && (tg.initData || (tg.initDataUnsafe && tg.initDataUnsafe.user)));
+    const mainTip = document.getElementById("adMainTip");
+    const bonusTip = document.getElementById("adBonusTip");
+    const status = !inTelegram
+      ? "Open in Telegram bot"
+      : adsReady("main")
+        ? "Ready · tap Watch"
+        : adsStatus === "sdk_missing"
+          ? "Loading AdsGram…"
+          : "Warming up…";
+    if (mainTip) mainTip.textContent = `+4⚡ · ${status}`;
+    if (bonusTip) bonusTip.textContent = `+3⚡ · ${status}`;
+    if (els.adEnergyBtn) els.adEnergyBtn.disabled = adsBusy;
+    if (els.adBonusBtn) els.adBonusBtn.disabled = adsBusy;
+  }
+
+  function grantAdEnergy(kind, gain, label) {
+    const now = Date.now();
+    const cooldownKey = kind === "bonus" ? "adBonusLastClaimAt" : "adLastClaimAt";
+    state[cooldownKey] = now;
+    state.energy = Math.min(ENERGY_MAX, state.energy + gain);
+    state.lastEnergyAt = now;
+    saveState();
+    renderHud();
+    playTone("claim");
+    haptic("success");
+    showToast(`+${gain} ⚡ from ${label}`);
   }
 
   async function watchAdForEnergy(kind = "main") {
+    if (adsBusy) {
+      showToast("Ad already playing…");
+      return;
+    }
     const now = Date.now();
     const cooldownKey = kind === "bonus" ? "adBonusLastClaimAt" : "adLastClaimAt";
     const gain = kind === "bonus" ? AD_BONUS_ENERGY_GAIN : AD_ENERGY_GAIN;
@@ -1150,37 +1276,62 @@
       return;
     }
 
-    // Late SDK / first open: try init again before giving up.
-    if (!adsReady(kind)) initAdsGram();
-    const controller = kind === "bonus" ? adsgramBonusController : adsgramController;
-    const cfg = window.WEALTHIA_CONFIG || {};
-    const hasBlock = Boolean(String(cfg.ADSGRAM_BLOCK_ID || "").trim());
+    const tg = window.Telegram && window.Telegram.WebApp;
+    const inTelegram = Boolean(tg && (tg.initData || (tg.initDataUnsafe && tg.initDataUnsafe.user)));
+    if (!inTelegram) {
+      showToast("Open @MergeArenaBot in Telegram to watch ads.");
+      return;
+    }
 
-    let watched = false;
-    if (controller) {
-      const shown = await showRewardedAd(controller);
+    adsBusy = true;
+    renderAdOffers();
+    try {
+      if (!adsReady(kind)) {
+        showToast("Loading ad…");
+        await loadAdsgramScript();
+        initAdsGram();
+        await wait(250);
+      }
+      let controller = kind === "bonus" ? adsgramBonusController : adsgramController;
+      const cfg = window.WEALTHIA_CONFIG || {};
+      const hasBlock = Boolean(String(cfg.ADSGRAM_BLOCK_ID || "").trim());
+
+      if (!controller && hasBlock) {
+        showToast(`Ad SDK ${adsStatus || "loading"} — tap again in a second.`);
+        initAdsGram();
+        return;
+      }
+      if (!controller) {
+        // No block configured — soft demo so shop still works in test builds
+        if (window.confirm(`Demo ad complete?\n\nOK = grant +${gain} energy`)) {
+          grantAdEnergy(kind, gain, label);
+        }
+        return;
+      }
+
+      showToast("Opening ad…");
+      let shown = await showRewardedAd(controller);
+      // Empty inventory / platform mismatch: don't soft-lock energy — grant once with notice.
+      if (!shown.ok && (shown.code === "nofill" || shown.code === "reject" || shown.code === "error")) {
+        // Same blockId returns the same controller, so a second debug init won't help.
+        // Soft-grant so scarce energy stays playable while AdsGram fill/platform is fixed.
+        showToast(shown.reason || "No live ad fill");
+        const allowSoft = window.confirm(
+          `${label}\n\nNo live ad right now.\nClaim +${gain}⚡ free this time?`
+        );
+        if (!allowSoft) return;
+        grantAdEnergy(kind, gain, `${label} (no fill)`);
+        return;
+      }
       if (!shown.ok) {
         showToast(shown.reason || "Ad unavailable right now.");
         return;
       }
-      watched = true;
-    } else if (hasBlock) {
-      showToast("Ad loading — open in Telegram and tap again.");
-      setTimeout(initAdsGram, 300);
-      return;
-    } else {
-      watched = window.confirm(`Demo ad complete?\n\nOK = grant +${gain} energy`);
-      if (!watched) return;
+      grantAdEnergy(kind, gain, label);
+    } finally {
+      adsBusy = false;
+      renderAdOffers();
     }
-
-    state[cooldownKey] = now;
-    state.energy = Math.min(ENERGY_MAX, state.energy + gain);
-    state.lastEnergyAt = now;
-    saveState();
-    renderHud();
-    playTone("claim");
-    haptic("success");
-    showToast(`+${gain} ⚡ from ${label}`);
   }
 
   function isBossWave(wave) {
@@ -1536,6 +1687,10 @@
       if (tg.onEvent) {
         tg.onEvent("viewportChanged", fitViewport);
       }
+      // AdsGram needs Telegram env ready before first show
+      setTimeout(() => {
+        loadAdsgramScript().then(() => initAdsGram());
+      }, 200);
     } catch {
       fitViewport();
     }
@@ -1553,6 +1708,7 @@
     });
     requestAnimationFrame(() => {
       if (name === "roster") renderRoster();
+      if (name === "shop") renderAdOffers();
       if (name === "ranks") renderRankPage();
       if (name === "rank") {
         renderGlory();
@@ -2834,7 +2990,7 @@
     });
     const tag = document.getElementById("buildTag");
     if (tag) {
-      setTimeout(() => showToast(`Build ${tag.textContent} · ads +20 gems`), 500);
+      setTimeout(() => showToast(`Build ${tag.textContent} · ads fix`), 500);
     }
     if (state.dailyClaimDate !== todayKey()) {
       setTimeout(() => showToast("Daily Chest ready in Glory"), 1400);
