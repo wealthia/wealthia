@@ -6,7 +6,7 @@ window.WEALTHIA_CONFIG = {
   ADMIN_URL: "https://wealthia.github.io/wealthia/admin.html",
 
   // Your bot username without @ — used for invite links
-  BOT_USERNAME: "WealthiaGameBot",
+  BOT_USERNAME: "MergeArenaBot",
 
   // Premium spin admin test bypass (Telegram user id)
   ADMIN_TELEGRAM_ID: "1988089728",
