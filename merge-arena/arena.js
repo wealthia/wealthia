@@ -99,6 +99,8 @@
     energyValue: $("energyValue"),
     gemValue: $("gemValue"),
     trophyValue: $("trophyValue"),
+    cloudChip: $("cloudChip"),
+    cloudValue: $("cloudValue"),
     energyChip: $("energyChip"),
     waveTitle: $("waveTitle"),
     powerValue: $("powerValue"),
@@ -186,15 +188,18 @@
   async function ensureSession() {
     const initData = getTelegramInitData();
     if (!initData) {
+      setCloudStatus("local", "warn");
       showToast("Open from Telegram bot (not browser)");
       return false;
     }
+    setCloudStatus("auth…", "busy");
     const { ok, result, status } = await api("/api/merge-arena/session", {
       method: "POST",
       body: { initData }
     });
     if (!ok || !result?.token) {
       const reason = (result && (result.reason || result.error)) || `HTTP ${status}`;
+      setCloudStatus("off", "bad");
       showToast(`Cloud off: ${reason}`);
       console.warn("MERGE_ARENA_SESSION_FAIL", status, result);
       return false;
@@ -229,13 +234,20 @@
   }
 
   async function pushCloudState() {
-    if (!sessionToken || syncing) return;
+    if (!sessionToken || syncing) return false;
     syncing = true;
     try {
-      await api("/api/merge-arena/state", {
+      const { ok, result, status } = await api("/api/merge-arena/state", {
         method: "POST",
         body: { state }
       });
+      if (!ok) {
+        const reason = (result && (result.error || result.message)) || `HTTP ${status}`;
+        setCloudStatus("save✗", "bad");
+        showToast(`Save failed: ${reason}`);
+        return false;
+      }
+      return true;
     } finally {
       syncing = false;
     }
@@ -243,19 +255,32 @@
 
   async function connectCloud() {
     try {
+      setCloudStatus("…", "busy");
       const authed = await ensureSession();
       if (!authed) return;
       await loadCloudState();
       cloudReady = true;
-      await pushCloudState();
+      const saved = await pushCloudState();
       seedIfEmpty();
       renderBoard();
       renderRoster();
       renderGlory();
-      showToast("Cloud save on");
+      if (saved) {
+        setCloudStatus("on", "ok");
+        showToast("Cloud save on");
+      }
     } catch (error) {
+      setCloudStatus("err", "bad");
       showToast("Cloud wake failed — retry in bot");
       console.warn("MERGE_ARENA_CLOUD_FAIL", error);
+    }
+  }
+
+  function setCloudStatus(text, kind) {
+    if (els.cloudValue) els.cloudValue.textContent = text;
+    if (els.cloudChip) {
+      els.cloudChip.dataset.kind = kind || "";
+      els.cloudChip.title = text;
     }
   }
 
@@ -265,7 +290,7 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => {
       els.toast.hidden = true;
-    }, 2300);
+    }, 3500);
   }
 
   function wait(ms) {
@@ -773,6 +798,11 @@
       switchView("shop");
       openPay("energy_refill");
     });
+    if (els.cloudChip) {
+      els.cloudChip.addEventListener("click", () => {
+        connectCloud();
+      });
+    }
 
     document.querySelectorAll("[data-buy]").forEach((card) => {
       const buy = () => openPay(card.dataset.buy);

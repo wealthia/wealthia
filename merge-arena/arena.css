@@ -158,6 +158,11 @@ button {
 .chip--energy { border-color: rgba(94, 240, 208, 0.4); color: var(--cyan); }
 .chip--gem { color: #9ec0ff; }
 .chip--trophy { color: var(--gold); }
+.chip--cloud { color: #9ad7ff; }
+.chip--cloud[data-kind="ok"] { color: #5ef0d0; }
+.chip--cloud[data-kind="bad"] { color: #ff8aa8; }
+.chip--cloud[data-kind="warn"] { color: #ffd27a; }
+.chip--cloud[data-kind="busy"] { color: #c9b8ff; }
 
 .howto {
   padding: 12px 14px;

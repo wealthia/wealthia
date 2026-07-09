@@ -134,18 +134,39 @@ app.get("/ping", (_req, res) => {
 
 app.get("/health", async (_req, res) => {
   let database = false;
+  let dbError = "";
   try {
     const { error } = await supabase.from("merge_arena_states").select("user_id").limit(1);
     database = !error;
-  } catch {
+    if (error) dbError = error.message;
+  } catch (error) {
     database = false;
+    dbError = error.message || "db_error";
   }
+
+  let telegram = { configured: Boolean(TELEGRAM_BOT_TOKEN), ok: false, username: "" };
+  if (TELEGRAM_BOT_TOKEN) {
+    try {
+      const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe`);
+      const data = await response.json();
+      telegram = {
+        configured: true,
+        ok: Boolean(data.ok),
+        username: data.ok ? data.result?.username || "" : "",
+        error: data.ok ? "" : data.description || "getMe_failed"
+      };
+    } catch (error) {
+      telegram = { configured: true, ok: false, username: "", error: error.message || "getMe_error" };
+    }
+  }
+
   res.json({
     ok: true,
     app: "MERGE ARENA API",
     database,
-    telegram: Boolean(TELEGRAM_BOT_TOKEN),
-    version: "merge-arena-v1"
+    dbError: dbError || undefined,
+    telegram,
+    version: "merge-arena-v2"
   });
 });
 
