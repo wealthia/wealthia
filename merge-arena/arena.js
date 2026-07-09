@@ -2993,7 +2993,7 @@
     });
     const tag = document.getElementById("buildTag");
     if (tag) {
-      setTimeout(() => showToast(`Build ${tag.textContent} · ads fix`), 500);
+      setTimeout(() => showToast(`Build ${tag.textContent} · AdsGram ready`), 500);
     }
     if (state.dailyClaimDate !== todayKey()) {
       setTimeout(() => showToast("Daily Chest ready in Glory"), 1400);
