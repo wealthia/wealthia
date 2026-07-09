@@ -1,5 +1,6 @@
 (() => {
   const STORAGE_KEY = "vitrine_state_v2";
+  const CLAIM_LOCK_KEY = `${STORAGE_KEY}_daily_claim`;
 
   const MATERIALS = [
     { id: "ribbon", name: "Ribbon", color: "#ff6b9d" },
@@ -94,6 +95,8 @@
   let state = loadState();
   let toastTimer = null;
   let selectedSendUid = null;
+  let craftBusy = false;
+  let claimBusy = false;
 
   const $ = (id) => document.getElementById(id);
 
@@ -120,6 +123,7 @@
     sendButton: $("sendButton"),
     toast: $("toast"),
     revealModal: $("revealModal"),
+    revealKicker: $("revealKicker"),
     revealVisual: $("revealVisual"),
     revealName: $("revealName"),
     revealRarity: $("revealRarity"),
@@ -127,7 +131,11 @@
   };
 
   function todayKey() {
-    return new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   }
 
   function loadState() {
@@ -148,6 +156,21 @@
 
   function saveState() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  function renderStateViews() {
+    renderWallet();
+    renderHome();
+    renderAtelier();
+    renderCollection();
+    renderSend();
+  }
+
+  function withDailyClaimLock(callback) {
+    if (navigator.locks && typeof navigator.locks.request === "function") {
+      return navigator.locks.request(CLAIM_LOCK_KEY, callback);
+    }
+    return Promise.resolve(callback());
   }
 
   function showToast(message) {
@@ -223,6 +246,7 @@
       btn.classList.toggle("is-active", btn.dataset.nav === name);
     });
     if (name === "atelier") renderAtelier();
+    if (name === "home") renderHome();
     if (name === "collection") renderCollection();
     if (name === "shop") renderShop();
     if (name === "send") renderSend();
@@ -263,16 +287,17 @@
   function renderAtelier() {
     renderMaterials();
     els.recipeList.innerHTML = GIFTS.map((gift) => {
-      const ready = canAfford(gift.recipe);
+      const ready = !craftBusy && canAfford(gift.recipe);
+      const cta = craftBusy ? "Wait" : ready ? "Make" : "Need";
       return `
-        <button class="compose-card ${ready ? "" : "is-locked"}" type="button" data-craft="${gift.id}">
+        <button class="compose-card ${ready ? "" : "is-locked"}" type="button" data-craft="${gift.id}" ${craftBusy ? "disabled" : ""}>
           <div class="compose-card__box" data-tone="${gift.tone}"></div>
           <div>
             <h3>${gift.name}</h3>
             <p>${gift.blurb}</p>
             <p>${recipeText(gift.recipe)}</p>
           </div>
-          <span class="compose-card__cta">${ready ? "Make" : "Need"}</span>
+          <span class="compose-card__cta">${cta}</span>
         </button>
       `;
     }).join("");
@@ -377,7 +402,8 @@
     els.sendButton.disabled = !selectedSendUid;
   }
 
-  function openReveal(gift) {
+  function openReveal(gift, source = "craft") {
+    els.revealKicker.textContent = source === "shop" ? "You got" : "You made";
     els.revealVisual.dataset.tone = gift.tone;
     els.revealName.textContent = gift.name;
     els.revealRarity.textContent = gift.rarity;
@@ -389,44 +415,76 @@
   }
 
   async function craftGift(giftId) {
+    if (craftBusy) {
+      showToast("Already wrapping a gift.");
+      return;
+    }
+
     const gift = giftById(giftId);
     if (!canAfford(gift.recipe)) {
       showToast("Need more materials for this gift.");
       return;
     }
 
+    craftBusy = true;
+    renderAtelier();
     els.craftStage.hidden = false;
     els.craftOrb.dataset.tone = gift.tone;
     els.craftLabel.textContent = "Wrapping…";
-    await wait(1100);
+    try {
+      await wait(1100);
 
-    spend(gift.recipe);
-    state.collection.push({
-      uid: `${gift.id}_${Date.now()}`,
-      giftId: gift.id,
-      craftedAt: new Date().toISOString()
-    });
-    state.essence += gift.rarity === "epic" ? 25 : gift.rarity === "rare" ? 12 : 5;
-    state.featuredGiftId = gift.id;
-    saveState();
+      if (!canAfford(gift.recipe)) {
+        showToast("Need more materials for this gift.");
+        return;
+      }
 
-    els.craftStage.hidden = true;
-    renderWallet();
-    renderAtelier();
-    openReveal(gift);
-    showToast(`${gift.name} is yours.`);
+      spend(gift.recipe);
+      state.collection.push({
+        uid: `${gift.id}_${Date.now()}`,
+        giftId: gift.id,
+        craftedAt: new Date().toISOString()
+      });
+      state.essence += gift.rarity === "epic" ? 25 : gift.rarity === "rare" ? 12 : 5;
+      state.featuredGiftId = gift.id;
+      saveState();
+
+      renderWallet();
+      openReveal(gift);
+      showToast(`${gift.name} is yours.`);
+    } finally {
+      craftBusy = false;
+      els.craftStage.hidden = true;
+      renderAtelier();
+    }
   }
 
-  function claimDaily() {
-    if (claimedToday()) {
+  async function claimDaily() {
+    if (claimBusy) return;
+    claimBusy = true;
+    let didClaim = false;
+    try {
+      didClaim = await withDailyClaimLock(() => {
+        state = loadState();
+        if (claimedToday()) return false;
+
+        addMats({ ribbon: 1, paper: 1, spark: 1 });
+        state.lastClaimDate = todayKey();
+        state.essence += 3;
+        saveState();
+        return true;
+      });
+    } finally {
+      claimBusy = false;
+    }
+
+    if (!didClaim) {
+      renderWallet();
+      renderHome();
       showToast("Already claimed. Come back tomorrow.");
       return;
     }
 
-    addMats({ ribbon: 1, paper: 1, spark: 1 });
-    state.lastClaimDate = todayKey();
-    state.essence += 3;
-    saveState();
     renderWallet();
     renderHome();
     showToast("Kit claimed · Ribbon, Paper, Spark");
@@ -456,7 +514,7 @@
     state.essence += 8;
     saveState();
     renderWallet();
-    openReveal(gift);
+    openReveal(gift, "shop");
     showToast(`${gift.name} added · ${gift.stars} Stars (demo)`);
   }
 
@@ -480,8 +538,9 @@
     const item = state.collection.find((entry) => entry.uid === selectedSendUid);
     if (!item) return;
     const gift = giftById(item.giftId);
+    const action = item.source === "shop" ? "got" : "made";
     const text =
-      `I made ${gift.name} in VITRINE 🎁\n` +
+      `I ${action} ${gift.name} in VITRINE 🎁\n` +
       `Clear recipes. Exact gifts. No spins.\n` +
       `https://wealthia.github.io/wealthia/vitrine/`;
     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent("https://wealthia.github.io/wealthia/vitrine/")}&text=${encodeURIComponent(text)}`;
@@ -522,6 +581,11 @@
     els.revealClose.addEventListener("click", () => {
       closeReveal();
       switchPanel("collection");
+    });
+    window.addEventListener("storage", (event) => {
+      if (event.key !== STORAGE_KEY) return;
+      state = loadState();
+      renderStateViews();
     });
   }
 
