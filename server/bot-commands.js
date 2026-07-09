@@ -1,33 +1,61 @@
-const WEBAPP_URL = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/merge-arena/app/?v=38";
-const BOT_USERNAME = process.env.BOT_USERNAME || "WealthiaGameBot";
+const WEBAPP_URL =
+  process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/merge-arena/app/?v=47";
+const BOT_USERNAME = process.env.BOT_USERNAME || "MergeArenaBot";
 const CHANNEL_URL =
   String(process.env.CHANNEL_URL || "").trim() ||
   String(process.env.OFFICIAL_CHANNEL_URL || "").trim() ||
   "https://t.me/weathia_official";
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 
-const START_WELCOME_TEXT = `🔥 Welcome to MERGE ARENA! 🔥
-
-Combine heroes. Upgrade. Fight. Win.
-
-⚡ Get a hero
-🧩 Drag same heroes together
-⚔️ Fight when your power is ready
-
-👇 Tap Play to enter the arena.`;
-
-const PLAY_BUTTON_TEXT = "🔥  Play MERGE ARENA  🔥";
-
-const BOT_DESCRIPTION = process.env.BOT_DESCRIPTION || [
-  "🔥 MERGE ARENA — Combine heroes and win fights in Telegram!",
+const START_WELCOME_TEXT = [
+  "Welcome to MERGE ARENA",
   "",
-  "Get heroes, merge upgrades, battle levels, and shop with Stars.",
+  "Fuse twin heroes. Build your squad. Climb the arenas.",
   "",
-  "Press Start to play free."
+  "How it works",
+  "1. Tap Get Hero to drop fighters",
+  "2. Drag matching heroes together to fuse",
+  "3. Enter Fight when your power leads",
+  "",
+  "Earn gems, climb ranks, clear Hard Gates, and chase Panda Lord.",
+  "",
+  "Ready? Tap Play below to open the arena."
 ].join("\n");
 
-const BOT_SHORT_DESCRIPTION = process.env.BOT_SHORT_DESCRIPTION ||
-  "Merge heroes. Fight. Upgrade. Free Telegram mini-game.";
+const PLAY_BUTTON_TEXT = process.env.PLAY_BUTTON_TEXT || "Play MERGE ARENA";
+
+const HELP_TEXT = [
+  "MERGE ARENA — quick help",
+  "",
+  "/start — Welcome + Play button",
+  "/play — Open the arena",
+  "/help — This message",
+  "/channel — Official channel",
+  "",
+  "In game:",
+  "• Get Hero uses energy",
+  "• Fuse twins to grow power",
+  "• Win fights to climb arenas & ranks",
+  "• Shop has ads, gems, and Stars packs",
+  "",
+  `Open: ${WEBAPP_URL}`
+].join("\n");
+
+const BOT_DESCRIPTION =
+  process.env.BOT_DESCRIPTION ||
+  [
+    "MERGE ARENA — fuse twin heroes, build your squad, and climb Hard Gates.",
+    "",
+    "Get Hero · fuse · fight",
+    "Climb ranks from Recruit to Panda Lord",
+    "Earn gems, open Glory Pass, beat Ghost Rivals",
+    "",
+    "Tap Start, then Play to enter the arena."
+  ].join("\n");
+
+const BOT_SHORT_DESCRIPTION =
+  process.env.BOT_SHORT_DESCRIPTION ||
+  "Merge heroes, smash arenas, climb ranks. Free Telegram mini-game.";
 
 function getApiBase() {
   if (!TELEGRAM_BOT_TOKEN) {
@@ -79,19 +107,20 @@ function gameUrl(startParam) {
 }
 
 function startKeyboard(userId, startParam) {
-  const ref = startParam && startParam.startsWith("ref_") ? startParam : `ref_${userId}`;
+  const ref = startParam && /^(?:maref_|ref_)/.test(startParam) ? startParam : `maref_${userId}`;
   const rows = [
-    [{ text: "📢 Join the Channel", url: CHANNEL_URL }],
     [
       {
         text: PLAY_BUTTON_TEXT,
-        web_app: { url: gameUrl(startParam || `ref_${userId}`) }
+        web_app: { url: gameUrl(startParam || `maref_${userId}`) }
       }
     ],
+    [{ text: "How to play", callback_data: "help_howto" }],
     [
+      { text: "Join channel", url: CHANNEL_URL },
       {
-        text: "Invite Friends",
-        url: `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${BOT_USERNAME}?start=${ref}`)}&text=${encodeURIComponent("Play MERGE ARENA with me — merge heroes and fight!")}`
+        text: "Invite friends",
+        url: `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${BOT_USERNAME}?start=${ref}`)}&text=${encodeURIComponent("Play MERGE ARENA with me — fuse heroes and climb the arenas!")}`
       }
     ]
   ];
@@ -101,10 +130,14 @@ function startKeyboard(userId, startParam) {
 
 async function sendStartWelcome(chatId, user, startParam = "", options = {}) {
   const sendApi = options.telegramApiSafe || apiSafe;
+  const first = String(user.first_name || "").trim();
+  const greet = first ? `Hey ${first} — welcome to MERGE ARENA` : "Welcome to MERGE ARENA";
+  const text = `${greet}\n\n${START_WELCOME_TEXT.split("\n").slice(2).join("\n")}`;
   const result = await sendApi("sendMessage", {
     chat_id: chatId,
-    text: START_WELCOME_TEXT,
-    reply_markup: startKeyboard(user.id, startParam)
+    text,
+    reply_markup: startKeyboard(user.id, startParam),
+    disable_web_page_preview: true
   });
 
   if (!result.ok) {
@@ -127,9 +160,10 @@ async function setupBotProfile() {
     await api("setMyShortDescription", { short_description: BOT_SHORT_DESCRIPTION });
     await api("setMyCommands", {
       commands: [
-        { command: "start", description: "Play MERGE ARENA" },
-        { command: "play", description: "Open the arena" },
-        { command: "help", description: "Show help" }
+        { command: "start", description: "Welcome + open MERGE ARENA" },
+        { command: "play", description: "Launch the arena" },
+        { command: "help", description: "How to play" },
+        { command: "channel", description: "Official channel" }
       ]
     });
     await api("setChatMenuButton", {
@@ -173,27 +207,52 @@ async function handleBotMessage(message, options = {}) {
     return result.result;
   };
 
-  if (text === "/channel") {
+  if (/^\/channel(?:@\w+)?$/i.test(text)) {
     await sendMessage({
       chat_id: chatId,
       text: `Join the official channel, then open MERGE ARENA:\n${CHANNEL_URL}`,
       reply_markup: {
-        inline_keyboard: [[{ text: "📢 Join the Channel", url: CHANNEL_URL }]]
-      }
+        inline_keyboard: [
+          [{ text: "Join channel", url: CHANNEL_URL }],
+          [{ text: PLAY_BUTTON_TEXT, web_app: { url: WEBAPP_URL } }]
+        ]
+      },
+      disable_web_page_preview: true
     });
     return true;
   }
 
-  if (text === "/help") {
+  if (/^\/help(?:@\w+)?$/i.test(text)) {
     await sendMessage({
       chat_id: chatId,
-      text:
-        "MERGE ARENA Commands:\n" +
-        "/start — Open the arena\n" +
-        "/play — Play MERGE ARENA\n" +
-        "/channel — Official channel\n" +
-        "/help — This message\n\n" +
-        `Game: ${WEBAPP_URL}`
+      text: HELP_TEXT,
+      reply_markup: {
+        inline_keyboard: [[{ text: PLAY_BUTTON_TEXT, web_app: { url: WEBAPP_URL } }]]
+      },
+      disable_web_page_preview: true
+    });
+    return true;
+  }
+
+  return false;
+}
+
+async function handleBotCallbackQuery(query, options = {}) {
+  if (!query || !query.id) return false;
+  const data = String(query.data || "");
+  const chatId = query.message && query.message.chat && query.message.chat.id;
+  const sendApi = options.telegramApiSafe || apiSafe;
+
+  await sendApi("answerCallbackQuery", { callback_query_id: query.id });
+
+  if (data === "help_howto" && chatId) {
+    await sendApi("sendMessage", {
+      chat_id: chatId,
+      text: HELP_TEXT,
+      reply_markup: {
+        inline_keyboard: [[{ text: PLAY_BUTTON_TEXT, web_app: { url: WEBAPP_URL } }]]
+      },
+      disable_web_page_preview: true
     });
     return true;
   }
@@ -204,8 +263,11 @@ async function handleBotMessage(message, options = {}) {
 module.exports = {
   START_WELCOME_TEXT,
   PLAY_BUTTON_TEXT,
+  HELP_TEXT,
+  WEBAPP_URL,
   apiSafe,
   handleBotMessage,
+  handleBotCallbackQuery,
   handleStart,
   setupBotProfile,
   startKeyboard

@@ -17,3 +17,11 @@ services:
         sync: false
       - key: WEBAPP_URL
         value: https://wealthia.github.io/wealthia/merge-arena/app/?v=47
+      - key: BOT_USERNAME
+        value: MergeArenaBot
+      - key: PLAY_BUTTON_TEXT
+        value: Play MERGE ARENA
+      - key: CHANNEL_URL
+        value: https://t.me/weathia_official
+      - key: DISABLE_BOT_POLLING
+        value: "false"

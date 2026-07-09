@@ -25,7 +25,7 @@ const telegramStars = require("./telegram-stars");
 const economy = require("./economy");
 const { createTapPipeline } = require("./tap-pipeline");
 const { insertGameState, updateGameState } = require("./game-state-update");
-const { handleBotMessage, setupBotProfile } = require("./bot-commands");
+const { handleBotMessage, handleBotCallbackQuery, setupBotProfile } = require("./bot-commands");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -3680,6 +3680,12 @@ app.post("/api/telegram/webhook/:secret", paymentSecurity.createTelegramWebhookG
 
     if (update.message) {
       await handleBotMessage(update.message, { telegramApiSafe });
+      res.json({ ok: true });
+      return;
+    }
+
+    if (update.callback_query) {
+      await handleBotCallbackQuery(update.callback_query, { telegramApiSafe });
       res.json({ ok: true });
       return;
     }
