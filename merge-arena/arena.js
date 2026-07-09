@@ -1,5 +1,6 @@
 (() => {
   const STORAGE_KEY = "merge_arena_v2";
+  const LEGACY_STORAGE_KEY = "merge_arena_v1";
   const COLS = 4;
   const ROWS = 4;
   const SIZE = COLS * ROWS;
@@ -129,11 +130,13 @@
 
   function loadState() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      let raw = localStorage.getItem(STORAGE_KEY);
+      const shouldMigrate = !raw;
+      if (!raw) raw = localStorage.getItem(LEGACY_STORAGE_KEY);
       if (!raw) return defaultState();
       const parsed = JSON.parse(raw);
       const base = defaultState();
-      return {
+      const loaded = {
         ...base,
         ...parsed,
         board: Array.isArray(parsed.board) && parsed.board.length === SIZE
@@ -141,6 +144,14 @@
           : base.board,
         discovered: Array.isArray(parsed.discovered) ? parsed.discovered : base.discovered
       };
+      if (shouldMigrate) {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(loaded));
+        } catch {
+          // Keep legacy progress loaded even if migration cannot be written.
+        }
+      }
+      return loaded;
     } catch {
       return defaultState();
     }
