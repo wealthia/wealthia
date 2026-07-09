@@ -274,18 +274,18 @@
     lastRankId: "recruit"
   });
 
-  // Rütbə ladder — trophies unlock titles (no prestige/reset)
+  // Rütbə ladder — slower climb; titles feel earned (no prestige/reset)
   const RANK_TIERS = [
     { id: "recruit", name: "Recruit", emoji: "🎖", min: 0 },
-    { id: "scout", name: "Scout", emoji: "🧭", min: 50 },
-    { id: "fighter", name: "Fighter", emoji: "⚔", min: 150 },
-    { id: "veteran", name: "Veteran", emoji: "🛡", min: 350 },
-    { id: "elite", name: "Elite", emoji: "✦", min: 700 },
-    { id: "champion", name: "Champion", emoji: "🏛", min: 1200 },
-    { id: "warlord", name: "Warlord", emoji: "🔥", min: 2000 },
-    { id: "legend", name: "Legend", emoji: "👑", min: 3500 },
-    { id: "mythic", name: "Mythic", emoji: "🌈", min: 5500 },
-    { id: "panda", name: "Panda Lord", emoji: "🐼", min: 8500 }
+    { id: "scout", name: "Scout", emoji: "🧭", min: 120 },
+    { id: "fighter", name: "Fighter", emoji: "⚔", min: 350 },
+    { id: "veteran", name: "Veteran", emoji: "🛡", min: 800 },
+    { id: "elite", name: "Elite", emoji: "✦", min: 1600 },
+    { id: "champion", name: "Champion", emoji: "🏛", min: 2800 },
+    { id: "warlord", name: "Warlord", emoji: "🔥", min: 4500 },
+    { id: "legend", name: "Legend", emoji: "👑", min: 7500 },
+    { id: "mythic", name: "Mythic", emoji: "🌈", min: 12000 },
+    { id: "panda", name: "Panda Lord", emoji: "🐼", min: 18000 }
   ];
 
   const DAILY_EVENTS = [
@@ -912,9 +912,10 @@
       const prevIdx = RANK_TIERS.findIndex((t) => t.id === state.lastRankId);
       const nextIdx = RANK_TIERS.findIndex((t) => t.id === tier.id);
       if (nextIdx > prevIdx) {
-        state.gems += 18 + nextIdx * 8;
+        // Rarer ranks → slightly better gem toast, still lean overall
+        state.gems += 28 + nextIdx * 12;
         showToast(`${tier.emoji} Rank up · ${tier.name}!`);
-        playTone("win");
+        playTone("rank");
         haptic("success");
         cheerBuddy("win");
       }
@@ -2187,17 +2188,18 @@
     if (state.charmBattles > 0) state.charmBattles -= 1;
 
     if (won) {
-      let trophyGain = 8 + wave * 2;
+      // Slow trophy drip so ranks take real climb sessions
+      let trophyGain = 3 + Math.floor(wave * 1.15);
       // Lean crystal drip — wins feel good, but Crystal Sip still needs Stars/gems buys
       let gemGain = 5 + Math.floor(wave * 1.5);
       if (boss) {
-        trophyGain += 20;
+        trophyGain += 10;
         gemGain += 14;
         const ev = todayEvent();
         if (ev.bossGems) gemGain += ev.bossGems;
       }
       if (hard) {
-        trophyGain += 35;
+        trophyGain += 18;
         gemGain += 28;
       }
       const ev = todayEvent();
@@ -2232,7 +2234,7 @@
         setTimeout(() => showPandaStory("season", `Arena ${wave} milestone!`), 700);
       }
     } else {
-      const loss = Math.min(state.trophies, (hard ? 8 : boss ? 5 : 3) + Math.floor(wave / 3));
+      const loss = Math.min(state.trophies, (hard ? 10 : boss ? 6 : 4) + Math.floor(wave / 4));
       const gemGain = hard ? 6 : boss ? 4 : 2;
       state.trophies = Math.max(0, state.trophies - loss);
       state.gems += gemGain;
@@ -2300,7 +2302,7 @@
     const won = power >= rival;
     if (won) {
       const gems = 8 + Math.floor(state.wave * 0.8);
-      const trophies = 4 + Math.floor(state.wave / 3);
+      const trophies = 2 + Math.floor(state.wave / 5);
       state.ghostWins = Number(state.ghostWins || 0) + 1;
       state.gems += gems;
       state.trophies += trophies;
@@ -2732,7 +2734,7 @@
     });
     const tag = document.getElementById("buildTag");
     if (tag) {
-      setTimeout(() => showToast(`Build ${tag.textContent} · progress kept`), 500);
+      setTimeout(() => showToast(`Build ${tag.textContent} · slower ranks`), 500);
     }
     if (state.dailyClaimDate !== todayKey()) {
       setTimeout(() => showToast("Daily Chest ready in Glory"), 1400);
