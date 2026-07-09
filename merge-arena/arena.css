@@ -2561,3 +2561,276 @@ body.is-night .app {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-6px); }
 }
+
+/* —— v34 ranks / events / quests / pass / ghost —— */
+
+.chip--rank {
+  border-color: rgba(255, 224, 138, 0.45);
+  color: var(--gold);
+  max-width: 88px;
+}
+
+.chip--rank strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rank-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 224, 138, 0.35);
+  background:
+    linear-gradient(135deg, rgba(255, 224, 138, 0.16), rgba(42, 255, 224, 0.08)),
+    rgba(8, 28, 36, 0.9);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 10px 22px rgba(0, 0, 0, 0.28);
+}
+
+.rank-card__badge {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  font-size: 28px;
+  background: linear-gradient(160deg, rgba(255, 224, 138, 0.35), rgba(255, 122, 77, 0.18));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  animation: brandPulse 3s ease-in-out infinite;
+}
+
+.rank-card__label {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.rank-card__body strong {
+  display: block;
+  font-family: var(--display);
+  font-size: 18px;
+  color: var(--gold);
+  margin: 2px 0 4px;
+}
+
+.rank-card__body p {
+  margin: 0 0 8px;
+  font-size: 11px;
+  color: var(--ink-soft, #d8f5ea);
+}
+
+.rank-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.rank-bar i {
+  display: block;
+  height: 100%;
+  width: 8%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ffe08a, #2affe0);
+  transition: width 280ms ease;
+}
+
+.event-card {
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(42, 255, 224, 0.28);
+  background:
+    linear-gradient(135deg, rgba(42, 255, 224, 0.12), rgba(255, 122, 77, 0.08)),
+    rgba(255, 255, 255, 0.03);
+}
+
+.event-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.event-card__label {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.event-card strong {
+  display: block;
+  font-family: var(--display);
+  font-size: 15px;
+  margin-top: 2px;
+}
+
+.event-card__tag {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #062018;
+  background: linear-gradient(90deg, #ffe08a, #2affe0);
+}
+
+.event-card p#eventText {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.streak-ladder {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.streak-pip {
+  flex: 1;
+  min-height: 26px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 800;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--muted);
+}
+
+.streak-pip.is-on {
+  border-color: rgba(255, 224, 138, 0.45);
+  background: rgba(255, 200, 80, 0.18);
+  color: var(--gold);
+  box-shadow: 0 0 10px rgba(255, 200, 80, 0.2);
+}
+
+.quest-card,
+.pass-card,
+.ghost-card {
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+  display: grid;
+  gap: 8px;
+}
+
+.quest-list {
+  display: grid;
+  gap: 6px;
+}
+
+.quest-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.quest-row strong {
+  display: block;
+  font-size: 12px;
+}
+
+.quest-row span {
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.quest-row.is-done {
+  border-color: rgba(42, 255, 224, 0.3);
+}
+
+.quest-row.is-claimed {
+  opacity: 0.65;
+}
+
+.quest-claim {
+  min-height: 34px !important;
+  min-width: 64px;
+  padding: 0 10px !important;
+  font-size: 11px;
+}
+
+.pass-track {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.pass-track::-webkit-scrollbar { display: none; }
+
+.pass-node {
+  flex: 0 0 auto;
+  min-width: 78px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+  text-align: center;
+  display: grid;
+  gap: 2px;
+}
+
+.pass-node strong {
+  font-size: 11px;
+  color: var(--ink-soft, #d8f5ea);
+}
+
+.pass-node span {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.pass-node em {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--gold);
+}
+
+.pass-node.is-on {
+  border-color: rgba(42, 255, 224, 0.35);
+}
+
+.pass-node.is-got {
+  background: rgba(40, 160, 120, 0.14);
+  border-color: rgba(42, 255, 224, 0.4);
+}
+
+.ghost-card h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.ghost-card p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.ghost-card .btn {
+  width: 100%;
+}

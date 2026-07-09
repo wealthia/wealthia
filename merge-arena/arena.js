@@ -258,8 +258,80 @@
     soundOn: true,
     discovered: ["spark", "blade"],
     board: Array(SIZE).fill(null),
-    lastEnergyAt: Date.now()
+    lastEnergyAt: Date.now(),
+    passXp: 0,
+    passClaimed: [],
+    questDate: "",
+    quests: {},
+    ghostWins: 0,
+    lastGhostAt: 0,
+    lastRankId: "recruit"
   });
+
+  // Rütbə ladder — trophies unlock titles (no prestige/reset)
+  const RANK_TIERS = [
+    { id: "recruit", name: "Recruit", emoji: "🎖", min: 0 },
+    { id: "scout", name: "Scout", emoji: "🧭", min: 50 },
+    { id: "fighter", name: "Fighter", emoji: "⚔", min: 150 },
+    { id: "veteran", name: "Veteran", emoji: "🛡", min: 350 },
+    { id: "elite", name: "Elite", emoji: "✦", min: 700 },
+    { id: "champion", name: "Champion", emoji: "🏛", min: 1200 },
+    { id: "warlord", name: "Warlord", emoji: "🔥", min: 2000 },
+    { id: "legend", name: "Legend", emoji: "👑", min: 3500 },
+    { id: "mythic", name: "Mythic", emoji: "🌈", min: 5500 },
+    { id: "panda", name: "Panda Lord", emoji: "🐼", min: 8500 }
+  ];
+
+  const DAILY_EVENTS = [
+    { id: "power", title: "Power Hour", text: "+12% squad power all day.", power: 0.12 },
+    { id: "fuse", title: "Double Fuse", text: "Merges grant +1 bonus XP on Glory Pass.", fuseXp: 1 },
+    { id: "gems", title: "Gem Rain", text: "+25% gems from wins today.", gemMult: 1.25 },
+    { id: "boss", title: "Boss Rush", text: "Boss fights drop +40 extra gems.", bossGems: 40 },
+    { id: "energy", title: "Spark Day", text: "Get Hero refunds 1 energy every 3rd summon.", summonRefund: 3 }
+  ];
+
+  const QUEST_DEFS = [
+    { id: "summon3", label: "Summon 3 heroes", target: 3, key: "summons", reward: { gems: 25 } },
+    { id: "merge5", label: "Fuse 5 times", target: 5, key: "merges", reward: { gems: 40 } },
+    { id: "win2", label: "Win 2 fights", target: 2, key: "wins", reward: { gems: 50, energy: 2 } },
+    { id: "ghost1", label: "Beat 1 Ghost Rival", target: 1, key: "ghosts", reward: { gems: 35 } }
+  ];
+
+  const PASS_TRACK = [
+    { xp: 0, reward: "Start", reward: { gems: 0 } },
+    { xp: 40, label: "Tier 1", reward: { gems: 40 } },
+    { xp: 90, label: "Tier 2", reward: { energy: 3 } },
+    { xp: 150, label: "Tier 3", reward: { gems: 80 } },
+    { xp: 230, label: "Tier 4", reward: { gems: 120 } },
+    { xp: 330, label: "Tier 5", reward: { energy: 5 } },
+    { xp: 450, label: "Tier 6", reward: { gems: 200 } },
+    { xp: 600, label: "Panda Cap", reward: { gems: 350 } }
+  ];
+
+  const ROLE_ABILITY = {
+    Striker: { id: "crit", label: "Crit", mult: 0.04 },
+    Duelist: { id: "crit", label: "Crit", mult: 0.05 },
+    Burner: { id: "burn", label: "Burn", mult: 0.05 },
+    Freezer: { id: "chill", label: "Chill", mult: 0.04 },
+    Beast: { id: "rage", label: "Rage", mult: 0.05 },
+    Archer: { id: "pierce", label: "Pierce", mult: 0.04 },
+    Alchemist: { id: "brew", label: "Brew", mult: 0.03 },
+    Tanklet: { id: "guard", label: "Guard", mult: 0.04 },
+    Guardian: { id: "guard", label: "Guard", mult: 0.06 },
+    Burst: { id: "crit", label: "Crit", mult: 0.05 },
+    Wave: { id: "push", label: "Push", mult: 0.04 },
+    Breaker: { id: "crush", label: "Crush", mult: 0.05 },
+    Trickster: { id: "dodge", label: "Dodge", mult: 0.03 },
+    Haunt: { id: "drain", label: "Drain", mult: 0.05 },
+    Assassin: { id: "crit", label: "Crit", mult: 0.07 },
+    Storm: { id: "shock", label: "Shock", mult: 0.05 },
+    Colossus: { id: "crush", label: "Crush", mult: 0.06 },
+    Healer: { id: "mend", label: "Mend", mult: 0.04 },
+    Myth: { id: "aura", label: "Aura", mult: 0.06 },
+    Void: { id: "void", label: "Void", mult: 0.07 },
+    King: { id: "royal", label: "Royal", mult: 0.08 },
+    Mascot: { id: "cheer", label: "Cheer", mult: 0.07 }
+  };
 
   const SYNERGIES = [
     { roles: ["Burner", "Freezer"], bonus: 0.12, label: "Fire & Ice" },
@@ -333,6 +405,25 @@
     gemValue: $("gemValue"),
     gemChip: $("gemChip"),
     trophyValue: $("trophyValue"),
+    rankChip: $("rankChip"),
+    rankEmoji: $("rankEmoji"),
+    rankValue: $("rankValue"),
+    rankBadge: $("rankBadge"),
+    rankTitle: $("rankTitle"),
+    rankProgress: $("rankProgress"),
+    rankFill: $("rankFill"),
+    eventCard: $("eventCard"),
+    eventTitle: $("eventTitle"),
+    eventText: $("eventText"),
+    eventTag: $("eventTag"),
+    streakLadder: $("streakLadder"),
+    questList: $("questList"),
+    passXpLabel: $("passXpLabel"),
+    passTrack: $("passTrack"),
+    gloryGhost: $("gloryGhost"),
+    gloryRank: $("gloryRank"),
+    ghostFight: $("ghostFight"),
+    ghostTip: $("ghostTip"),
     cloudChip: $("cloudChip"),
     cloudValue: $("cloudValue"),
     energyChip: $("energyChip"),
@@ -632,7 +723,10 @@
     if (!unit) return 0;
     const def = defById(unit.id);
     const lvl = Number(unit.level || 1);
-    return Math.round(def.basePower * Math.pow(1.65, lvl - 1));
+    let p = def.basePower * Math.pow(1.65, lvl - 1);
+    const ability = ROLE_ABILITY[def.role];
+    if (ability) p *= 1 + ability.mult * Math.min(3, lvl);
+    return Math.round(p);
   }
 
   function activeSynergies() {
@@ -650,12 +744,125 @@
     return activeSynergies().reduce((sum, s) => sum + s.bonus, 0);
   }
 
+  function abilityBonus() {
+    let bonus = 0;
+    const seen = {};
+    state.board.forEach((u) => {
+      if (!u) return;
+      const def = defById(u.id);
+      const ability = ROLE_ABILITY[def.role];
+      if (!ability || seen[ability.id]) return;
+      seen[ability.id] = true;
+      bonus += ability.mult * 0.5;
+    });
+    return bonus;
+  }
+
+  function todayEvent() {
+    const day = Math.floor(Date.now() / 86400000);
+    return DAILY_EVENTS[day % DAILY_EVENTS.length];
+  }
+
   function squadPower() {
     const raw = state.board.reduce((sum, u) => sum + powerOf(u), 0);
-    let mult = 1 + synergyBonus();
+    let mult = 1 + synergyBonus() + abilityBonus();
     if (state.surgeBattles > 0) mult += 0.3;
     if (state.charmBattles > 0) mult += 0.4;
+    const ev = todayEvent();
+    if (ev.power) mult += ev.power;
     return Math.round(raw * mult);
+  }
+
+  function rankForTrophies(trophies) {
+    let current = RANK_TIERS[0];
+    for (const tier of RANK_TIERS) {
+      if (trophies >= tier.min) current = tier;
+    }
+    return current;
+  }
+
+  function nextRank(tier) {
+    const idx = RANK_TIERS.findIndex((t) => t.id === tier.id);
+    return RANK_TIERS[idx + 1] || null;
+  }
+
+  function ensureQuests() {
+    const today = todayKey();
+    if (state.questDate === today && state.quests && typeof state.quests === "object") return;
+    state.questDate = today;
+    state.quests = {};
+    QUEST_DEFS.forEach((q) => {
+      state.quests[q.id] = { progress: 0, claimed: false };
+    });
+  }
+
+  function bumpQuest(key, amount = 1) {
+    ensureQuests();
+    QUEST_DEFS.forEach((q) => {
+      if (q.key !== key) return;
+      const row = state.quests[q.id] || { progress: 0, claimed: false };
+      row.progress = Math.min(q.target, Number(row.progress || 0) + amount);
+      state.quests[q.id] = row;
+    });
+  }
+
+  function claimQuest(id) {
+    ensureQuests();
+    const def = QUEST_DEFS.find((q) => q.id === id);
+    const row = state.quests[id];
+    if (!def || !row || row.claimed || row.progress < def.target) return;
+    row.claimed = true;
+    if (def.reward.gems) state.gems += def.reward.gems;
+    if (def.reward.energy) {
+      state.energy = Math.min(ENERGY_MAX, state.energy + def.reward.energy);
+      state.lastEnergyAt = Date.now();
+    }
+    addPassXp(15);
+    saveState();
+    renderHud();
+    renderGlory();
+    playTone("claim");
+    haptic("success");
+    showToast(`Quest done · ${def.label}`);
+  }
+
+  function addPassXp(amount) {
+    state.passXp = Math.max(0, Number(state.passXp || 0) + amount);
+    if (!Array.isArray(state.passClaimed)) state.passClaimed = [];
+    autoClaimPass();
+  }
+
+  function autoClaimPass() {
+    if (!Array.isArray(state.passClaimed)) state.passClaimed = [];
+    PASS_TRACK.forEach((tier, i) => {
+      if (i === 0) return;
+      if (state.passXp < tier.xp) return;
+      if (state.passClaimed.includes(i)) return;
+      state.passClaimed.push(i);
+      if (tier.reward.gems) state.gems += tier.reward.gems;
+      if (tier.reward.energy) {
+        state.energy = Math.min(ENERGY_MAX, state.energy + tier.reward.energy);
+        state.lastEnergyAt = Date.now();
+      }
+      showToast(`Glory Pass ${tier.label} · loot unlocked`);
+      playTone("claim");
+    });
+  }
+
+  function checkRankUp() {
+    const tier = rankForTrophies(state.trophies);
+    if (state.lastRankId && state.lastRankId !== tier.id) {
+      const prevIdx = RANK_TIERS.findIndex((t) => t.id === state.lastRankId);
+      const nextIdx = RANK_TIERS.findIndex((t) => t.id === tier.id);
+      if (nextIdx > prevIdx) {
+        state.gems += 40 + nextIdx * 20;
+        showToast(`${tier.emoji} Rank up · ${tier.name}!`);
+        playTone("win");
+        haptic("success");
+        cheerBuddy("win");
+      }
+    }
+    state.lastRankId = tier.id;
   }
 
   function todayKey() {
@@ -668,9 +875,11 @@
 
   function dailyRewardForStreak(streak) {
     const s = Math.max(1, streak);
+    // 7-day ladder peaks harder
+    const ladder = s >= 7 ? 1.35 : 1;
     return {
-      gems: 30 + s * 15,
-      energy: Math.min(8, 2 + Math.floor(s / 2))
+      gems: Math.round((30 + s * 18) * ladder),
+      energy: Math.min(10, 2 + Math.floor(s / 2) + (s >= 7 ? 2 : 0))
     };
   }
 
@@ -693,7 +902,10 @@
         win: [440, 660, 880],
         lose: [220, 160],
         claim: [500, 700],
-        click: [300, 340]
+        click: [300, 340],
+        gate: [160, 240, 320],
+        ghost: [280, 420, 560],
+        rank: [480, 640, 800]
       };
       const freqs = map[kind] || map.click;
       freqs.forEach((freq, i) => {
@@ -1093,6 +1305,7 @@
         : `Gems ${state.gems} · Tap to open Gem Vault`;
     }
     els.trophyValue.textContent = String(state.trophies);
+    renderRankCard();
     const theme = applyArenaTheme();
     const boss = isBossWave(state.wave);
     const hard = isHardGate(state.wave);
@@ -1293,7 +1506,9 @@
             <span class="roster-card__role">${def.role || "Hero"}</span>
           </div>
           <h3>${unlocked ? def.name : "Locked"}</h3>
-          <p>${unlocked ? (def.blurb || `${def.rarity} fighter`) : "Keep merging to reveal"} · ${def.basePower}⚡</p>
+          <p>${unlocked
+            ? `${def.blurb || `${def.rarity} fighter`}${ROLE_ABILITY[def.role] ? ` · ${ROLE_ABILITY[def.role].label}` : ""}`
+            : "Keep merging to reveal"} · ${def.basePower}⚡</p>
         </article>
       `;
     }).join("");
@@ -1305,10 +1520,94 @@
     els.gloryWins.textContent = String(state.wins);
     els.gloryMerges.textContent = String(state.merges);
     els.gloryPower.textContent = String(state.highestPower);
+    if (els.gloryGhost) els.gloryGhost.textContent = String(state.ghostWins || 0);
+    const tier = rankForTrophies(state.trophies);
+    if (els.gloryRank) els.gloryRank.textContent = tier.name;
+    renderRankCard();
+    renderEventCard();
     renderDaily();
+    renderQuests();
+    renderPass();
     renderSynergyCard();
     renderInvite();
     renderSeasonPath();
+    renderGhostCard();
+  }
+
+  function renderRankCard() {
+    const tier = rankForTrophies(state.trophies);
+    const nxt = nextRank(tier);
+    if (els.rankEmoji) els.rankEmoji.textContent = tier.emoji;
+    if (els.rankValue) els.rankValue.textContent = tier.name;
+    if (els.rankChip) els.rankChip.title = `${tier.emoji} ${tier.name} · ${state.trophies} 🏆`;
+    if (els.rankBadge) els.rankBadge.textContent = tier.emoji;
+    if (els.rankTitle) els.rankTitle.textContent = tier.name;
+    if (els.rankProgress) {
+      els.rankProgress.textContent = nxt
+        ? `${state.trophies} / ${nxt.min} 🏆 to ${nxt.name}`
+        : `${state.trophies} 🏆 · Max rank`;
+    }
+    if (els.rankFill) {
+      if (!nxt) {
+        els.rankFill.style.width = "100%";
+      } else {
+        const span = Math.max(1, nxt.min - tier.min);
+        const pct = Math.max(4, Math.min(100, Math.round(((state.trophies - tier.min) / span) * 100)));
+        els.rankFill.style.width = `${pct}%`;
+      }
+    }
+  }
+
+  function renderEventCard() {
+    const ev = todayEvent();
+    if (els.eventTitle) els.eventTitle.textContent = ev.title;
+    if (els.eventText) els.eventText.textContent = ev.text;
+    if (els.eventTag) els.eventTag.textContent = "TODAY";
+    if (els.eventCard) els.eventCard.dataset.event = ev.id;
+  }
+
+  function renderQuests() {
+    if (!els.questList) return;
+    ensureQuests();
+    els.questList.innerHTML = QUEST_DEFS.map((q) => {
+      const row = state.quests[q.id] || { progress: 0, claimed: false };
+      const done = row.progress >= q.target;
+      const claimed = Boolean(row.claimed);
+      return `
+        <div class="quest-row ${done ? "is-done" : ""} ${claimed ? "is-claimed" : ""}">
+          <div>
+            <strong>${q.label}</strong>
+            <span>${Math.min(row.progress, q.target)}/${q.target}</span>
+          </div>
+          <button class="btn btn--ghost quest-claim" type="button" data-quest="${q.id}" ${!done || claimed ? "disabled" : ""}>
+            ${claimed ? "Done" : done ? "Claim" : "…"}
+          </button>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderPass() {
+    if (!els.passTrack) return;
+    if (els.passXpLabel) els.passXpLabel.textContent = `${state.passXp || 0} XP`;
+    const claimed = Array.isArray(state.passClaimed) ? state.passClaimed : [];
+    els.passTrack.innerHTML = PASS_TRACK.map((tier, i) => {
+      const unlocked = (state.passXp || 0) >= tier.xp;
+      const got = i === 0 || claimed.includes(i);
+      return `
+        <div class="pass-node ${unlocked ? "is-on" : ""} ${got ? "is-got" : ""}">
+          <strong>${tier.label}</strong>
+          <span>${tier.xp} XP</span>
+          <em>${tier.reward.gems ? `+${tier.reward.gems}💎` : tier.reward.energy ? `+${tier.reward.energy}⚡` : "—"}</em>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderGhostCard() {
+    if (!els.ghostTip) return;
+    const rival = Math.round(squadPower() * 0.92 + state.wave * 8);
+    els.ghostTip.textContent = `Shadow rival ~${rival} power · free duel · wins: ${state.ghostWins || 0}`;
   }
 
   function renderDaily() {
@@ -1327,6 +1626,13 @@
     els.dailyClaim.disabled = claimed;
     els.dailyClaim.textContent = claimed ? "Claimed" : "Claim";
     if (els.dailyCard) els.dailyCard.dataset.ready = claimed ? "0" : "1";
+    if (els.streakLadder) {
+      els.streakLadder.innerHTML = Array.from({ length: 7 }, (_, i) => {
+        const day = i + 1;
+        const lit = streak >= day;
+        return `<span class="streak-pip ${lit ? "is-on" : ""}" title="Day ${day}">${day}</span>`;
+      }).join("");
+    }
   }
 
   function claimDaily() {
@@ -1344,6 +1650,7 @@
     state.gems += reward.gems;
     state.energy = Math.min(ENERGY_MAX, state.energy + reward.energy);
     state.lastEnergyAt = Date.now();
+    addPassXp(20);
     saveState();
     renderHud();
     renderGlory();
@@ -1509,6 +1816,9 @@
       state.merges += 1;
       state.gems += merged.level >= 4 ? 25 : 10;
       discover(merged.id);
+      bumpQuest("merges");
+      const ev = todayEvent();
+      addPassXp(8 + (ev.fuseXp || 0) * 8);
       saveState();
       renderBoard();
       cheerBuddy("merge");
@@ -1540,6 +1850,12 @@
     if (!forceId) {
       state.energy -= 1;
       state.lastEnergyAt = Date.now();
+      state._summonCount = Number(state._summonCount || 0) + 1;
+      const ev = todayEvent();
+      if (ev.summonRefund && state._summonCount % ev.summonRefund === 0) {
+        state.energy = Math.min(ENERGY_MAX, state.energy + 1);
+        showToast("Spark Day refund · +1 ⚡");
+      }
     }
 
     const id = forceId || randomSummonId();
@@ -1550,6 +1866,10 @@
     const slot = slots[Math.floor(Math.random() * slots.length)];
     state.board[slot] = unit;
     discover(id);
+    if (!forceId) {
+      bumpQuest("summons");
+      addPassXp(3);
+    }
     saveState();
     renderBoard();
     if (!forceId) {
@@ -1650,17 +1970,24 @@
       if (boss) {
         trophyGain += 20;
         gemGain += 60;
+        const ev = todayEvent();
+        if (ev.bossGems) gemGain += ev.bossGems;
       }
       if (hard) {
         trophyGain += 35;
         gemGain += 120;
       }
+      const ev = todayEvent();
+      if (ev.gemMult) gemGain = Math.round(gemGain * ev.gemMult);
       const prevTheme = themeForWave(wave).id;
       state.wins += 1;
       state.trophies += trophyGain;
       state.gems += gemGain;
       state.wave += 1;
       state.bestWave = Math.max(state.bestWave, state.wave);
+      bumpQuest("wins");
+      addPassXp(hard ? 25 : boss ? 18 : 12);
+      checkRankUp();
       consumeWeakest();
       saveState();
       els.battleModal.hidden = true;
@@ -1669,7 +1996,7 @@
       }
       const foeLabel = hard ? `Hard Gate ${wave}` : boss ? theme.boss : "";
       showResult(true, wave, trophyGain, gemGain, foeLabel);
-      playTone("win");
+      playTone(hard ? "gate" : "win");
       haptic("success");
       if (hard) {
         setTimeout(() => showPandaStory("season", `Hard Gate ${wave} shattered.`), 700);
@@ -1685,6 +2012,7 @@
       const gemGain = hard ? 18 : boss ? 12 : 5;
       state.trophies = Math.max(0, state.trophies - loss);
       state.gems += gemGain;
+      checkRankUp();
       consumeWeakest();
       saveState();
       els.battleModal.hidden = true;
@@ -1700,6 +2028,87 @@
     battleBusy = false;
     cheerBuddy(won ? "win" : "lose");
     renderBoard();
+  }
+
+  async function startGhostFight() {
+    if (battleBusy) return;
+    const power = squadPower();
+    if (power <= 0) {
+      showToast("Need heroes before a ghost duel.");
+      return;
+    }
+    const now = Date.now();
+    if (now - Number(state.lastGhostAt || 0) < 20000) {
+      showToast("Ghost cooling down — try again soon.");
+      return;
+    }
+
+    battleBusy = true;
+    state.lastGhostAt = now;
+    const rival = Math.round(power * 0.92 + state.wave * 8 + Math.random() * 20);
+    els.battleModal.hidden = false;
+    if (els.battleStage) {
+      els.battleStage.classList.add("is-fighting", "is-night");
+      els.battleStage.classList.remove("is-boss", "is-hard");
+    }
+    els.fighterYou.textContent = `YOU ${power}`;
+    els.fighterEnemy.textContent = `GHOST ${rival}`;
+    els.youBar.style.width = "100%";
+    els.enemyBar.style.width = "100%";
+    els.battleLog.textContent = "Ghost Rival materializes…";
+    if (els.battleFx) els.battleFx.textContent = "👻";
+    cheerBuddy("fight");
+    playTone("ghost");
+
+    await wait(450);
+    const youRatio = power / (power + rival);
+    for (let i = 1; i <= 10; i += 1) {
+      const progress = i / 10;
+      els.youBar.style.width = `${Math.max(0, 100 - progress * 100 * (1 - youRatio) * 1.3)}%`;
+      els.enemyBar.style.width = `${Math.max(0, 100 - progress * 100 * youRatio * 1.3)}%`;
+      if (els.battleStage) els.battleStage.classList.toggle("is-shake", i % 2 === 0);
+      if (els.battleFx) els.battleFx.textContent = i % 2 === 0 ? "👻" : "💥";
+      if (i % 2 === 0) playTone("hit");
+      await wait(100);
+    }
+
+    const won = power >= rival;
+    if (won) {
+      const gems = 18 + Math.floor(state.wave * 2);
+      const trophies = 4 + Math.floor(state.wave / 3);
+      state.ghostWins = Number(state.ghostWins || 0) + 1;
+      state.gems += gems;
+      state.trophies += trophies;
+      bumpQuest("ghosts");
+      addPassXp(10);
+      checkRankUp();
+      saveState();
+      els.battleModal.hidden = true;
+      if (els.battleStage) els.battleStage.classList.remove("is-fighting", "is-shake", "is-night");
+      showResult(true, state.wave, trophies, gems, "");
+      els.resultEyebrow.textContent = "Ghost Victory";
+      els.resultTitle.textContent = "Shadow Rival Down";
+      els.resultText.textContent = "Free duel won — Glory Pass XP gained.";
+      playTone("ghost");
+      haptic("success");
+    } else {
+      const gems = 6;
+      state.gems += gems;
+      saveState();
+      els.battleModal.hidden = true;
+      if (els.battleStage) els.battleStage.classList.remove("is-fighting", "is-shake", "is-night");
+      showResult(false, state.wave, 0, gems, "");
+      els.resultEyebrow.textContent = "Ghost Hold";
+      els.resultTitle.textContent = "Shadow Still Stands";
+      els.resultText.textContent = "Fuse higher and challenge again.";
+      playTone("lose");
+      haptic("error");
+    }
+
+    battleBusy = false;
+    cheerBuddy(won ? "win" : "lose");
+    renderBoard();
+    renderGlory();
   }
 
   function consumeWeakest() {
@@ -1989,6 +2398,17 @@
       });
     }
     if (els.dailyClaim) els.dailyClaim.addEventListener("click", () => claimDaily());
+    if (els.ghostFight) els.ghostFight.addEventListener("click", () => startGhostFight());
+    if (els.rankChip) {
+      els.rankChip.addEventListener("click", () => switchView("rank"));
+    }
+    if (els.questList) {
+      els.questList.addEventListener("click", (e) => {
+        const btn = e.target && e.target.closest ? e.target.closest("[data-quest]") : null;
+        if (!btn) return;
+        claimQuest(btn.dataset.quest);
+      });
+    }
     if (els.inviteShare) els.inviteShare.addEventListener("click", () => shareInvite());
     if (els.inviteCopy) els.inviteCopy.addEventListener("click", () => copyInvite());
     if (els.adEnergyBtn) {
@@ -2064,6 +2484,8 @@
     });
     window.addEventListener("pagehide", flushSaveNow);
     window.addEventListener("beforeunload", flushSaveNow);
+    ensureQuests();
+    if (!state.lastRankId) state.lastRankId = rankForTrophies(state.trophies).id;
     seedIfEmpty();
     bind();
     if (els.soundToggle) els.soundToggle.textContent = state.soundOn ? "🔊" : "🔇";
@@ -2082,7 +2504,7 @@
     });
     const tag = document.getElementById("buildTag");
     if (tag) {
-      setTimeout(() => showToast(`Build ${tag.textContent} · progress saves`), 500);
+      setTimeout(() => showToast(`Build ${tag.textContent} · ranks + events live`), 500);
     }
     if (state.dailyClaimDate !== todayKey()) {
       setTimeout(() => showToast("Daily Chest ready in Glory"), 1400);
