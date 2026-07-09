@@ -298,7 +298,7 @@
   ];
 
   const PASS_TRACK = [
-    { xp: 0, reward: "Start", reward: { gems: 0 } },
+    { xp: 0, label: "Kickoff", reward: { text: "Ready" } },
     { xp: 40, label: "Tier 1", reward: { gems: 40 } },
     { xp: 90, label: "Tier 2", reward: { energy: 3 } },
     { xp: 150, label: "Tier 3", reward: { gems: 80 } },
@@ -840,12 +840,12 @@
       if (state.passXp < tier.xp) return;
       if (state.passClaimed.includes(i)) return;
       state.passClaimed.push(i);
-      if (tier.reward.gems) state.gems += tier.reward.gems;
-      if (tier.reward.energy) {
-        state.energy = Math.min(ENERGY_MAX, state.energy + tier.reward.energy);
+      if (Number(tier.reward?.gems) > 0) state.gems += Number(tier.reward.gems);
+      if (Number(tier.reward?.energy) > 0) {
+        state.energy = Math.min(ENERGY_MAX, state.energy + Number(tier.reward.energy));
         state.lastEnergyAt = Date.now();
       }
-      showToast(`Glory Pass ${tier.label} · loot unlocked`);
+      showToast(`Glory Pass ${tier.label || "tier"} · loot unlocked`);
       playTone("claim");
     });
   }
@@ -1594,6 +1594,14 @@
     if (els.eventCard) els.eventCard.dataset.event = ev.id;
   }
 
+  function passRewardText(reward) {
+    const r = reward && typeof reward === "object" ? reward : {};
+    if (Number(r.gems) > 0) return `+${Number(r.gems)}💎`;
+    if (Number(r.energy) > 0) return `+${Number(r.energy)}⚡`;
+    if (r.text) return String(r.text);
+    return "Ready";
+  }
+
   function renderQuests() {
     if (!els.questList) return;
     ensureQuests();
@@ -1601,6 +1609,7 @@
       const row = state.quests[q.id] || { progress: 0, claimed: false };
       const done = row.progress >= q.target;
       const claimed = Boolean(row.claimed);
+      const status = claimed ? "Done" : done ? "Claim" : "Go";
       return `
         <div class="quest-row ${done ? "is-done" : ""} ${claimed ? "is-claimed" : ""}">
           <div>
@@ -1608,7 +1617,7 @@
             <span>${Math.min(row.progress, q.target)}/${q.target}</span>
           </div>
           <button class="btn btn--ghost quest-claim" type="button" data-quest="${q.id}" ${!done || claimed ? "disabled" : ""}>
-            ${claimed ? "Done" : done ? "Claim" : "…"}
+            ${status}
           </button>
         </div>
       `;
@@ -1622,11 +1631,13 @@
     els.passTrack.innerHTML = PASS_TRACK.map((tier, i) => {
       const unlocked = (state.passXp || 0) >= tier.xp;
       const got = i === 0 || claimed.includes(i);
+      const label = tier.label || `Tier ${i}`;
+      const reward = passRewardText(tier.reward);
       return `
         <div class="pass-node ${unlocked ? "is-on" : ""} ${got ? "is-got" : ""}">
-          <strong>${tier.label}</strong>
-          <span>${tier.xp} XP</span>
-          <em>${tier.reward.gems ? `+${tier.reward.gems}💎` : tier.reward.energy ? `+${tier.reward.energy}⚡` : "—"}</em>
+          <strong>${label}</strong>
+          <span>${Number(tier.xp) || 0} XP</span>
+          <em>${reward}</em>
         </div>
       `;
     }).join("");
