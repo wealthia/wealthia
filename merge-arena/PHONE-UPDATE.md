@@ -3,9 +3,9 @@
 GitHub Pages artıq yenidir. Telegram çox vaxt **köhnə Menu Button URL**-ini cache edir.
 
 ## 1) Bu linki bir dəfə aç (ən sürətli)
-https://wealthia.github.io/wealthia/merge-arena/app/?v=45
+https://wealthia.github.io/wealthia/merge-arena/app/?v=46
 
-Yuxarıda **v45** nişanı görünməlidir. Rank ladder sərtləşib — Scout 120🏆-dan başlayır.
+Yuxarıda **v46** nişanı görünməlidir. 2 ads slot + hər qələbəyə +20💎.
 
 ## 2) BotFather Menu Button-u dəyiş
 1. Telegram-da `@BotFather` aç
@@ -13,13 +13,13 @@ Yuxarıda **v45** nişanı görünməlidir. Rank ladder sərtləşib — Scout 1
 3. **Bot Settings** → **Menu Button** → **Configure menu button**
 4. URL yapışdır:
 ```
-https://wealthia.github.io/wealthia/merge-arena/app/?v=45
+https://wealthia.github.io/wealthia/merge-arena/app/?v=46
 ```
 5. Telegram-ı tam bağla (swipe away) → yenidən aç → botu aç
 
 ## 3) Render WEBAPP_URL (əgər bot Render-dən gəlirsə)
 Render → `merge-arena-api` → Environment:
 ```
-WEBAPP_URL=https://wealthia.github.io/wealthia/merge-arena/app/?v=45
+WEBAPP_URL=https://wealthia.github.io/wealthia/merge-arena/app/?v=46
 ```
 Sonra **Manual Deploy**.
