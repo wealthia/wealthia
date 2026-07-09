@@ -17,15 +17,18 @@
   --legend: #ffd166;
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
-  --font: "Figtree", system-ui, sans-serif;
-  --display: "Syne", system-ui, sans-serif;
+  --font: "Exo 2", system-ui, sans-serif;
+  --display: "Oxanium", system-ui, sans-serif;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
 
 html, body {
   margin: 0;
+  width: 100%;
+  max-width: 100%;
   min-height: 100%;
+  overflow-x: hidden;
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font);
@@ -36,7 +39,9 @@ html, body {
 body {
   min-height: 100dvh;
   overflow: hidden;
+  overflow-x: hidden;
   user-select: none;
+  position: relative;
 }
 
 button {
@@ -64,12 +69,13 @@ button {
 
 .fx__aurora {
   position: absolute;
-  inset: -20% -10%;
+  inset: 0;
   background:
-    conic-gradient(from 120deg at 40% 30%, rgba(61, 255, 200, 0.18), transparent 35%, rgba(255, 209, 102, 0.12), transparent 70%, rgba(255, 107, 74, 0.14));
-  filter: blur(40px);
+    radial-gradient(60% 45% at 30% 20%, rgba(61, 255, 200, 0.16), transparent 60%),
+    radial-gradient(50% 40% at 80% 30%, rgba(255, 209, 102, 0.12), transparent 55%),
+    radial-gradient(45% 35% at 70% 80%, rgba(255, 107, 74, 0.12), transparent 60%);
   animation: aurora 14s ease-in-out infinite alternate;
-  opacity: 0.7;
+  opacity: 0.85;
 }
 
 .fx__ring {
@@ -98,16 +104,13 @@ button {
 
 .fx__spark {
   position: absolute;
-  width: 8px;
-  height: 8px;
-  left: 52%;
-  top: 12%;
+  width: 6px;
+  height: 6px;
+  left: 48%;
+  top: 14%;
   border-radius: 50%;
   background: #ffd166;
-  box-shadow:
-    0 0 24px #ffd166,
-    120px 80px 0 -1px rgba(61, 255, 200, 0.8),
-    -90px 140px 0 0 rgba(255, 107, 74, 0.7);
+  box-shadow: 0 0 18px #ffd166;
   animation: spark 5s ease-in-out infinite;
 }
 
@@ -129,39 +132,52 @@ button {
 .app {
   position: relative;
   z-index: 1;
-  max-width: 440px;
+  width: 100%;
+  max-width: min(440px, 100%);
   height: 100dvh;
   margin: 0 auto;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 8px;
-  padding: calc(10px + var(--safe-t)) 12px calc(8px + var(--safe-b));
+  padding: calc(8px + var(--safe-t)) 10px calc(8px + var(--safe-b));
+  overflow-x: hidden;
+  min-width: 0;
 }
 
 .hud {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
+  width: 100%;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.brand__text {
+  min-width: 0;
+  overflow: hidden;
 }
 
 .brand__mark {
-  width: 42px;
-  height: 42px;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
   display: grid;
   place-items: center;
-  border-radius: 14px;
+  border-radius: 12px;
   background: linear-gradient(145deg, #3dffc8, #ffd166 70%, #ff6b4a);
-  box-shadow: 0 10px 24px rgba(61, 255, 200, 0.28);
+  box-shadow: 0 8px 18px rgba(61, 255, 200, 0.24);
   font-family: var(--display);
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 800;
   color: #062018;
   letter-spacing: -0.04em;
@@ -170,14 +186,21 @@ button {
 .brand strong {
   display: block;
   font-family: var(--display);
-  font-size: 15px;
-  letter-spacing: 0.04em;
+  font-size: clamp(12px, 3.6vw, 15px);
+  letter-spacing: 0.03em;
   font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .brand small {
+  display: block;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 9px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chip--energy { border-color: rgba(94, 240, 208, 0.4); color: var(--cyan); }
@@ -209,20 +232,25 @@ button {
 
 .hud__stats {
   display: flex;
-  gap: 6px;
+  gap: 4px;
+  flex: 0 0 auto;
+  max-width: 58%;
+  overflow: hidden;
 }
 
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  min-height: 34px;
-  padding: 0 9px;
-  border-radius: 12px;
+  gap: 3px;
+  min-height: 30px;
+  padding: 0 7px;
+  border-radius: 10px;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.05);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 
 .chip em {
@@ -233,14 +261,17 @@ button {
 
 .stage {
   min-height: 0;
-  overflow: auto;
+  min-width: 0;
+  width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
   scrollbar-width: none;
 }
 
 .stage::-webkit-scrollbar { display: none; }
 
-.view { display: none; animation: rise 320ms ease; }
-.view.is-active { display: grid; gap: 12px; align-content: start; }
+.view { display: none; animation: rise 320ms ease; width: 100%; min-width: 0; }
+.view.is-active { display: grid; gap: 10px; align-content: start; }
 
 @keyframes rise {
   from { opacity: 0; transform: translateY(10px); }
@@ -277,8 +308,10 @@ button {
 
 .board-wrap {
   position: relative;
-  padding: 10px;
-  border-radius: 24px;
+  width: 100%;
+  min-width: 0;
+  padding: 8px;
+  border-radius: 22px;
   border: 1px solid rgba(61, 255, 200, 0.22);
   background:
     linear-gradient(180deg, rgba(12, 48, 58, 0.96), rgba(6, 20, 28, 0.98));
@@ -331,21 +364,24 @@ button {
 }
 
 .offer__cta {
-  min-width: 58px;
-  min-height: 36px;
-  padding: 0 12px;
+  min-width: 52px;
+  min-height: 34px;
+  padding: 0 10px;
   border-radius: 12px;
   font-size: 12px;
   font-weight: 800;
   color: #062018;
   background: linear-gradient(90deg, #ffd166, #3dffc8);
+  flex: 0 0 auto;
 }
 
 .board {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  min-height: 280px;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
 }
 
 .cell {
@@ -437,8 +473,10 @@ button {
 
 .play-actions {
   display: grid;
-  grid-template-columns: 1fr 1.35fr;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
 }
 
 .btn {
@@ -553,13 +591,15 @@ button {
 
 .offer {
   display: grid;
-  grid-template-columns: 56px 1fr auto;
-  gap: 12px;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  gap: 10px;
   align-items: center;
-  padding: 12px;
-  border-radius: 20px;
+  padding: 10px;
+  border-radius: 18px;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.04);
+  width: 100%;
+  min-width: 0;
 }
 
 .offer--rare {
@@ -572,14 +612,19 @@ button {
 }
 
 .offer__visual {
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
   display: grid;
   place-items: center;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 800;
   border: 1px solid rgba(255, 255, 255, 0.12);
+  flex: 0 0 auto;
+}
+
+.offer__body {
+  min-width: 0;
 }
 
 .offer__visual--energy { background: linear-gradient(160deg, #7dfff5, #1fb8a8); color: #06201c; }
@@ -591,13 +636,13 @@ button {
 
 .offer__body h3 {
   margin: 0 0 3px;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 800;
 }
 
 .offer__body p {
   margin: 0;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--muted);
   line-height: 1.35;
 }
@@ -727,7 +772,8 @@ button {
   bottom: calc(88px + var(--safe-b));
   transform: translateX(-50%);
   z-index: 50;
-  max-width: min(400px, calc(100vw - 24px));
+  width: min(360px, calc(100% - 24px));
+  max-width: calc(100% - 24px);
   padding: 12px 14px;
   border-radius: 14px;
   border: 1px solid rgba(61, 255, 200, 0.22);
@@ -808,13 +854,11 @@ button {
 .fighter--you {
   background: rgba(61, 255, 240, 0.12);
   color: var(--cyan);
-  animation: punch 0.55s ease-in-out infinite alternate;
 }
 
 .fighter--enemy {
   background: rgba(255, 93, 122, 0.12);
   color: var(--danger);
-  animation: punch 0.55s ease-in-out infinite alternate-reverse;
 }
 
 .vs {
@@ -822,11 +866,6 @@ button {
   font-size: 14px;
   color: var(--gold);
   font-weight: 800;
-}
-
-@keyframes punch {
-  from { transform: translateX(0); }
-  to { transform: translateX(4px) scale(1.03); }
 }
 
 .battle-bars {
@@ -887,10 +926,13 @@ button {
   opacity: 0.75;
 }
 
-@media (max-width: 360px) {
-  .brand strong { font-size: 11px; }
-  .board { min-height: 250px; gap: 6px; }
+@media (max-width: 380px) {
+  .brand small { display: none; }
+  .chip--cloud { display: none; }
+  .hud__stats { max-width: 62%; }
+  .board { gap: 5px; }
   .btn { min-height: 48px; }
+  .section-head h2 { font-size: 20px; }
 }
 
 /* PRE-GAME TUTORIAL */
@@ -900,7 +942,10 @@ button {
   z-index: 80;
   display: grid;
   place-items: center;
-  padding: 20px;
+  padding: 16px;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
   background:
     radial-gradient(70% 50% at 50% 20%, rgba(61, 255, 200, 0.18), transparent 55%),
     rgba(3, 12, 16, 0.92);
@@ -910,11 +955,12 @@ button {
 
 .tutorial__card {
   width: min(360px, 100%);
+  max-width: 100%;
   display: grid;
   gap: 10px;
   justify-items: center;
   text-align: center;
-  padding: 28px 20px 18px;
+  padding: 24px 16px 16px;
   border-radius: 28px;
   border: 1px solid rgba(61, 255, 200, 0.28);
   background: linear-gradient(180deg, rgba(10, 42, 52, 0.98), rgba(5, 18, 24, 0.98));
