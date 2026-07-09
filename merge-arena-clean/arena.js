@@ -29,7 +29,7 @@
       text: "Add 10 energy right now.",
       stars: 15,
       apply(state) {
-        state.energy += 10;
+        state.energy = Math.min(ENERGY_MAX, state.energy + 10);
       }
     },
     rare_summon: {
@@ -240,11 +240,12 @@
 
   function regenEnergy() {
     const now = Date.now();
-    const elapsed = now - Number(state.lastEnergyAt || now);
+    const lastEnergyAt = Number(state.lastEnergyAt || now);
+    const elapsed = now - lastEnergyAt;
     const gained = Math.floor(elapsed / 60000);
     if (gained > 0 && state.energy < ENERGY_MAX) {
       state.energy = Math.min(ENERGY_MAX, state.energy + gained);
-      state.lastEnergyAt = now;
+      state.lastEnergyAt = lastEnergyAt + gained * 60000;
       saveState();
     }
   }
@@ -551,11 +552,13 @@
     } else {
       // soft loss: lose some trophies, keep wave
       const loss = Math.min(state.trophies, 4 + Math.floor(wave / 2));
+      const gemGain = 5;
       state.trophies = Math.max(0, state.trophies - loss);
+      state.gems += gemGain;
       consumeWeakest();
       saveState();
       els.battleModal.hidden = true;
-      showResult(false, wave, -loss, 5);
+      showResult(false, wave, -loss, gemGain);
       haptic("error");
     }
 
@@ -619,6 +622,7 @@
 
     const err = product.apply(state);
     if (typeof err === "string") {
+      closePay();
       showToast(err);
       return;
     }
