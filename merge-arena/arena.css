@@ -271,7 +271,8 @@ button {
   grid-template-rows: auto auto auto auto auto auto auto;
   align-content: start;
   justify-items: stretch;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   gap: 6px;
 }
 

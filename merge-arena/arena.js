@@ -478,7 +478,7 @@
     const padX = (parseFloat(styles.paddingLeft) || 0) + (parseFloat(styles.paddingRight) || 0);
     const padY = (parseFloat(styles.paddingTop) || 0) + (parseFloat(styles.paddingBottom) || 0);
     const availW = Math.max(160, Math.min(appW - 28, (wrap.parentElement ? wrap.parentElement.clientWidth : appW) - 8) - padX);
-    const fromViewport = Math.max(140, appH - reserved);
+    const fromViewport = Math.max(0, appH - reserved - padY);
     if (availW < 40) return;
     // Hard cap ~30% of height so clash panel stays visible
     const maxBoard = Math.floor(appH * 0.3);
@@ -628,7 +628,7 @@
       tone = "fuse";
     } else if (occupied >= SIZE) {
       status = "Board packed";
-      tip = "No empty slots. Fuse twins or fight with what you have.";
+      tip = "No empty slots. Enter Fight to clear space, then rebuild.";
       tone = "warn";
     } else {
       const need = Math.max(1, enemy - you);
