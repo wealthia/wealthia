@@ -1,4 +1,4 @@
-const WEBAPP_URL = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/merge-arena/?v=23";
+const WEBAPP_URL = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/merge-arena/app/?v=24";
 const BOT_USERNAME = process.env.BOT_USERNAME || "WealthiaGameBot";
 const CHANNEL_URL =
   String(process.env.CHANNEL_URL || "").trim() ||

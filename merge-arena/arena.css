@@ -154,6 +154,21 @@ button {
   min-width: 0;
 }
 
+.build-tag {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 5px;
+  border-radius: 6px;
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  vertical-align: middle;
+  color: #062018;
+  background: linear-gradient(90deg, #ffd166, #3dffc8);
+  box-shadow: 0 0 10px rgba(61, 255, 200, 0.25);
+}
+
 .hud__stats {
   display: flex;
   gap: 4px;
