@@ -10,62 +10,62 @@
   // 50 heroes — commons fuel merges; rares/epics/legends carry late gates
   const UNIT_DEFS = [
     // Commons (20)
-    { id: "spark", name: "Spark", icon: "⚡", face: "⚡", rarity: "common", role: "Striker", basePower: 11, vibe: "zap", blurb: "Fast fuse fuel." },
-    { id: "blade", name: "Blade", icon: "🗡", face: "⚔", rarity: "common", role: "Duelist", basePower: 13, vibe: "slash", blurb: "Clean edge damage." },
-    { id: "ember", name: "Ember", icon: "🔥", face: "🔥", rarity: "common", role: "Burner", basePower: 12, vibe: "fire", blurb: "Leaves a hot trail." },
-    { id: "frost", name: "Frost", icon: "❄️", face: "❄️", rarity: "common", role: "Freezer", basePower: 12, vibe: "ice", blurb: "Chills the lane." },
-    { id: "fang", name: "Fang", icon: "🐺", face: "🐺", rarity: "common", role: "Beast", basePower: 14, vibe: "beast", blurb: "Bites above weight." },
-    { id: "dart", name: "Dart", icon: "🏹", face: "🏹", rarity: "common", role: "Archer", basePower: 11, vibe: "bow", blurb: "Picks soft targets." },
-    { id: "brew", name: "Brew", icon: "🧪", face: "🧪", rarity: "common", role: "Alchemist", basePower: 10, vibe: "brew", blurb: "Weird flask power." },
-    { id: "cobble", name: "Cobble", icon: "🪨", face: "🪨", rarity: "common", role: "Tanklet", basePower: 15, vibe: "heavy", blurb: "Slow, stubborn rock." },
-    { id: "pebble", name: "Pebble", icon: "🪨", face: "🪨", rarity: "common", role: "Tanklet", basePower: 14, vibe: "heavy", blurb: "Small stone, big block." },
-    { id: "pixie", name: "Pixie", icon: "✨", face: "✨", rarity: "common", role: "Trickster", basePower: 10, vibe: "glow", blurb: "Sparkle and dodge." },
-    { id: "scout", name: "Scout", icon: "🧭", face: "🧭", rarity: "common", role: "Archer", basePower: 11, vibe: "bow", blurb: "Maps the next clash." },
-    { id: "cinder", name: "Cinder", icon: "🪵", face: "🪵", rarity: "common", role: "Burner", basePower: 12, vibe: "fire", blurb: "Smoldering scrap." },
-    { id: "drizzle", name: "Drizzle", icon: "💧", face: "💧", rarity: "common", role: "Wave", basePower: 11, vibe: "tide", blurb: "Soft rain pressure." },
-    { id: "sprout", name: "Sprout", icon: "🌱", face: "🌱", rarity: "common", role: "Healer", basePower: 10, vibe: "glow", blurb: "Tiny green grit." },
-    { id: "buzz", name: "Buzz", icon: "🐝", face: "🐝", rarity: "common", role: "Striker", basePower: 12, vibe: "zap", blurb: "Stings then zips." },
-    { id: "crumb", name: "Crumb", icon: "🍪", face: "🍪", rarity: "common", role: "Mascot", basePower: 9, vibe: "brew", blurb: "Snack-powered punch." },
-    { id: "shade", name: "Shade", icon: "🕶", face: "🕶", rarity: "common", role: "Haunt", basePower: 12, vibe: "ghost", blurb: "Sneaks past guards." },
-    { id: "bolt", name: "Bolt", icon: "🔩", face: "🔩", rarity: "common", role: "Breaker", basePower: 13, vibe: "quake", blurb: "Nuts-and-bolts bash." },
-    { id: "howl", name: "Howl", icon: "🌙", face: "🌙", rarity: "common", role: "Beast", basePower: 13, vibe: "beast", blurb: "Night pack call." },
-    { id: "glint", name: "Glint", icon: "💎", face: "💎", rarity: "common", role: "Burst", basePower: 11, vibe: "glow", blurb: "Tiny crystal flash." },
+    { id: "spark", name: "Spark", icon: "⚡", face: "⚡", rarity: "common", role: "Striker", basePower: 11, vibe: "zap", blurb: "Fast fuse fuel." , unlockWave: 1 },
+    { id: "blade", name: "Blade", icon: "🗡", face: "⚔", rarity: "common", role: "Duelist", basePower: 13, vibe: "slash", blurb: "Clean edge damage." , unlockWave: 1 },
+    { id: "ember", name: "Ember", icon: "🔥", face: "🔥", rarity: "common", role: "Burner", basePower: 12, vibe: "fire", blurb: "Leaves a hot trail." , unlockWave: 1 },
+    { id: "frost", name: "Frost", icon: "❄️", face: "❄️", rarity: "common", role: "Freezer", basePower: 12, vibe: "ice", blurb: "Chills the lane." , unlockWave: 1 },
+    { id: "fang", name: "Fang", icon: "🐺", face: "🐺", rarity: "common", role: "Beast", basePower: 14, vibe: "beast", blurb: "Bites above weight." , unlockWave: 2 },
+    { id: "dart", name: "Dart", icon: "🏹", face: "🏹", rarity: "common", role: "Archer", basePower: 11, vibe: "bow", blurb: "Picks soft targets." , unlockWave: 2 },
+    { id: "brew", name: "Brew", icon: "🧪", face: "🧪", rarity: "common", role: "Alchemist", basePower: 10, vibe: "brew", blurb: "Weird flask power." , unlockWave: 3 },
+    { id: "cobble", name: "Cobble", icon: "🪨", face: "🪨", rarity: "common", role: "Tanklet", basePower: 15, vibe: "heavy", blurb: "Slow, stubborn rock." , unlockWave: 3 },
+    { id: "pebble", name: "Pebble", icon: "🪨", face: "🪨", rarity: "common", role: "Tanklet", basePower: 14, vibe: "heavy", blurb: "Small stone, big block." , unlockWave: 4 },
+    { id: "pixie", name: "Pixie", icon: "✨", face: "✨", rarity: "common", role: "Trickster", basePower: 10, vibe: "glow", blurb: "Sparkle and dodge." , unlockWave: 4 },
+    { id: "scout", name: "Scout", icon: "🧭", face: "🧭", rarity: "common", role: "Archer", basePower: 11, vibe: "bow", blurb: "Maps the next clash." , unlockWave: 5 },
+    { id: "cinder", name: "Cinder", icon: "🪵", face: "🪵", rarity: "common", role: "Burner", basePower: 12, vibe: "fire", blurb: "Smoldering scrap." , unlockWave: 5 },
+    { id: "drizzle", name: "Drizzle", icon: "💧", face: "💧", rarity: "common", role: "Wave", basePower: 11, vibe: "tide", blurb: "Soft rain pressure." , unlockWave: 6 },
+    { id: "sprout", name: "Sprout", icon: "🌱", face: "🌱", rarity: "common", role: "Healer", basePower: 10, vibe: "glow", blurb: "Tiny green grit." , unlockWave: 6 },
+    { id: "buzz", name: "Buzz", icon: "🐝", face: "🐝", rarity: "common", role: "Striker", basePower: 12, vibe: "zap", blurb: "Stings then zips." , unlockWave: 8 },
+    { id: "crumb", name: "Crumb", icon: "🍪", face: "🍪", rarity: "common", role: "Mascot", basePower: 9, vibe: "brew", blurb: "Snack-powered punch." , unlockWave: 8 },
+    { id: "shade", name: "Shade", icon: "🕶", face: "🕶", rarity: "common", role: "Haunt", basePower: 12, vibe: "ghost", blurb: "Sneaks past guards." , unlockWave: 10 },
+    { id: "bolt", name: "Bolt", icon: "🔩", face: "🔩", rarity: "common", role: "Breaker", basePower: 13, vibe: "quake", blurb: "Nuts-and-bolts bash." , unlockWave: 10 },
+    { id: "howl", name: "Howl", icon: "🌙", face: "🌙", rarity: "common", role: "Beast", basePower: 13, vibe: "beast", blurb: "Night pack call." , unlockWave: 12 },
+    { id: "glint", name: "Glint", icon: "💎", face: "💎", rarity: "common", role: "Burst", basePower: 11, vibe: "glow", blurb: "Tiny crystal flash." , unlockWave: 12 },
 
     // Rares (15)
-    { id: "ward", name: "Ward", icon: "🛡", face: "🛡", rarity: "rare", role: "Guardian", basePower: 21, vibe: "guard", blurb: "Holds the line." },
-    { id: "nova", name: "Nova", icon: "✦", face: "🌟", rarity: "rare", role: "Burst", basePower: 25, vibe: "glow", blurb: "Starflash strike." },
-    { id: "tide", name: "Tide", icon: "🌊", face: "🌊", rarity: "rare", role: "Wave", basePower: 23, vibe: "tide", blurb: "Pushes the board." },
-    { id: "quake", name: "Quake", icon: "🌋", face: "🌋", rarity: "rare", role: "Breaker", basePower: 24, vibe: "quake", blurb: "Cracks enemy armor." },
-    { id: "mirage", name: "Mirage", icon: "🪞", face: "🪞", rarity: "rare", role: "Trickster", basePower: 22, vibe: "ghost", blurb: "Hard to pin down." },
-    { id: "basil", name: "Basilisk", icon: "🦎", face: "🦎", rarity: "rare", role: "Assassin", basePower: 24, vibe: "venom", blurb: "Stone-cold stare." },
-    { id: "aegis", name: "Aegis", icon: "🔰", face: "🔰", rarity: "rare", role: "Guardian", basePower: 23, vibe: "guard", blurb: "Shield wall specialist." },
-    { id: "flare", name: "Flare", icon: "☄", face: "☄", rarity: "rare", role: "Burner", basePower: 24, vibe: "fire", blurb: "Comet-trail burn." },
-    { id: "glacier", name: "Glacier", icon: "🧊", face: "🧊", rarity: "rare", role: "Freezer", basePower: 23, vibe: "ice", blurb: "Locks the lane cold." },
-    { id: "raptor", name: "Raptor", icon: "🦖", face: "🦖", rarity: "rare", role: "Beast", basePower: 25, vibe: "beast", blurb: "Claws for days." },
-    { id: "oracle", name: "Oracle", icon: "🔮", face: "🔮", rarity: "rare", role: "Myth", basePower: 22, vibe: "aurora", blurb: "Sees the next fuse." },
-    { id: "volt", name: "Volt", icon: "⚡", face: "⚡", rarity: "rare", role: "Storm", basePower: 24, vibe: "storm", blurb: "Chain-zap specialist." },
-    { id: "monk", name: "Monk", icon: "🧘", face: "🧘", rarity: "rare", role: "Healer", basePower: 21, vibe: "glow", blurb: "Calm power surge." },
-    { id: "duelist", name: "Duelist", icon: "🤺", face: "🤺", rarity: "rare", role: "Duelist", basePower: 25, vibe: "slash", blurb: "One clean finish." },
-    { id: "hex", name: "Hex", icon: "🧿", face: "🧿", rarity: "rare", role: "Haunt", basePower: 23, vibe: "ghost", blurb: "Curses the clash." },
+    { id: "ward", name: "Ward", icon: "🛡", face: "🛡", rarity: "rare", role: "Guardian", basePower: 21, vibe: "guard", blurb: "Holds the line." , unlockWave: 5 },
+    { id: "nova", name: "Nova", icon: "✦", face: "🌟", rarity: "rare", role: "Burst", basePower: 25, vibe: "glow", blurb: "Starflash strike." , unlockWave: 5 },
+    { id: "tide", name: "Tide", icon: "🌊", face: "🌊", rarity: "rare", role: "Wave", basePower: 23, vibe: "tide", blurb: "Pushes the board." , unlockWave: 8 },
+    { id: "quake", name: "Quake", icon: "🌋", face: "🌋", rarity: "rare", role: "Breaker", basePower: 24, vibe: "quake", blurb: "Cracks enemy armor." , unlockWave: 8 },
+    { id: "mirage", name: "Mirage", icon: "🪞", face: "🪞", rarity: "rare", role: "Trickster", basePower: 22, vibe: "ghost", blurb: "Hard to pin down." , unlockWave: 10 },
+    { id: "basil", name: "Basilisk", icon: "🦎", face: "🦎", rarity: "rare", role: "Assassin", basePower: 24, vibe: "venom", blurb: "Stone-cold stare." , unlockWave: 10 },
+    { id: "aegis", name: "Aegis", icon: "🔰", face: "🔰", rarity: "rare", role: "Guardian", basePower: 23, vibe: "guard", blurb: "Shield wall specialist." , unlockWave: 12 },
+    { id: "flare", name: "Flare", icon: "☄", face: "☄", rarity: "rare", role: "Burner", basePower: 24, vibe: "fire", blurb: "Comet-trail burn." , unlockWave: 12 },
+    { id: "glacier", name: "Glacier", icon: "🧊", face: "🧊", rarity: "rare", role: "Freezer", basePower: 23, vibe: "ice", blurb: "Locks the lane cold." , unlockWave: 15 },
+    { id: "raptor", name: "Raptor", icon: "🦖", face: "🦖", rarity: "rare", role: "Beast", basePower: 25, vibe: "beast", blurb: "Claws for days." , unlockWave: 15 },
+    { id: "oracle", name: "Oracle", icon: "🔮", face: "🔮", rarity: "rare", role: "Myth", basePower: 22, vibe: "aurora", blurb: "Sees the next fuse." , unlockWave: 18 },
+    { id: "volt", name: "Volt", icon: "⚡", face: "⚡", rarity: "rare", role: "Storm", basePower: 24, vibe: "storm", blurb: "Chain-zap specialist." , unlockWave: 18 },
+    { id: "monk", name: "Monk", icon: "🧘", face: "🧘", rarity: "rare", role: "Healer", basePower: 21, vibe: "glow", blurb: "Calm power surge." , unlockWave: 20 },
+    { id: "duelist", name: "Duelist", icon: "🤺", face: "🤺", rarity: "rare", role: "Duelist", basePower: 25, vibe: "slash", blurb: "One clean finish." , unlockWave: 20 },
+    { id: "hex", name: "Hex", icon: "🧿", face: "🧿", rarity: "rare", role: "Haunt", basePower: 23, vibe: "ghost", blurb: "Curses the clash." , unlockWave: 20 },
 
     // Epics (10)
-    { id: "phantom", name: "Phantom", icon: "👁", face: "👻", rarity: "epic", role: "Haunt", basePower: 38, vibe: "ghost", blurb: "Slips through steel." },
-    { id: "titan", name: "Titan", icon: "🏛", face: "🗿", rarity: "epic", role: "Colossus", basePower: 46, vibe: "heavy", blurb: "Arena-shaking mass." },
-    { id: "venom", name: "Venom", icon: "🐍", face: "🐍", rarity: "epic", role: "Assassin", basePower: 42, vibe: "venom", blurb: "Toxic finishers." },
-    { id: "tempest", name: "Tempest", icon: "🌪", face: "🌪", rarity: "epic", role: "Storm", basePower: 44, vibe: "storm", blurb: "Spins the fight wild." },
-    { id: "inferno", name: "Inferno", icon: "🔥", face: "🔥", rarity: "epic", role: "Burner", basePower: 45, vibe: "fire", blurb: "Whole-board heat." },
-    { id: "cryo", name: "Cryo", icon: "❄️", face: "❄️", rarity: "epic", role: "Freezer", basePower: 43, vibe: "ice", blurb: "Deep-freeze lockdown." },
-    { id: "behemoth", name: "Behemoth", icon: "🦏", face: "🦏", rarity: "epic", role: "Colossus", basePower: 47, vibe: "heavy", blurb: "Unstoppable charge." },
-    { id: "specter", name: "Specter", icon: "💀", face: "💀", rarity: "epic", role: "Haunt", basePower: 41, vibe: "eclipse", blurb: "Drains enemy will." },
-    { id: "raiden", name: "Raiden", icon: "⛈", face: "⛈", rarity: "epic", role: "Storm", basePower: 45, vibe: "storm", blurb: "Thunderclap finish." },
-    { id: "bloom", name: "Bloom", icon: "🌸", face: "🌸", rarity: "epic", role: "Healer", basePower: 40, vibe: "aurora", blurb: "Petal-powered surge." },
+    { id: "phantom", name: "Phantom", icon: "👁", face: "👻", rarity: "epic", role: "Haunt", basePower: 38, vibe: "ghost", blurb: "Slips through steel." , unlockWave: 15 },
+    { id: "titan", name: "Titan", icon: "🏛", face: "🗿", rarity: "epic", role: "Colossus", basePower: 46, vibe: "heavy", blurb: "Arena-shaking mass." , unlockWave: 15 },
+    { id: "venom", name: "Venom", icon: "🐍", face: "🐍", rarity: "epic", role: "Assassin", basePower: 42, vibe: "venom", blurb: "Toxic finishers." , unlockWave: 20 },
+    { id: "tempest", name: "Tempest", icon: "🌪", face: "🌪", rarity: "epic", role: "Storm", basePower: 44, vibe: "storm", blurb: "Spins the fight wild." , unlockWave: 20 },
+    { id: "inferno", name: "Inferno", icon: "🔥", face: "🔥", rarity: "epic", role: "Burner", basePower: 45, vibe: "fire", blurb: "Whole-board heat." , unlockWave: 25 },
+    { id: "cryo", name: "Cryo", icon: "❄️", face: "❄️", rarity: "epic", role: "Freezer", basePower: 43, vibe: "ice", blurb: "Deep-freeze lockdown." , unlockWave: 25 },
+    { id: "behemoth", name: "Behemoth", icon: "🦏", face: "🦏", rarity: "epic", role: "Colossus", basePower: 47, vibe: "heavy", blurb: "Unstoppable charge." , unlockWave: 30 },
+    { id: "specter", name: "Specter", icon: "💀", face: "💀", rarity: "epic", role: "Haunt", basePower: 41, vibe: "eclipse", blurb: "Drains enemy will." , unlockWave: 30 },
+    { id: "raiden", name: "Raiden", icon: "⛈", face: "⛈", rarity: "epic", role: "Storm", basePower: 45, vibe: "storm", blurb: "Thunderclap finish." , unlockWave: 35 },
+    { id: "bloom", name: "Bloom", icon: "🌸", face: "🌸", rarity: "epic", role: "Healer", basePower: 40, vibe: "aurora", blurb: "Petal-powered surge." , unlockWave: 35 },
 
     // Legendaries (5)
-    { id: "sovereign", name: "Sovereign", icon: "👑", face: "🦁", rarity: "legendary", role: "King", basePower: 70, vibe: "royal", blurb: "Rules the clash." },
-    { id: "eclipse", name: "Eclipse", icon: "🌑", face: "🌑", rarity: "legendary", role: "Void", basePower: 76, vibe: "eclipse", blurb: "Eats the light." },
-    { id: "aurora", name: "Aurora", icon: "🌈", face: "🦊", rarity: "legendary", role: "Myth", basePower: 73, vibe: "aurora", blurb: "Skyfire legend." },
-    { id: "panda", name: "Panda King", icon: "🐼", face: "🐼", rarity: "legendary", role: "Mascot", basePower: 78, vibe: "royal", blurb: "Arena’s secret boss cheer." },
-    { id: "chronos", name: "Chronos", icon: "⏳", face: "⏳", rarity: "legendary", role: "Myth", basePower: 80, vibe: "aurora", blurb: "Bends the gate clock." }
+    { id: "sovereign", name: "Sovereign", icon: "👑", face: "🦁", rarity: "legendary", role: "King", basePower: 70, vibe: "royal", blurb: "Rules the clash." , unlockWave: 25 },
+    { id: "eclipse", name: "Eclipse", icon: "🌑", face: "🌑", rarity: "legendary", role: "Void", basePower: 76, vibe: "eclipse", blurb: "Eats the light." , unlockWave: 30 },
+    { id: "aurora", name: "Aurora", icon: "🌈", face: "🦊", rarity: "legendary", role: "Myth", basePower: 73, vibe: "aurora", blurb: "Skyfire legend." , unlockWave: 35 },
+    { id: "panda", name: "Panda King", icon: "🐼", face: "🐼", rarity: "legendary", role: "Mascot", basePower: 78, vibe: "royal", blurb: "Arena’s secret boss cheer." , unlockWave: 40 },
+    { id: "chronos", name: "Chronos", icon: "⏳", face: "⏳", rarity: "legendary", role: "Myth", basePower: 80, vibe: "aurora", blurb: "Bends the gate clock." , unlockWave: 50 }
   ];
 
   const BUDDY_LINES = [
@@ -504,7 +504,7 @@
   function normalizeState(raw) {
     const base = defaultState();
     const parsed = raw && typeof raw === "object" ? raw : {};
-    return {
+    const next = {
       ...base,
       ...parsed,
       board: Array.isArray(parsed.board) && parsed.board.length === SIZE
@@ -512,6 +512,9 @@
         : base.board,
       discovered: Array.isArray(parsed.discovered) ? parsed.discovered : base.discovered
     };
+    // Climb-gate vault without touching the live `state` binding (safe during first load).
+    next.discovered = pruneDiscoveredList(next.discovered, next.board, next.bestWave, next.wave);
+    return next;
   }
 
   function progressScore(s) {
@@ -628,6 +631,7 @@
     // Prefer whichever side has more real progress so a wiped/default cloud
     // cannot erase a good local save (and vice versa).
     state = pickRicherState(localSnapshot, result.state);
+    pruneDiscovered();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     return true;
   }
@@ -1142,21 +1146,85 @@
     return slots;
   }
 
+  function unlockWaveOf(def) {
+    return Math.max(1, Number(def && def.unlockWave) || 1);
+  }
+
+  function climbFloor(wave, bestWave) {
+    return Math.max(1, Number(bestWave || wave || 1));
+  }
+
+  function isHeroUnlocked(id, wave = state.bestWave || state.wave || 1) {
+    const def = defById(id);
+    return unlockWaveOf(def) <= Math.max(1, Number(wave) || 1);
+  }
+
+  function pruneDiscoveredList(discovered, board, bestWave, wave) {
+    // Keep starters + climb-eligible discoveries + anything already on the board.
+    // Old saves that unlocked the whole vault get pruned to what the climb earned.
+    const floor = climbFloor(wave, bestWave);
+    const keep = new Set(["spark", "blade"]);
+    (Array.isArray(discovered) ? discovered : []).forEach((id) => {
+      const def = defById(id);
+      if (def && unlockWaveOf(def) <= floor) keep.add(String(id));
+    });
+    (Array.isArray(board) ? board : []).forEach((u) => {
+      if (u && u.id) keep.add(String(u.id));
+    });
+    return UNIT_DEFS.map((d) => d.id).filter((id) => keep.has(id));
+  }
+
+  function pruneDiscovered() {
+    state.discovered = pruneDiscoveredList(
+      state.discovered,
+      state.board,
+      state.bestWave,
+      state.wave
+    );
+  }
+
+  function availablePool(rarity) {
+    const floor = climbFloor(state.wave, state.bestWave);
+    let pool = UNIT_DEFS.filter((u) => isHeroUnlocked(u.id, floor));
+    if (rarity) pool = pool.filter((u) => u.rarity === rarity);
+    if (!pool.length) {
+      pool = UNIT_DEFS.filter((u) => u.rarity === "common" && unlockWaveOf(u) <= 1);
+    }
+    return pool;
+  }
+
   function randomCommonId() {
-    const commons = UNIT_DEFS.filter((u) => u.rarity === "common");
+    const commons = availablePool("common");
     return commons[Math.floor(Math.random() * commons.length)].id;
   }
 
   function randomSummonId() {
-    // Mostly commons, with spicy rare/epic spice so the vault fills up
+    // Only from climb-unlocked heroes. Higher rarities stay rare and gated.
+    const floor = climbFloor(state.wave, state.bestWave);
     const roll = Math.random();
-    if (roll < 0.78) return randomCommonId();
-    if (roll < 0.96) return unitForRarity("rare").id;
-    return unitForRarity("epic").id;
+    if (roll < 0.86) return randomCommonId();
+    if (roll < 0.97) {
+      const rares = availablePool("rare");
+      if (rares.length) return rares[Math.floor(Math.random() * rares.length)].id;
+      return randomCommonId();
+    }
+    if (floor >= 25 && roll >= 0.995) {
+      const legends = availablePool("legendary");
+      if (legends.length) return legends[Math.floor(Math.random() * legends.length)].id;
+    }
+    const epics = availablePool("epic");
+    if (epics.length && floor >= 15) {
+      return epics[Math.floor(Math.random() * epics.length)].id;
+    }
+    const rares = availablePool("rare");
+    if (rares.length) return rares[Math.floor(Math.random() * rares.length)].id;
+    return randomCommonId();
   }
 
-  function unitForRarity(rarity) {
-    const pool = UNIT_DEFS.filter((u) => u.rarity === rarity);
+  function unitForRarity(rarity, { gated = true } = {}) {
+    const pool = gated
+      ? availablePool(rarity)
+      : UNIT_DEFS.filter((u) => u.rarity === rarity);
     return pool[Math.floor(Math.random() * pool.length)] || UNIT_DEFS[0];
   }
 
@@ -1171,7 +1239,25 @@
   }
 
   function discover(id) {
-    if (!state.discovered.includes(id)) state.discovered.push(id);
+    // Only mark vault unlock when the hero is earned for current climb.
+    if (!isHeroUnlocked(id)) return false;
+    if (!state.discovered.includes(id)) {
+      state.discovered.push(id);
+      return true;
+    }
+    return false;
+  }
+
+  function grantClimbUnlocks() {
+    // Clearing arenas opens new Get Hero pools — still must drop/summon to collect.
+    const floor = climbFloor(state.wave, state.bestWave);
+    const newly = UNIT_DEFS.filter(
+      (d) => unlockWaveOf(d) === floor && !state.discovered.includes(d.id)
+    );
+    if (newly.length) {
+      const names = newly.slice(0, 2).map((d) => d.name).join(", ");
+      showToast(`New hero pool · Arena ${floor}+ : ${names}${newly.length > 2 ? "…" : ""}`);
+    }
   }
 
   function placeGuaranteed(st, rarity) {
@@ -1180,7 +1266,8 @@
       if (!u) slots.push(i);
     });
     if (!slots.length) return "Board is full. Merge first.";
-    const def = unitForRarity(rarity);
+    // Star Market can pull the full rarity band (paid unlock path).
+    const def = unitForRarity(rarity, { gated: false });
     const level = rarity === "legendary" ? 5 : rarity === "epic" ? 4 : 3;
     const unit = makeUnit(def.id, level);
     unit.rarity = rarity;
@@ -1505,14 +1592,19 @@
 
   function renderRoster() {
     const unlockedCount = UNIT_DEFS.filter((d) => state.discovered.includes(d.id)).length;
+    const poolOpen = UNIT_DEFS.filter((d) => isHeroUnlocked(d.id)).length;
     const headP = document.querySelector("#view-roster .section-head p");
     if (headP) {
-      headP.textContent = `${unlockedCount}/${UNIT_DEFS.length} unlocked · Fuse twins. Collect legends.`;
+      headP.textContent = `${unlockedCount}/${UNIT_DEFS.length} collected · ${poolOpen} in Get Hero pool · Win fights to open more`;
     }
     const order = ["common", "rare", "epic", "legendary"];
     const sorted = [...UNIT_DEFS].sort((a, b) => order.indexOf(a.rarity) - order.indexOf(b.rarity));
     els.rosterGrid.innerHTML = sorted.map((def) => {
       const unlocked = state.discovered.includes(def.id);
+      const poolReady = isHeroUnlocked(def.id);
+      const lockHint = poolReady
+        ? "Win drops / Get Hero to collect"
+        : `Reach Arena ${unlockWaveOf(def)}`;
       return `
         <article class="roster-card ${unlocked ? "" : "is-locked"}" data-rarity="${def.rarity}">
           <div class="roster-card__unit" data-rarity="${def.rarity}" data-hero="${def.id}" data-vibe="${def.vibe}">
@@ -1525,7 +1617,7 @@
           <h3>${unlocked ? def.name : "Locked"}</h3>
           <p>${unlocked
             ? `${def.blurb || `${def.rarity} fighter`}${ROLE_ABILITY[def.role] ? ` · ${ROLE_ABILITY[def.role].label}` : ""}`
-            : "Keep merging to reveal"} · ${def.basePower}⚡</p>
+            : lockHint} · ${def.basePower}⚡</p>
         </article>
       `;
     }).join("");
@@ -2037,6 +2129,7 @@
       state.gems += gemGain;
       state.wave += 1;
       state.bestWave = Math.max(state.bestWave, state.wave);
+      grantClimbUnlocks();
       bumpQuest("wins");
       addPassXp(hard ? 25 : boss ? 18 : 12);
       checkRankUp();
@@ -2538,6 +2631,7 @@
     window.addEventListener("beforeunload", flushSaveNow);
     ensureQuests();
     if (!state.lastRankId) state.lastRankId = rankForTrophies(state.trophies).id;
+    pruneDiscovered();
     seedIfEmpty();
     bind();
     if (els.soundToggle) els.soundToggle.textContent = state.soundOn ? "🔊" : "🔇";
@@ -2548,15 +2642,17 @@
     renderGlory();
     openTutorial();
     connectCloud().then(() => {
+      pruneDiscovered();
       applyReferralIfNeeded();
       collectPendingInviteBonus();
       renderInvite();
       renderHud();
+      renderRoster();
       applyArenaTheme();
     });
     const tag = document.getElementById("buildTag");
     if (tag) {
-      setTimeout(() => showToast(`Build ${tag.textContent} · ranks + events live`), 500);
+      setTimeout(() => showToast(`Build ${tag.textContent} · climb-gated heroes`), 500);
     }
     if (state.dailyClaimDate !== todayKey()) {
       setTimeout(() => showToast("Daily Chest ready in Glory"), 1400);
