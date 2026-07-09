@@ -185,12 +185,20 @@
 
   async function ensureSession() {
     const initData = getTelegramInitData();
-    if (!initData) return false;
-    const { ok, result } = await api("/api/merge-arena/session", {
+    if (!initData) {
+      showToast("Open from Telegram bot (not browser)");
+      return false;
+    }
+    const { ok, result, status } = await api("/api/merge-arena/session", {
       method: "POST",
       body: { initData }
     });
-    if (!ok || !result?.token) return false;
+    if (!ok || !result?.token) {
+      const reason = (result && (result.reason || result.error)) || `HTTP ${status}`;
+      showToast(`Cloud off: ${reason}`);
+      console.warn("MERGE_ARENA_SESSION_FAIL", status, result);
+      return false;
+    }
     sessionToken = String(result.token);
     return true;
   }
@@ -239,13 +247,15 @@
       if (!authed) return;
       await loadCloudState();
       cloudReady = true;
+      await pushCloudState();
       seedIfEmpty();
       renderBoard();
       renderRoster();
       renderGlory();
       showToast("Cloud save on");
-    } catch {
-      // keep local play if backend is waking up
+    } catch (error) {
+      showToast("Cloud wake failed — retry in bot");
+      console.warn("MERGE_ARENA_CLOUD_FAIL", error);
     }
   }
 
