@@ -10,10 +10,20 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 // Hard pin so stale Render env cannot keep Telegram on an old cached URL.
-const WEBAPP_URL = "https://wealthia.github.io/wealthia/merge-arena/app/?v=26";
+const WEBAPP_URL = "https://wealthia.github.io/wealthia/merge-arena/app/?v=27";
 const PLAY_BUTTON_TEXT = process.env.PLAY_BUTTON_TEXT || "Play MERGE ARENA";
 const SESSION_SECRET =
   process.env.SESSION_SECRET || TELEGRAM_BOT_TOKEN || "merge-arena-dev-secret";
+
+const STAR_PRODUCTS = {
+  energy_refill: { title: "Full Charge", description: "Snap back to 20 energy.", stars: 25 },
+  energy_pack: { title: "Energy Sip", description: "+10 energy.", stars: 15 },
+  rare_summon: { title: "Rare Drop", description: "Guaranteed Rare on your board.", stars: 40 },
+  epic_summon: { title: "Epic Strike", description: "Guaranteed Epic on your board.", stars: 90 },
+  legend_summon: { title: "Legend Call", description: "Guaranteed Legendary on your board.", stars: 180 },
+  power_surge: { title: "Power Surge", description: "+30% power for 3 fights.", stars: 35 },
+  gem_starter: { title: "Gem Cache", description: "+500 gems.", stars: 50 }
+};
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_KEY");
@@ -176,7 +186,15 @@ function sanitizeState(input) {
     merges: Math.max(0, Math.floor(Number(raw.merges) || 0)),
     highestPower: Math.max(0, Math.floor(Number(raw.highestPower) || 0)),
     surgeBattles: Math.max(0, Math.floor(Number(raw.surgeBattles) || 0)),
-    discovered: Array.isArray(raw.discovered) ? raw.discovered.map(String).slice(0, 32) : [],
+    charmBattles: Math.max(0, Math.floor(Number(raw.charmBattles) || 0)),
+    dailyStreak: Math.max(0, Math.floor(Number(raw.dailyStreak) || 0)),
+    dailyClaimDate: String(raw.dailyClaimDate || "").slice(0, 16),
+    referralCount: Math.max(0, Math.floor(Number(raw.referralCount) || 0)),
+    referredBy: String(raw.referredBy || "").slice(0, 32),
+    referralClaimed: Boolean(raw.referralClaimed),
+    adLastClaimAt: Math.max(0, Math.floor(Number(raw.adLastClaimAt) || 0)),
+    soundOn: raw.soundOn !== false,
+    discovered: Array.isArray(raw.discovered) ? raw.discovered.map(String).slice(0, 48) : [],
     board,
     lastEnergyAt: Math.max(0, Math.floor(Number(raw.lastEnergyAt) || Date.now()))
   };
@@ -243,7 +261,7 @@ app.get("/health", async (_req, res) => {
     dbError: dbError || undefined,
     telegram,
     webAppUrl: WEBAPP_URL,
-    version: "merge-arena-v5"
+    version: "merge-arena-v7"
   });
 });
 
@@ -255,6 +273,84 @@ app.post("/sync-menu", async (_req, res) => {
 app.get("/sync-menu", async (_req, res) => {
   const result = await syncBotMenuButton();
   res.status(result.ok ? 200 : 500).json(result);
+});
+
+app.get("/api/merge-arena/leaderboard", async (req, res) => {
+  try {
+    const sort = String(req.query.sort || "trophies");
+    const column = sort === "best_wave" ? "best_wave" : "trophies";
+    const { data, error } = await supabase
+      .from("merge_arena_states")
+      .select("user_id, trophies, best_wave, wins, merges, updated_at")
+      .order(column, { ascending: false })
+      .limit(20);
+    if (error) throw error;
+
+    const ids = (data || []).map((row) => String(row.user_id));
+    let usersById = {};
+    if (ids.length) {
+      const { data: users } = await supabase
+        .from("users")
+        .select("id, username, first_name")
+        .in("id", ids);
+      usersById = Object.fromEntries((users || []).map((u) => [String(u.id), u]));
+    }
+
+    res.json({
+      ok: true,
+      sort: column,
+      rows: (data || []).map((row, index) => {
+        const user = usersById[String(row.user_id)] || {};
+        return {
+          rank: index + 1,
+          userId: String(row.user_id),
+          name: user.username || user.first_name || `Player ${String(row.user_id).slice(-4)}`,
+          trophies: row.trophies || 0,
+          bestWave: row.best_wave || 1,
+          wins: row.wins || 0,
+          merges: row.merges || 0
+        };
+      })
+    });
+  } catch (error) {
+    console.error("LEADERBOARD_ERROR:", error);
+    res.status(500).json({ error: error.message || "LEADERBOARD_FAILED" });
+  }
+});
+
+app.post("/api/merge-arena/stars/invoice", requirePlayer, async (req, res) => {
+  try {
+    const productId = String(req.body?.productId || "");
+    const product = STAR_PRODUCTS[productId];
+    if (!product) {
+      res.status(400).json({ error: "UNKNOWN_PRODUCT" });
+      return;
+    }
+    if (!TELEGRAM_BOT_TOKEN) {
+      res.status(503).json({ error: "BOT_TOKEN_MISSING" });
+      return;
+    }
+
+    const payload = `ma|${req.playerId}|${productId}|${Date.now()}`;
+    const prices = [{ label: product.title, amount: product.stars }];
+    const result = await telegramApi("createInvoiceLink", {
+      title: product.title,
+      description: product.description,
+      payload,
+      currency: "XTR",
+      prices
+    });
+
+    res.json({
+      ok: true,
+      productId,
+      stars: product.stars,
+      invoiceLink: result
+    });
+  } catch (error) {
+    console.error("STARS_INVOICE_ERROR:", error);
+    res.status(500).json({ error: error.message || "INVOICE_FAILED" });
+  }
 });
 
 app.post("/api/merge-arena/session", async (req, res) => {
