@@ -10,10 +10,13 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 // Hard pin so stale Render env cannot keep Telegram on an old cached URL.
-const WEBAPP_URL = "https://wealthia.github.io/wealthia/merge-arena/app/?v=44";
+const WEBAPP_URL = "https://wealthia.github.io/wealthia/merge-arena/app/?v=45";
 const PLAY_BUTTON_TEXT = process.env.PLAY_BUTTON_TEXT || "Play MERGE ARENA";
 const SESSION_SECRET =
   process.env.SESSION_SECRET || TELEGRAM_BOT_TOKEN || "merge-arena-dev-secret";
+// Admin player reset — set ADMIN_RESET_KEY on Render; fallback keeps ops unblocked.
+const ADMIN_RESET_KEY =
+  process.env.ADMIN_RESET_KEY || "merge-arena-admin-reset-v1";
 
 const STAR_PRODUCTS = {
   energy_refill: { title: "Full Charge", description: "Snap back to 14 energy.", stars: 30 },
@@ -178,6 +181,41 @@ function sanitizeUnit(unit) {
   };
 }
 
+function freshArenaState(extra = {}) {
+  return {
+    energy: 10,
+    gems: 45,
+    trophies: 0,
+    wave: 1,
+    bestWave: 1,
+    wins: 0,
+    merges: 0,
+    highestPower: 0,
+    surgeBattles: 0,
+    charmBattles: 0,
+    dailyStreak: 0,
+    dailyClaimDate: "",
+    referralCount: 0,
+    referredBy: "",
+    referralClaimed: false,
+    adLastClaimAt: 0,
+    soundOn: true,
+    discovered: ["spark", "blade"],
+    board: Array(16).fill(null),
+    lastEnergyAt: Date.now(),
+    passXp: 0,
+    passClaimed: [],
+    questDate: "",
+    quests: {},
+    ghostWins: 0,
+    lastGhostAt: 0,
+    lastRankId: "recruit",
+    wipeId: "",
+    wipeAt: 0,
+    ...extra
+  };
+}
+
 function sanitizeState(input) {
   const raw = input && typeof input === "object" ? input : {};
   const boardIn = Array.isArray(raw.board) ? raw.board.slice(0, 16) : [];
@@ -212,7 +250,9 @@ function sanitizeState(input) {
     quests: raw.quests && typeof raw.quests === "object" ? raw.quests : {},
     ghostWins: Math.max(0, Math.floor(Number(raw.ghostWins) || 0)),
     lastGhostAt: Math.max(0, Math.floor(Number(raw.lastGhostAt) || 0)),
-    lastRankId: String(raw.lastRankId || "recruit").slice(0, 24)
+    lastRankId: String(raw.lastRankId || "recruit").slice(0, 24),
+    wipeId: String(raw.wipeId || "").slice(0, 64),
+    wipeAt: Math.max(0, Math.floor(Number(raw.wipeAt) || 0))
   };
 }
 
@@ -248,28 +288,7 @@ async function ensureArenaRowIfMissing(userId) {
   if (readError) throw readError;
   if (existing) return { created: false, data: existing };
 
-  const fresh = {
-    energy: 10,
-    gems: 45,
-    trophies: 0,
-    wave: 1,
-    bestWave: 1,
-    wins: 0,
-    merges: 0,
-    highestPower: 0,
-    surgeBattles: 0,
-    charmBattles: 0,
-    dailyStreak: 0,
-    dailyClaimDate: "",
-    referralCount: 0,
-    referredBy: "",
-    referralClaimed: false,
-    adLastClaimAt: 0,
-    soundOn: true,
-    discovered: ["spark", "blade"],
-    board: Array(16).fill(null),
-    lastEnergyAt: Date.now()
-  };
+  const fresh = freshArenaState();
   const ensured = await ensureArenaRow(userId, fresh);
   return { created: true, data: ensured.data || { user_id: String(userId) } };
 }
@@ -325,6 +344,65 @@ app.post("/sync-menu", async (_req, res) => {
 app.get("/sync-menu", async (_req, res) => {
   const result = await syncBotMenuButton();
   res.status(result.ok ? 200 : 500).json(result);
+});
+
+async function adminResetPlayer(userId) {
+  const wipeId = `wipe_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+  const fresh = freshArenaState({
+    wipeId,
+    wipeAt: Date.now()
+  });
+  const { payload, data } = await ensureArenaRow(userId, fresh);
+  console.log("ADMIN_RESET", userId, wipeId);
+  return {
+    ok: true,
+    userId,
+    wipeId,
+    wipeAt: fresh.wipeAt,
+    trophies: payload.trophies,
+    bestWave: payload.best_wave,
+    updatedAt: data?.updated_at || payload.updated_at
+  };
+}
+
+app.post("/api/merge-arena/admin/reset", async (req, res) => {
+  try {
+    const key = String(req.body?.key || req.query?.key || "");
+    if (!ADMIN_RESET_KEY || key !== ADMIN_RESET_KEY) {
+      res.status(401).json({ ok: false, error: "UNAUTHORIZED" });
+      return;
+    }
+    const userId = String(req.body?.userId || req.query?.userId || "").trim();
+    if (!/^\d{5,20}$/.test(userId)) {
+      res.status(400).json({ ok: false, error: "BAD_USER_ID" });
+      return;
+    }
+    const result = await adminResetPlayer(userId);
+    res.json(result);
+  } catch (error) {
+    console.error("ADMIN_RESET_ERROR:", error);
+    res.status(500).json({ ok: false, error: error.message || "RESET_FAILED" });
+  }
+});
+
+app.get("/api/merge-arena/admin/reset", async (req, res) => {
+  try {
+    const key = String(req.query?.key || "");
+    if (!ADMIN_RESET_KEY || key !== ADMIN_RESET_KEY) {
+      res.status(401).json({ ok: false, error: "UNAUTHORIZED" });
+      return;
+    }
+    const userId = String(req.query?.userId || "").trim();
+    if (!/^\d{5,20}$/.test(userId)) {
+      res.status(400).json({ ok: false, error: "BAD_USER_ID" });
+      return;
+    }
+    const result = await adminResetPlayer(userId);
+    res.json(result);
+  } catch (error) {
+    console.error("ADMIN_RESET_ERROR:", error);
+    res.status(500).json({ ok: false, error: error.message || "RESET_FAILED" });
+  }
 });
 
 app.get("/api/merge-arena/leaderboard", async (req, res) => {
