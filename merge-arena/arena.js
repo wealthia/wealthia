@@ -240,6 +240,44 @@
     { roles: ["King", "Mascot"], bonus: 0.18, label: "Royal Panda" }
   ];
 
+  const ARENA_THEMES = [
+    { id: "ember", name: "Ember Wastes", emoji: "🔥", boss: "Magma Titan", accent: "#ff6b4a" },
+    { id: "frost", name: "Frost Spire", emoji: "❄️", boss: "Glacier Queen", accent: "#7ec8ff" },
+    { id: "neon", name: "Neon Circuit", emoji: "💠", boss: "Pulse Overlord", accent: "#3dffc8" },
+    { id: "void", name: "Void Garden", emoji: "🌑", boss: "Eclipse Warden", accent: "#c9b8ff" },
+    { id: "storm", name: "Storm Crown", emoji: "🌪", boss: "Tempest King", accent: "#ffd166" }
+  ];
+
+  const SEASON_MILESTONES = [
+    { wave: 3, reward: "Warm-up", reward: "+20 💎" },
+    { wave: 5, label: "First Boss", reward: "Boss chest" },
+    { wave: 10, label: "Double Digits", reward: "+50 💎" },
+    { wave: 15, label: "Storm Gate", reward: "Boss chest" },
+    { wave: 20, label: "Neon Elite", reward: "+80 💎" },
+    { wave: 25, label: "Void Trial", reward: "Boss chest" },
+    { wave: 30, label: "Half Century Run", reward: "+120 💎" },
+    { wave: 40, label: "Legend Road", reward: "+160 💎" },
+    { wave: 50, label: "Season Crown", reward: "Panda title" }
+  ];
+
+  const PANDA_BEATS = {
+    bossWin: [
+      "Boss down! That roar shook the whole arena.",
+      "You cooked the boss — I’m doing cartwheels!",
+      "Boss chest unlocked. Flex that trophy climb."
+    ],
+    themeShift: [
+      "New biome unlocked. Smell that fresh chaos?",
+      "Theme swap! New colors, same panda hype.",
+      "World changed — keep fusing through it."
+    ],
+    season: [
+      "Season path glowing. Keep climbing.",
+      "Milestone hit! Glory Track loves you.",
+      "Path reward incoming — don’t stop now."
+    ]
+  };
+
   let state = loadState();
   let toastTimer = null;
   let drag = null;
@@ -265,9 +303,18 @@
     cloudValue: $("cloudValue"),
     energyChip: $("energyChip"),
     waveTitle: $("waveTitle"),
+    waveLabel: document.querySelector(".wave-bar__label"),
+    themeChip: $("themeChip"),
     powerValue: $("powerValue"),
     board: $("board"),
+    boardWrap: document.querySelector(".board-wrap"),
     boardHint: $("boardHint"),
+    mergeFx: $("mergeFx"),
+    seasonPath: $("seasonPath"),
+    storyModal: $("storyModal"),
+    storyTitle: $("storyTitle"),
+    storyText: $("storyText"),
+    storyClose: $("storyClose"),
     summonButton: $("summonButton"),
     battleButton: $("battleButton"),
     unitStrip: $("unitStrip"),
@@ -702,7 +749,86 @@
   }
 
   function enemyPower(wave) {
-    return Math.round(28 + wave * 18 + Math.pow(wave, 1.35) * 4);
+    const base = Math.round(28 + wave * 18 + Math.pow(wave, 1.35) * 4);
+    return isBossWave(wave) ? Math.round(base * 1.35) : base;
+  }
+
+  function themeForWave(wave) {
+    const idx = Math.floor(Math.max(0, wave - 1) / 5) % ARENA_THEMES.length;
+    return ARENA_THEMES[idx];
+  }
+
+  function isBossWave(wave) {
+    return wave > 0 && wave % 5 === 0;
+  }
+
+  function applyArenaTheme() {
+    const theme = themeForWave(state.wave);
+    const boss = isBossWave(state.wave);
+    document.body.dataset.theme = theme.id;
+    document.body.dataset.boss = boss ? "1" : "0";
+    document.body.classList.toggle("is-night", theme.id === "void" || boss);
+    if (els.themeChip) {
+      els.themeChip.textContent = boss
+        ? `${theme.emoji} BOSS · ${theme.boss}`
+        : `${theme.emoji} ${theme.name}`;
+    }
+    if (els.waveLabel) {
+      els.waveLabel.textContent = boss ? "Boss Arena" : "Arena";
+    }
+    if (els.boardWrap) {
+      els.boardWrap.dataset.theme = theme.id;
+      els.boardWrap.classList.toggle("is-boss", boss);
+    }
+    return theme;
+  }
+
+  function showMergeFx(name, level) {
+    if (!els.mergeFx) return;
+    els.mergeFx.hidden = false;
+    els.mergeFx.innerHTML = `
+      <div class="merge-fx__burst"></div>
+      <strong>FUSION</strong>
+      <span>${name} → L${level}</span>
+    `;
+    els.mergeFx.classList.remove("is-on");
+    void els.mergeFx.offsetWidth;
+    els.mergeFx.classList.add("is-on");
+    clearTimeout(showMergeFx._t);
+    showMergeFx._t = setTimeout(() => {
+      els.mergeFx.classList.remove("is-on");
+      els.mergeFx.hidden = true;
+    }, 900);
+  }
+
+  function showPandaStory(kind, extra) {
+    const lines = PANDA_BEATS[kind] || PANDA_BEATS.themeShift;
+    const line = lines[Math.floor(Math.random() * lines.length)];
+    if (els.storyModal && els.storyTitle && els.storyText) {
+      els.storyTitle.textContent = kind === "bossWin" ? "Panda Boss Beat" : "Panda Story";
+      els.storyText.textContent = extra ? `${line} ${extra}` : line;
+      els.storyModal.hidden = false;
+    } else {
+      showToast(line);
+    }
+    cheerBuddy(kind === "bossWin" ? "win" : "idle");
+  }
+
+  function renderSeasonPath() {
+    if (!els.seasonPath) return;
+    const best = Number(state.bestWave || 1);
+    const nextIdx = SEASON_MILESTONES.findIndex((m) => best < m.wave);
+    els.seasonPath.innerHTML = SEASON_MILESTONES.map((m, i) => {
+      const done = best >= m.wave;
+      const current = i === nextIdx;
+      return `
+        <div class="season-node ${done ? "is-done" : ""} ${current ? "is-next" : ""}">
+          <strong>A${m.wave}</strong>
+          <span>${m.label}</span>
+          <em>${done ? "Claimed vibe" : m.reward}</em>
+        </div>
+      `;
+    }).join("");
   }
 
   function emptySlots() {
@@ -877,12 +1003,20 @@
         : `Gems ${state.gems} · Tap to open Gem Vault`;
     }
     els.trophyValue.textContent = String(state.trophies);
-    els.waveTitle.textContent = `Arena ${state.wave}`;
+    const theme = applyArenaTheme();
+    const boss = isBossWave(state.wave);
+    els.waveTitle.textContent = boss
+      ? `Arena ${state.wave} · ${theme.boss}`
+      : `Arena ${state.wave}`;
     const power = squadPower();
     els.powerValue.textContent = String(power);
     state.highestPower = Math.max(state.highestPower, power);
     els.summonButton.disabled = state.energy < 1 || emptySlots().length === 0;
     els.battleButton.disabled = battleBusy || state.energy < 1 || power <= 0;
+    if (els.battleButton) {
+      const small = els.battleButton.querySelector("small");
+      if (small && !battleBusy) small.textContent = boss ? "BOSS · 1 energy" : "1 energy";
+    }
   }
 
   function cheerBuddy(kind) {
@@ -891,8 +1025,16 @@
     let pick = BUDDY_LINES[0];
     if (kind === "summon") pick = BUDDY_LINES[1];
     else if (kind === "merge") pick = { title: "Arena Panda", line: "Fusion pop! That one felt 3D." };
-    else if (kind === "fight") pick = { title: "Arena Panda", line: "Go go! Smash Arena " + state.wave + "!" };
-    else if (kind === "win") pick = { title: "Arena Panda", line: "Victory dance! You cleared it." };
+    else if (kind === "fight") {
+      pick = isBossWave(state.wave)
+        ? { title: "Arena Panda", line: `Boss time! ${themeForWave(state.wave).boss} awaits.` }
+        : { title: "Arena Panda", line: "Go go! Smash Arena " + state.wave + "!" };
+    }
+    else if (kind === "win") {
+      pick = isBossWave(Math.max(1, state.wave - 1))
+        ? { title: "Arena Panda", line: "Boss crushed! Season path lights up." }
+        : { title: "Arena Panda", line: "Victory dance! You cleared it." };
+    }
     else if (kind === "lose") pick = { title: "Arena Panda", line: "Shake it off — fuse stronger and retry." };
     else if (power >= 80) pick = BUDDY_LINES[3];
     else if (power >= 40) pick = BUDDY_LINES[4];
@@ -939,6 +1081,7 @@
     renderStrip();
     renderClash();
     renderHud();
+    applyArenaTheme();
     requestAnimationFrame(fitBoard);
   }
 
@@ -964,6 +1107,12 @@
       status = "Need heroes";
       tip = "Tap Get Hero — drop fighters onto the floor.";
       tone = "idle";
+    } else if (isBossWave(state.wave)) {
+      status = you >= enemy ? "Boss ready" : "Boss too strong";
+      tip = you >= enemy
+        ? `${themeForWave(state.wave).boss} is vulnerable — Enter Fight!`
+        : `Boss arena! Need more power vs ${themeForWave(state.wave).boss}.`;
+      tone = you >= enemy ? "ready" : "warn";
     } else if (you >= enemy) {
       status = "Ready to smash";
       tip = `Arena ${state.wave} looks beatable. Enter Fight when ready.`;
@@ -1049,6 +1198,7 @@
     renderDaily();
     renderSynergyCard();
     renderInvite();
+    renderSeasonPath();
   }
 
   function renderDaily() {
@@ -1252,6 +1402,7 @@
       saveState();
       renderBoard();
       cheerBuddy("merge");
+      showMergeFx(defById(merged.id).name, merged.level);
       showToast(`Fusion! ${defById(merged.id).name} L${merged.level}`);
       playTone("merge");
       haptic("success");
@@ -1322,26 +1473,35 @@
     playTone("hit");
 
     const wave = state.wave;
+    const theme = themeForWave(wave);
+    const boss = isBossWave(wave);
     const enemy = enemyPower(wave);
     const syn = activeSynergies();
     els.battleModal.hidden = false;
-    if (els.battleStage) els.battleStage.classList.add("is-fighting");
+    if (els.battleStage) {
+      els.battleStage.classList.add("is-fighting");
+      els.battleStage.dataset.theme = theme.id;
+      els.battleStage.classList.toggle("is-boss", boss);
+      els.battleStage.classList.toggle("is-night", theme.id === "void" || boss);
+    }
     els.fighterYou.textContent = `YOU ${power}`;
-    els.fighterEnemy.textContent = `L${wave} ${enemy}`;
+    els.fighterEnemy.textContent = boss ? `${theme.boss} ${enemy}` : `L${wave} ${enemy}`;
     els.youBar.style.width = "100%";
     els.enemyBar.style.width = "100%";
-    els.battleLog.textContent = syn.length
-      ? `${syn[0].label} ignites the clash…`
-      : "Clash ignites…";
-    if (els.battleFx) els.battleFx.textContent = "💥";
+    els.battleLog.textContent = boss
+      ? `${theme.emoji} Boss clash vs ${theme.boss}…`
+      : syn.length
+        ? `${syn[0].label} ignites the clash…`
+        : `${theme.emoji} ${theme.name} clash…`;
+    if (els.battleFx) els.battleFx.textContent = boss ? "👹" : "💥";
 
     await wait(500);
-    els.battleLog.textContent = "Heroes collide!";
+    els.battleLog.textContent = boss ? "Boss rage!" : "Heroes collide!";
     playTone("hit");
     await wait(400);
 
     const youRatio = power / (power + enemy);
-    const steps = 10;
+    const steps = boss ? 12 : 10;
     for (let i = 1; i <= steps; i += 1) {
       const progress = i / steps;
       const youLeft = Math.max(0, 100 - progress * 100 * (1 - youRatio) * 1.35);
@@ -1352,10 +1512,12 @@
         els.battleStage.classList.toggle("is-shake", i % 2 === 0);
       }
       if (els.battleFx) {
-        els.battleFx.textContent = i % 3 === 0 ? "⚡" : i % 2 === 0 ? "💥" : "✦";
+        els.battleFx.textContent = boss
+          ? (i % 2 === 0 ? "🔥" : "💥")
+          : (i % 3 === 0 ? "⚡" : i % 2 === 0 ? "💥" : "✦");
       }
       if (i % 2 === 0) playTone("hit");
-      await wait(110);
+      await wait(boss ? 100 : 110);
     }
 
     const won = power >= enemy;
@@ -1363,8 +1525,13 @@
     if (state.charmBattles > 0) state.charmBattles -= 1;
 
     if (won) {
-      const trophyGain = 8 + wave * 2;
-      const gemGain = 20 + wave * 5;
+      let trophyGain = 8 + wave * 2;
+      let gemGain = 20 + wave * 5;
+      if (boss) {
+        trophyGain += 20;
+        gemGain += 60;
+      }
+      const prevTheme = themeForWave(wave).id;
       state.wins += 1;
       state.trophies += trophyGain;
       state.gems += gemGain;
@@ -1373,20 +1540,31 @@
       consumeWeakest();
       saveState();
       els.battleModal.hidden = true;
-      if (els.battleStage) els.battleStage.classList.remove("is-fighting", "is-shake");
-      showResult(true, wave, trophyGain, gemGain);
+      if (els.battleStage) {
+        els.battleStage.classList.remove("is-fighting", "is-shake", "is-boss", "is-night");
+      }
+      showResult(true, wave, trophyGain, gemGain, boss ? theme.boss : "");
       playTone("win");
       haptic("success");
+      if (boss) {
+        setTimeout(() => showPandaStory("bossWin", `${theme.boss} defeated.`), 700);
+      } else if (themeForWave(state.wave).id !== prevTheme) {
+        setTimeout(() => showPandaStory("themeShift", `Welcome to ${themeForWave(state.wave).name}.`), 700);
+      } else if (SEASON_MILESTONES.some((m) => m.wave === wave)) {
+        setTimeout(() => showPandaStory("season", `Arena ${wave} milestone!`), 700);
+      }
     } else {
-      const loss = Math.min(state.trophies, 4 + Math.floor(wave / 2));
-      const gemGain = 5;
+      const loss = Math.min(state.trophies, (boss ? 8 : 4) + Math.floor(wave / 2));
+      const gemGain = boss ? 12 : 5;
       state.trophies = Math.max(0, state.trophies - loss);
       state.gems += gemGain;
       consumeWeakest();
       saveState();
       els.battleModal.hidden = true;
-      if (els.battleStage) els.battleStage.classList.remove("is-fighting", "is-shake");
-      showResult(false, wave, -loss, gemGain);
+      if (els.battleStage) {
+        els.battleStage.classList.remove("is-fighting", "is-shake", "is-boss", "is-night");
+      }
+      showResult(false, wave, -loss, gemGain, boss ? theme.boss : "");
       playTone("lose");
       haptic("error");
     }
@@ -1410,17 +1588,28 @@
     if (weakestIdx >= 0) state.board[weakestIdx] = null;
   }
 
-  function showResult(won, wave, trophies, gems) {
+  function showResult(won, wave, trophies, gems, bossName) {
     els.resultModal.hidden = false;
-    els.resultEyebrow.textContent = won ? "Victory" : "Defeat";
-    els.resultTitle.textContent = won ? `Arena ${wave} Cleared` : `Arena ${wave} Hold`;
+    const boss = Boolean(bossName);
+    els.resultEyebrow.textContent = won
+      ? (boss ? "Boss Victory" : "Victory")
+      : (boss ? "Boss Hold" : "Defeat");
+    els.resultTitle.textContent = won
+      ? (boss ? `${bossName} Cleared` : `Arena ${wave} Cleared`)
+      : (boss ? `${bossName} Holds` : `Arena ${wave} Hold`);
     els.resultText.textContent = won
-      ? "Your squad dominated. Next arena unlocked!"
-      : "Fuse higher and come back swinging.";
+      ? (boss
+        ? "Boss chest smashed. Season path advances!"
+        : "Your squad dominated. Next arena unlocked!")
+      : (boss
+        ? "Boss still stands. Fuse higher and return."
+        : "Fuse higher and come back swinging.");
     els.resultRewards.innerHTML = `
       <span>${trophies >= 0 ? "+" : ""}${trophies} 🏆</span>
       <span>+${Math.max(0, gems)} 💎</span>
-      ${won ? "<span>Next arena unlocked</span>" : "<span>Forge stronger</span>"}
+      ${won
+        ? (boss ? "<span>Boss chest</span>" : "<span>Next arena unlocked</span>")
+        : "<span>Forge stronger</span>"}
     `;
   }
 
@@ -1686,6 +1875,11 @@
         showToast(state.soundOn ? "Sound on" : "Sound muted");
       });
     }
+    if (els.storyClose) {
+      els.storyClose.addEventListener("click", () => {
+        if (els.storyModal) els.storyModal.hidden = true;
+      });
+    }
     if (els.cloudChip) {
       els.cloudChip.addEventListener("click", () => {
         connectCloud();
@@ -1737,6 +1931,7 @@
     seedIfEmpty();
     bind();
     if (els.soundToggle) els.soundToggle.textContent = state.soundOn ? "🔊" : "🔇";
+    applyArenaTheme();
     renderBoard();
     cheerBuddy("idle");
     renderRoster();
@@ -1744,11 +1939,14 @@
     openTutorial();
     connectCloud().then(() => {
       applyReferralIfNeeded();
+      collectPendingInviteBonus();
       renderInvite();
+      renderHud();
+      applyArenaTheme();
     });
     const tag = document.getElementById("buildTag");
     if (tag) {
-      setTimeout(() => showToast(`Build ${tag.textContent} · full pack live`), 500);
+      setTimeout(() => showToast(`Build ${tag.textContent} · themes + bosses live`), 500);
     }
     if (state.dailyClaimDate !== todayKey()) {
       setTimeout(() => showToast("Daily Chest ready in Glory"), 1400);

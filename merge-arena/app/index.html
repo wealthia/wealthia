@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@600;700;800&family=Exo+2:wght@500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="../arena.css?v=29" />
+  <link rel="stylesheet" href="../arena.css?v=30" />
 </head>
 <body>
   <div class="fx" aria-hidden="true">
@@ -39,7 +39,7 @@
     <header class="hud">
       <div class="brand">
         <span class="brand__mark" aria-hidden="true">MA</span>
-        <strong class="brand__name">MERGE ARENA <em class="build-tag" id="buildTag">v29</em></strong>
+        <strong class="brand__name">MERGE ARENA <em class="build-tag" id="buildTag">v30</em></strong>
       </div>
       <div class="hud__stats">
         <button class="chip chip--energy" id="energyChip" type="button" title="Buy energy">
@@ -64,6 +64,7 @@
           <div>
             <p class="wave-bar__label">Arena</p>
             <h2 id="waveTitle">Level 1</h2>
+            <p class="theme-chip" id="themeChip">🔥 Ember Wastes</p>
           </div>
           <div class="wave-bar__power">
             <span>Squad Power</span>
@@ -73,6 +74,7 @@
 
         <div class="board-wrap">
           <div class="board" id="board" aria-label="Merge board"></div>
+          <div class="merge-fx" id="mergeFx" hidden aria-hidden="true"></div>
         </div>
 
         <p class="board-hint" id="boardHint">Drag matching heroes together to fuse</p>
@@ -303,6 +305,14 @@
           </ul>
         </div>
 
+        <div class="season-card">
+          <div class="section-head section-head--compact">
+            <h2>Season Path</h2>
+            <p>Bosses every 5 · themes rotate</p>
+          </div>
+          <div class="season-path" id="seasonPath"></div>
+        </div>
+
         <div class="synergy-card" id="synergyCard">
           <h3>Active Synergies</h3>
           <p id="synergyText">Put matching roles together for bonus power.</p>
@@ -384,8 +394,18 @@
     </div>
   </div>
 
+  <div class="modal" id="storyModal" hidden>
+    <div class="modal__card modal__card--story">
+      <div class="story-panda" aria-hidden="true">🐼</div>
+      <p class="eyebrow">Arena Panda</p>
+      <h3 id="storyTitle">Panda Story</h3>
+      <p id="storyText">Keep climbing.</p>
+      <button class="btn btn--battle" id="storyClose" type="button">Nice</button>
+    </div>
+  </div>
+
   <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
   <script src="../../config.js"></script>
-  <script src="../arena.js?v=29"></script>
+  <script src="../arena.js?v=30"></script>
 </body>
 </html>
