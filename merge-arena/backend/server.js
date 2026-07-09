@@ -9,6 +9,9 @@ const port = process.env.PORT || 3000;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
+// Hard pin so stale Render env cannot keep Telegram on an old cached URL.
+const WEBAPP_URL = "https://wealthia.github.io/wealthia/merge-arena/app/?v=25";
+const PLAY_BUTTON_TEXT = process.env.PLAY_BUTTON_TEXT || "Play MERGE ARENA";
 const SESSION_SECRET =
   process.env.SESSION_SECRET || TELEGRAM_BOT_TOKEN || "merge-arena-dev-secret";
 
@@ -23,6 +26,44 @@ const INIT_DATA_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 app.use(cors());
 app.use(express.json({ limit: "256kb" }));
+
+async function telegramApi(method, body) {
+  if (!TELEGRAM_BOT_TOKEN) throw new Error("BOT_TOKEN_MISSING");
+  const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/${method}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  const data = await response.json();
+  if (!data.ok) {
+    throw new Error(data.description || `${method}_failed`);
+  }
+  return data.result;
+}
+
+async function syncBotMenuButton() {
+  if (!TELEGRAM_BOT_TOKEN) return { ok: false, error: "BOT_TOKEN_MISSING" };
+  try {
+    await telegramApi("setChatMenuButton", {
+      menu_button: {
+        type: "web_app",
+        text: PLAY_BUTTON_TEXT,
+        web_app: { url: WEBAPP_URL }
+      }
+    });
+    let current = null;
+    try {
+      current = await telegramApi("getChatMenuButton", {});
+    } catch {
+      current = null;
+    }
+    console.log("Menu button synced:", WEBAPP_URL);
+    return { ok: true, webAppUrl: WEBAPP_URL, menuButton: current };
+  } catch (error) {
+    console.warn("Menu button sync failed:", error.message);
+    return { ok: false, error: error.message || "SYNC_FAILED", webAppUrl: WEBAPP_URL };
+  }
+}
 
 function diagnoseTelegramAuth(initData, botToken) {
   if (!botToken) return { ok: false, reason: "BOT_TOKEN_MISSING" };
@@ -201,8 +242,19 @@ app.get("/health", async (_req, res) => {
     database,
     dbError: dbError || undefined,
     telegram,
-    version: "merge-arena-v3"
+    webAppUrl: WEBAPP_URL,
+    version: "merge-arena-v5"
   });
+});
+
+app.post("/sync-menu", async (_req, res) => {
+  const result = await syncBotMenuButton();
+  res.status(result.ok ? 200 : 500).json(result);
+});
+
+app.get("/sync-menu", async (_req, res) => {
+  const result = await syncBotMenuButton();
+  res.status(result.ok ? 200 : 500).json(result);
 });
 
 app.post("/api/merge-arena/session", async (req, res) => {
@@ -319,4 +371,8 @@ app.post("/api/merge-arena/state", requirePlayer, async (req, res) => {
 
 app.listen(port, () => {
   console.log(`MERGE ARENA API on :${port}`);
+  console.log(`WEBAPP_URL: ${WEBAPP_URL}`);
+  syncBotMenuButton().then((result) => {
+    if (!result.ok) console.warn("Boot menu sync failed:", result.error);
+  });
 });
