@@ -802,7 +802,7 @@
     const appH = app ? app.clientHeight : window.innerHeight;
     // Bottom controls get priority; board stays compact
     const reserved =
-      (dock ? Math.max(dock.offsetHeight, 64) : 64) +
+      (dock ? Math.max(dock.offsetHeight, 52) : 52) +
       (actions ? Math.max(actions.offsetHeight, 56) : 56) +
       (hud ? hud.offsetHeight : 30) +
       (wave ? wave.offsetHeight : 36) +
