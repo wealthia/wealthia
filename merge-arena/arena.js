@@ -435,31 +435,9 @@
   function fitBoard() {
     const wrap = els.board && els.board.parentElement;
     if (!wrap || !els.board) return;
-    const app = document.getElementById("app");
-    const dock = document.querySelector(".dock");
-    const actions = document.querySelector(".play-actions");
-    const hud = document.querySelector(".hud");
-    const wave = document.querySelector(".wave-bar");
-    const appH = app ? app.clientHeight : window.innerHeight;
-    const reserved =
-      (dock ? dock.offsetHeight : 52) +
-      (actions ? actions.offsetHeight : 42) +
-      (hud ? hud.offsetHeight : 28) +
-      (wave ? wave.offsetHeight : 34) +
-      28;
-    const styles = window.getComputedStyle(wrap);
-    const padX = (parseFloat(styles.paddingLeft) || 0) + (parseFloat(styles.paddingRight) || 0);
-    const padY = (parseFloat(styles.paddingTop) || 0) + (parseFloat(styles.paddingBottom) || 0);
-    const availW = Math.max(0, wrap.clientWidth - padX);
-    const fromWrap = Math.max(0, wrap.clientHeight - padY);
-    const fromViewport = Math.max(0, appH - reserved);
-    const availH = Math.max(0, Math.min(fromWrap || fromViewport, fromViewport));
-    if (availW < 40 || availH < 40) return;
-    // Cap board so dock + Get Hero / Fight always stay on screen
-    const maxBoard = Math.floor(appH * 0.52);
-    const size = Math.floor(Math.min(availW, availH, maxBoard));
-    els.board.style.width = `${size}px`;
-    els.board.style.height = `${size}px`;
+    // Full-bleed board: fill the remaining play area completely
+    els.board.style.width = "100%";
+    els.board.style.height = "100%";
   }
 
   function initTelegram() {

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@600;700;800&family=Exo+2:wght@500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./arena.css?v=15" />
+  <link rel="stylesheet" href="./arena.css?v=16" />
 </head>
 <body>
   <div class="fx" aria-hidden="true">
@@ -39,9 +39,6 @@
         <strong class="brand__name">MERGE ARENA</strong>
       </div>
       <div class="hud__stats">
-        <button class="chip chip--energy" id="energyChip" type="button" title="Buy energy">
-          <span>⚡</span><strong id="energyValue">10</strong>
-        </button>
         <div class="chip chip--gem">
           <span>💎</span><strong id="gemValue">0</strong>
         </div>
@@ -62,7 +59,7 @@
             <h2 id="waveTitle">Level 1</h2>
           </div>
           <div class="wave-bar__power">
-            <span>Squad Power</span>
+            <span>Power</span>
             <strong id="powerValue">0</strong>
           </div>
         </div>
@@ -72,18 +69,19 @@
           <div class="board-hint" id="boardHint">Drag matching heroes together to fuse</div>
         </div>
 
-        <div class="play-actions">
-          <button class="btn btn--summon" id="summonButton" type="button">
-            <span>Get Hero</span>
-            <small>1 energy</small>
+        <div class="play-bar" id="playBar">
+          <button class="play-bar__energy" id="energyChip" type="button" title="Buy energy">
+            <span>⚡</span><strong id="energyValue">10</strong>
           </button>
-          <button class="btn btn--battle" id="battleButton" type="button">
-            <span>Enter Fight</span>
-            <small id="battleCost">1 energy</small>
+          <button class="play-bar__btn play-bar__btn--summon" id="summonButton" type="button">
+            Get Hero
+          </button>
+          <button class="play-bar__btn play-bar__btn--battle" id="battleButton" type="button">
+            Fight
           </button>
         </div>
 
-        <div class="unit-strip" id="unitStrip" aria-label="Owned unit types"></div>
+        <div class="unit-strip" id="unitStrip" aria-label="Owned unit types" hidden></div>
       </section>
 
       <section class="view" id="view-roster" data-view="roster" hidden>
@@ -234,6 +232,6 @@
   </div>
 
   <script src="../config.js"></script>
-  <script src="./arena.js?v=15"></script>
+  <script src="./arena.js?v=16"></script>
 </body>
 </html>
