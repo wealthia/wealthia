@@ -2189,17 +2189,17 @@
 
     if (won) {
       // Slow trophy drip so ranks take real climb sessions
-      let trophyGain = 3 + Math.floor(wave * 1.15);
+      let trophyGain = 3 + Math.floor(wave * 0.9);
       // Lean crystal drip — wins feel good, but Crystal Sip still needs Stars/gems buys
       let gemGain = 5 + Math.floor(wave * 1.5);
       if (boss) {
-        trophyGain += 10;
+        trophyGain += 6;
         gemGain += 14;
         const ev = todayEvent();
         if (ev.bossGems) gemGain += ev.bossGems;
       }
       if (hard) {
-        trophyGain += 18;
+        trophyGain += 10;
         gemGain += 28;
       }
       const ev = todayEvent();
