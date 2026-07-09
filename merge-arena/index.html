@@ -3,13 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
   <meta name="theme-color" content="#07131A" />
   <title>MERGE ARENA</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@600;700;800&family=Exo+2:wght@500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./arena.css?v=20" />
+  <link rel="stylesheet" href="./arena.css?v=21" />
 </head>
 <body>
   <div class="fx" aria-hidden="true">
@@ -73,6 +75,17 @@
 
         <p class="board-hint" id="boardHint">Drag matching heroes together to fuse</p>
 
+        <div class="arena-buddy" id="arenaBuddy" aria-live="polite">
+          <div class="buddy" aria-hidden="true">
+            <div class="buddy__emoji">🐼</div>
+            <div class="buddy__pulse"></div>
+          </div>
+          <div class="buddy__speech">
+            <strong id="buddyTitle">Arena Panda</strong>
+            <p id="buddyLine">Merge twins — I cheer louder every fuse!</p>
+          </div>
+        </div>
+
         <div class="play-actions">
           <button class="btn btn--summon" id="summonButton" type="button">
             <span>Get Hero</span>
@@ -82,29 +95,6 @@
             <span>Enter Fight</span>
             <small id="battleCost">1 energy</small>
           </button>
-        </div>
-
-        <div class="arena-buddy" id="arenaBuddy" aria-live="polite">
-          <div class="buddy" aria-hidden="true">
-            <div class="buddy__shadow"></div>
-            <div class="buddy__body">
-              <div class="buddy__ear buddy__ear--l"></div>
-              <div class="buddy__ear buddy__ear--r"></div>
-              <div class="buddy__face">
-                <span class="buddy__eye buddy__eye--l"></span>
-                <span class="buddy__eye buddy__eye--r"></span>
-                <span class="buddy__blush buddy__blush--l"></span>
-                <span class="buddy__blush buddy__blush--r"></span>
-                <span class="buddy__nose"></span>
-                <span class="buddy__mouth"></span>
-              </div>
-              <div class="buddy__spark"></div>
-            </div>
-          </div>
-          <div class="buddy__speech">
-            <strong id="buddyTitle">Arena Panda</strong>
-            <p id="buddyLine">Merge twins — I cheer louder every fuse!</p>
-          </div>
         </div>
 
         <div class="unit-strip" id="unitStrip" aria-label="Owned unit types"></div>
@@ -258,6 +248,6 @@
   </div>
 
   <script src="../config.js"></script>
-  <script src="./arena.js?v=20"></script>
+  <script src="./arena.js?v=21"></script>
 </body>
 </html>

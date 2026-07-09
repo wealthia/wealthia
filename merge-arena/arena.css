@@ -716,137 +716,54 @@ button {
   to { transform: scale(1) translateY(0); opacity: 1; }
 }
 
-/* Arena Panda buddy — lively bottom companion */
+/* Arena Panda buddy — always visible above action buttons */
 .arena-buddy {
-  display: grid;
+  display: grid !important;
   grid-template-columns: auto 1fr;
   gap: 10px;
   align-items: center;
   width: 100%;
   min-width: 0;
-  padding: 6px 8px;
+  min-height: 58px;
+  padding: 8px 10px;
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 209, 102, 0.35);
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.07), rgba(61, 255, 200, 0.06)),
-    rgba(8, 24, 32, 0.72);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    linear-gradient(135deg, rgba(255, 209, 102, 0.16), rgba(61, 255, 200, 0.1)),
+    rgba(8, 24, 32, 0.88);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 8px 18px rgba(0, 0, 0, 0.28);
   flex: 0 0 auto;
+  z-index: 4;
 }
 
 .buddy {
   position: relative;
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   flex: 0 0 auto;
+  display: grid;
+  place-items: center;
 }
 
-.buddy__shadow {
+.buddy__emoji {
+  position: relative;
+  z-index: 2;
+  font-size: 34px;
+  line-height: 1;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.4));
+  animation: buddyBounce 1.6s ease-in-out infinite;
+  transform-origin: 50% 80%;
+}
+
+.buddy__pulse {
   position: absolute;
-  left: 50%;
-  bottom: 2px;
-  width: 34px;
-  height: 8px;
+  inset: 4px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.35);
-  transform: translateX(-50%);
-  filter: blur(1.5px);
-  animation: buddyShadow 1.8s ease-in-out infinite;
-}
-
-.buddy__body {
-  position: absolute;
-  inset: 2px 4px 8px;
-  border-radius: 46% 46% 42% 42%;
-  background:
-    radial-gradient(circle at 35% 28%, #ffffff 0 18%, transparent 19%),
-    radial-gradient(circle at 65% 28%, #ffffff 0 18%, transparent 19%),
-    linear-gradient(180deg, #f7f7f7 0%, #e8e8e8 55%, #d8d8d8 100%);
-  box-shadow:
-    inset 0 2px 0 rgba(255, 255, 255, 0.85),
-    inset 0 -8px 12px rgba(0, 0, 0, 0.12),
-    0 6px 12px rgba(0, 0, 0, 0.28);
-  animation: buddyBounce 1.8s ease-in-out infinite;
-  transform-origin: 50% 85%;
-}
-
-.buddy__ear {
-  position: absolute;
-  top: -6px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 40% 40%, #3a3a3a, #151515 70%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
-}
-
-.buddy__ear--l { left: 2px; }
-.buddy__ear--r { right: 2px; }
-
-.buddy__face {
-  position: absolute;
-  inset: 0;
-}
-
-.buddy__eye {
-  position: absolute;
-  top: 38%;
-  width: 7px;
-  height: 8px;
-  border-radius: 50%;
-  background: #111;
-  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.25);
-  animation: buddyBlink 4.2s ease-in-out infinite;
-}
-
-.buddy__eye--l { left: 28%; }
-.buddy__eye--r { right: 28%; }
-
-.buddy__blush {
-  position: absolute;
-  top: 52%;
-  width: 8px;
-  height: 5px;
-  border-radius: 50%;
-  background: rgba(255, 120, 140, 0.45);
-  filter: blur(0.5px);
-}
-
-.buddy__blush--l { left: 16%; }
-.buddy__blush--r { right: 16%; }
-
-.buddy__nose {
-  position: absolute;
-  top: 52%;
-  left: 50%;
-  width: 6px;
-  height: 4px;
-  border-radius: 50%;
-  background: #222;
-  transform: translateX(-50%);
-}
-
-.buddy__mouth {
-  position: absolute;
-  top: 62%;
-  left: 50%;
-  width: 10px;
-  height: 5px;
-  border: 2px solid #222;
-  border-top: 0;
-  border-radius: 0 0 10px 10px;
-  transform: translateX(-50%);
-}
-
-.buddy__spark {
-  position: absolute;
-  right: -2px;
-  top: 4px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: radial-gradient(circle, #ffd166, transparent 70%);
+  background: radial-gradient(circle, rgba(255, 209, 102, 0.45), transparent 70%);
   animation: buddySpark 1.4s ease-in-out infinite;
+  z-index: 1;
 }
 
 .buddy__speech {
@@ -856,19 +773,20 @@ button {
 .buddy__speech strong {
   display: block;
   font-family: var(--display);
-  font-size: 12px;
+  font-size: 13px;
   letter-spacing: 0.04em;
   color: var(--gold);
 }
 
 .buddy__speech p {
   margin: 2px 0 0;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.3;
-  color: var(--muted);
+  color: var(--ink);
+  opacity: 0.9;
 }
 
-.arena-buddy.is-cheer .buddy__body {
+.arena-buddy.is-cheer .buddy__emoji {
   animation: buddyCheer 0.55s cubic-bezier(0.2, 1.4, 0.3, 1);
 }
 
@@ -878,17 +796,7 @@ button {
 
 @keyframes buddyBounce {
   0%, 100% { transform: translateY(0) scale(1, 1); }
-  50% { transform: translateY(-4px) scale(1.03, 0.97); }
-}
-
-@keyframes buddyShadow {
-  0%, 100% { transform: translateX(-50%) scaleX(1); opacity: 0.4; }
-  50% { transform: translateX(-50%) scaleX(0.82); opacity: 0.25; }
-}
-
-@keyframes buddyBlink {
-  0%, 92%, 100% { transform: scaleY(1); }
-  94%, 96% { transform: scaleY(0.12); }
+  50% { transform: translateY(-5px) scale(1.06, 0.96); }
 }
 
 @keyframes buddySpark {
@@ -898,8 +806,8 @@ button {
 
 @keyframes buddyCheer {
   0% { transform: translateY(0) rotate(0deg) scale(1); }
-  35% { transform: translateY(-8px) rotate(-8deg) scale(1.08); }
-  70% { transform: translateY(-2px) rotate(6deg) scale(1.04); }
+  35% { transform: translateY(-10px) rotate(-10deg) scale(1.12); }
+  70% { transform: translateY(-2px) rotate(8deg) scale(1.06); }
   100% { transform: translateY(0) rotate(0deg) scale(1); }
 }
 
@@ -1382,10 +1290,11 @@ button {
   .unit__pow { font-size: 8px; }
   #view-play .unit-strip { min-height: 44px; max-height: 52px; }
   #view-play .strip-card { min-width: 112px; padding: 8px 10px; }
-  .arena-buddy { padding: 4px 6px; gap: 8px; }
-  .buddy { width: 44px; height: 44px; }
-  .buddy__speech strong { font-size: 11px; }
-  .buddy__speech p { font-size: 10px; }
+  .arena-buddy { padding: 6px 8px; gap: 8px; min-height: 52px; }
+  .buddy { width: 42px; height: 42px; }
+  .buddy__emoji { font-size: 30px; }
+  .buddy__speech strong { font-size: 12px; }
+  .buddy__speech p { font-size: 11px; }
   .unit__name { display: none; }
 }
 
