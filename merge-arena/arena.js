@@ -140,6 +140,12 @@
     buddyTitle: $("buddyTitle"),
     buddyLine: $("buddyLine"),
     arenaBuddy: $("arenaBuddy"),
+    clashPanel: $("clashPanel"),
+    clashStatus: $("clashStatus"),
+    clashYou: $("clashYou"),
+    clashEnemy: $("clashEnemy"),
+    clashFill: $("clashFill"),
+    clashTip: $("clashTip"),
     rosterGrid: $("rosterGrid"),
     toast: $("toast"),
     battleModal: $("battleModal"),
@@ -454,6 +460,7 @@
     const hint = document.getElementById("boardHint");
     const strip = document.getElementById("unitStrip");
     const buddy = document.getElementById("arenaBuddy");
+    const clash = document.getElementById("clashPanel");
     const appH = app ? app.clientHeight : window.innerHeight;
     // Bottom controls get priority; board stays compact
     const reserved =
@@ -464,7 +471,8 @@
       (hint ? Math.max(hint.offsetHeight, 18) : 18) +
       (strip ? Math.max(strip.offsetHeight || 48, 48) : 48) +
       (buddy ? Math.max(buddy.offsetHeight || 54, 54) : 54) +
-      36;
+      (clash ? Math.max(clash.offsetHeight || 72, 72) : 72) +
+      28;
     const appW = app ? app.clientWidth : window.innerWidth;
     const styles = window.getComputedStyle(wrap);
     const padX = (parseFloat(styles.paddingLeft) || 0) + (parseFloat(styles.paddingRight) || 0);
@@ -472,8 +480,8 @@
     const availW = Math.max(160, Math.min(appW - 28, (wrap.parentElement ? wrap.parentElement.clientWidth : appW) - 8) - padX);
     const fromViewport = Math.max(140, appH - reserved);
     if (availW < 40) return;
-    // Hard cap ~32% of height so buddy stays on-screen
-    const maxBoard = Math.floor(appH * 0.32);
+    // Hard cap ~30% of height so clash panel stays visible
+    const maxBoard = Math.floor(appH * 0.3);
     const size = Math.floor(Math.min(availW, fromViewport, maxBoard));
     els.board.style.width = `${size}px`;
     els.board.style.height = `${size}px`;
@@ -583,8 +591,55 @@
       els.board.appendChild(cell);
     }
     renderStrip();
+    renderClash();
     renderHud();
     requestAnimationFrame(fitBoard);
+  }
+
+  function renderClash() {
+    if (!els.clashPanel) return;
+    const you = squadPower();
+    const enemy = enemyPower(state.wave);
+    const ratio = enemy > 0 ? Math.min(1.2, you / enemy) : 0;
+    const fill = Math.max(6, Math.min(100, Math.round(ratio * 100)));
+    if (els.clashYou) els.clashYou.textContent = String(you);
+    if (els.clashEnemy) els.clashEnemy.textContent = String(enemy);
+    if (els.clashFill) els.clashFill.style.width = `${fill}%`;
+
+    let status = "Keep forging";
+    let tip = "Fuse matching heroes to raise squad power.";
+    let tone = "warn";
+    const occupied = state.board.filter(Boolean).length;
+    const canMerge = state.board.some((a, i) =>
+      a && state.board.some((b, j) => j > i && b && a.id === b.id && a.level === b.level && a.level < 5)
+    );
+
+    if (you <= 0) {
+      status = "Need heroes";
+      tip = "Tap Get Hero — drop fighters onto the floor.";
+      tone = "idle";
+    } else if (you >= enemy) {
+      status = "Ready to smash";
+      tip = `Arena ${state.wave} looks beatable. Enter Fight when ready.`;
+      tone = "ready";
+    } else if (canMerge) {
+      status = "Fusion available";
+      tip = "Drag matching heroes together — one fuse can flip the fight.";
+      tone = "fuse";
+    } else if (occupied >= SIZE) {
+      status = "Board packed";
+      tip = "No empty slots. Fuse twins or fight with what you have.";
+      tone = "warn";
+    } else {
+      const need = Math.max(1, enemy - you);
+      status = `Need +${need} power`;
+      tip = "Get Hero, then fuse twins before the clash.";
+      tone = "warn";
+    }
+
+    if (els.clashStatus) els.clashStatus.textContent = status;
+    if (els.clashTip) els.clashTip.textContent = tip;
+    els.clashPanel.dataset.tone = tone;
   }
 
   function renderStrip() {
