@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@600;700;800&family=Exo+2:wght@500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="../arena.css?v=25" />
+  <link rel="stylesheet" href="../arena.css?v=26" />
 </head>
 <body>
   <div class="fx" aria-hidden="true">
@@ -39,15 +39,15 @@
     <header class="hud">
       <div class="brand">
         <span class="brand__mark" aria-hidden="true">MA</span>
-        <strong class="brand__name">MERGE ARENA <em class="build-tag" id="buildTag">v25</em></strong>
+        <strong class="brand__name">MERGE ARENA <em class="build-tag" id="buildTag">v26</em></strong>
       </div>
       <div class="hud__stats">
         <button class="chip chip--energy" id="energyChip" type="button" title="Buy energy">
           <span>⚡</span><strong id="energyValue">10</strong>
         </button>
-        <div class="chip chip--gem">
+        <button class="chip chip--gem" id="gemChip" type="button" title="Open Gem Vault">
           <span>💎</span><strong id="gemValue">0</strong>
-        </div>
+        </button>
         <div class="chip chip--trophy">
           <span>🏆</span><strong id="trophyValue">0</strong>
         </div>
@@ -134,8 +134,62 @@
       <section class="view" id="view-shop" data-view="shop" hidden>
         <div class="section-head">
           <h2>Star Market</h2>
-          <p>No mystery boxes. Exact power. Exact price.</p>
+          <p>Stars buy exact power. Gems buy spicy plays.</p>
         </div>
+
+        <p class="shop-lane">💎 Gem Vault</p>
+
+        <article class="offer offer--gem" data-buy="gem_lucky_drop">
+          <div class="offer__visual offer__visual--gem">🎲</div>
+          <div class="offer__body">
+            <h3>Lucky Drop</h3>
+            <p>Gem chest: Rare often, Epic sometimes, Legend rare.</p>
+            <div class="offer__meta"><span>Board drop</span><strong>100 💎</strong></div>
+          </div>
+          <button class="offer__cta" type="button">Spend</button>
+        </article>
+
+        <article class="offer offer--gem" data-buy="gem_auto_fuse">
+          <div class="offer__visual offer__visual--fuse">◈</div>
+          <div class="offer__body">
+            <h3>Instant Fuse</h3>
+            <p>Auto-merge one matching pair right now.</p>
+            <div class="offer__meta"><span>One pair</span><strong>80 💎</strong></div>
+          </div>
+          <button class="offer__cta" type="button">Spend</button>
+        </article>
+
+        <article class="offer offer--gem" data-buy="gem_power_charm">
+          <div class="offer__visual offer__visual--charm">✦</div>
+          <div class="offer__body">
+            <h3>Power Charm</h3>
+            <p>+40% squad power for your next fight only.</p>
+            <div class="offer__meta"><span>1 fight</span><strong>120 💎</strong></div>
+          </div>
+          <button class="offer__cta" type="button">Spend</button>
+        </article>
+
+        <article class="offer offer--gem" data-buy="gem_energy_sip">
+          <div class="offer__visual offer__visual--energy">⚡</div>
+          <div class="offer__body">
+            <h3>Crystal Sip</h3>
+            <p>+5 energy from your gem stash.</p>
+            <div class="offer__meta"><span>+5 energy</span><strong>50 💎</strong></div>
+          </div>
+          <button class="offer__cta" type="button">Spend</button>
+        </article>
+
+        <article class="offer offer--gem" data-buy="gem_board_breeze">
+          <div class="offer__visual offer__visual--breeze">🌬</div>
+          <div class="offer__body">
+            <h3>Board Breeze</h3>
+            <p>Clear your weakest hero and free a slot.</p>
+            <div class="offer__meta"><span>Free a slot</span><strong>70 💎</strong></div>
+          </div>
+          <button class="offer__cta" type="button">Spend</button>
+        </article>
+
+        <p class="shop-lane">★ Stars</p>
 
         <article class="offer offer--hero" data-buy="energy_refill">
           <div class="offer__visual offer__visual--energy">⚡</div>
@@ -201,7 +255,7 @@
           <div class="offer__visual offer__visual--gem">💎</div>
           <div class="offer__body">
             <h3>Gem Cache</h3>
-            <p>+500 gems. Pure progress fuel.</p>
+            <p>+500 gems for Lucky Drop, Fuse, Charm & more.</p>
             <div class="offer__meta"><span>500 gems</span><strong>50 ★</strong></div>
           </div>
           <button class="offer__cta" type="button">Grab</button>
@@ -281,6 +335,6 @@
   </div>
 
   <script src="../../config.js"></script>
-  <script src="../arena.js?v=25"></script>
+  <script src="../arena.js?v=26"></script>
 </body>
 </html>

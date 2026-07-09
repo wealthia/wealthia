@@ -209,7 +209,37 @@ button {
 .cloud-dot[data-kind="busy"] { color: #c9b8ff; }
 
 .chip--energy { border-color: rgba(94, 240, 208, 0.4); color: var(--cyan); }
-.chip--gem { color: #9ec0ff; }
+.shop-lane {
+  margin: 4px 0 2px;
+  font-family: var(--display);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.offer--gem {
+  border-color: rgba(158, 192, 255, 0.35);
+  background: linear-gradient(135deg, rgba(158, 192, 255, 0.12), rgba(61, 255, 200, 0.06));
+}
+
+.offer__visual--fuse {
+  background: linear-gradient(160deg, rgba(61, 255, 200, 0.35), rgba(78, 205, 196, 0.2));
+}
+
+.offer__visual--charm {
+  background: linear-gradient(160deg, rgba(255, 209, 102, 0.4), rgba(255, 107, 74, 0.2));
+}
+
+.offer__visual--breeze {
+  background: linear-gradient(160deg, rgba(158, 200, 255, 0.35), rgba(120, 160, 255, 0.2));
+}
+
+.chip--gem {
+  color: #9ec0ff;
+  cursor: pointer;
+}
 .chip--trophy { color: var(--gold); }
 
 .wave-bar {
