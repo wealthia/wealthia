@@ -186,7 +186,7 @@
   async function ensureSession() {
     const initData = getTelegramInitData();
     if (!initData) return false;
-    const { ok, result } = await api("/api/session", {
+    const { ok, result } = await api("/api/merge-arena/session", {
       method: "POST",
       body: { initData }
     });

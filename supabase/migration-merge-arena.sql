@@ -1,4 +1,11 @@
--- MERGE ARENA cloud save (run once in Supabase SQL Editor)
+-- MERGE ARENA only (fresh Supabase project — no Wealthia tables)
+
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  username TEXT DEFAULT '',
+  first_name TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
 CREATE TABLE IF NOT EXISTS merge_arena_states (
   user_id TEXT PRIMARY KEY,

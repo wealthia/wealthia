@@ -2972,6 +2972,54 @@ function sanitizeMergeArenaState(input) {
   };
 }
 
+app.post("/api/merge-arena/session", async (req, res) => {
+  try {
+    const telegramUser = resolveTelegramUser(req);
+    if (!telegramUser) {
+      res.status(401).json({
+        error: "INVALID_TELEGRAM_AUTH",
+        reason: authFailureReason(req) || "UNKNOWN"
+      });
+      return;
+    }
+
+    if (telegramUser.is_bot) {
+      res.status(403).json({ error: "BOTS_NOT_ALLOWED" });
+      return;
+    }
+
+    const userId = String(telegramUser.id);
+    const { error: userError } = await supabase.from("users").upsert(
+      {
+        id: userId,
+        username: telegramUser.username || "",
+        first_name: telegramUser.first_name || "Player"
+      },
+      { onConflict: "id" }
+    );
+
+    if (userError) {
+      // Fresh Merge Arena DB may only have merge_arena_states — still issue a session.
+      console.warn("MERGE_ARENA_USER_UPSERT:", userError.message);
+    }
+
+    const session = createSessionToken(userId);
+    res.json({
+      ok: true,
+      token: session.token,
+      expiresAt: session.expiresAt,
+      user: {
+        id: userId,
+        username: telegramUser.username || "",
+        first_name: telegramUser.first_name || "Player"
+      }
+    });
+  } catch (error) {
+    console.error("MERGE_ARENA_SESSION_ERROR:", error);
+    res.status(500).json({ error: error.message || "SESSION_FAILED" });
+  }
+});
+
 app.get("/api/merge-arena/state", requirePlayer, async (req, res) => {
   try {
     const userId = String(req.playerId);
