@@ -5677,7 +5677,7 @@ async function sendPushMessage(telegramId, text) {
   if (!TELEGRAM_BOT_TOKEN) return false;
 
   try {
-    const webAppUrl = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/merge-arena/app/?v=29";
+    const webAppUrl = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/merge-arena/app/?v=30";
     await telegramApi("sendMessage", {
       chat_id: telegramId,
       text,
