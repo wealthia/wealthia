@@ -1,26 +1,19 @@
 # MERGE ARENA
 
-Telegram mini-app: **Merge · Upgrade · Dominate**
+Telegram mini-app: combine heroes, grow power, win fights.
 
-## Loop
-1. Summon units (energy)
-2. Drag same units together to merge / upgrade
-3. Battle the wave
-4. Win trophies + gems, climb waves
-5. Buy exact power in Armory (Stars)
+## How to play
+1. Tap **Get Hero**
+2. Drag two same heroes together to combine / upgrade
+3. Tap **Fight!** when your power is higher than the level
 
-## Not included
-- Tap grind
-- Mystery loot boxes
-- Fake $ prize races
-
-## Monetization (exact)
+## Shop (exact prices)
 - Full Energy — 25★
 - +10 Energy — 15★
-- Rare Summon — 40★
-- Epic Summon — 90★
-- Power Surge — 35★
-- Gem Starter — 50★
+- Rare Hero — 40★
+- Epic Hero — 90★
+- Power Boost — 35★
+- Gem Pack — 50★
 
 ## Open
-- After merge: `https://wealthia.github.io/wealthia/merge-arena/`
+- `https://wealthia.github.io/wealthia/merge-arena/`

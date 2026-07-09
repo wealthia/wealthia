@@ -1,5 +1,5 @@
 (() => {
-  const STORAGE_KEY = "merge_arena_v1";
+  const STORAGE_KEY = "merge_arena_v2";
   const COLS = 4;
   const ROWS = 4;
   const SIZE = COLS * ROWS;
@@ -18,7 +18,7 @@
   const SHOP = {
     energy_refill: {
       title: "Full Energy",
-      text: "Refill energy to 20 ⚡ instantly.",
+      text: "Fill energy to 20 ⚡ instantly.",
       stars: 25,
       apply(state) {
         state.energy = ENERGY_MAX;
@@ -26,39 +26,39 @@
     },
     energy_pack: {
       title: "+10 Energy",
-      text: "Add 10 energy (can go above max).",
+      text: "Add 10 energy right now.",
       stars: 15,
       apply(state) {
         state.energy += 10;
       }
     },
     rare_summon: {
-      title: "Rare Summon",
-      text: "Place a guaranteed Rare unit on the board.",
+      title: "Rare Hero",
+      text: "Put a guaranteed Rare hero on your board.",
       stars: 40,
       apply(state) {
         return placeGuaranteed(state, "rare");
       }
     },
     epic_summon: {
-      title: "Epic Summon",
-      text: "Place a guaranteed Epic unit on the board.",
+      title: "Epic Hero",
+      text: "Put a guaranteed Epic hero on your board.",
       stars: 90,
       apply(state) {
         return placeGuaranteed(state, "epic");
       }
     },
     power_surge: {
-      title: "Power Surge",
-      text: "+30% squad power for the next 3 battles.",
+      title: "Power Boost",
+      text: "+30% power for your next 3 fights.",
       stars: 35,
       apply(state) {
         state.surgeBattles = Math.max(0, Number(state.surgeBattles || 0)) + 3;
       }
     },
     gem_starter: {
-      title: "Gem Starter",
-      text: "Receive exactly +500 Gems.",
+      title: "Gem Pack",
+      text: "Receive exactly +500 gems.",
       stars: 50,
       apply(state) {
         state.gems += 500;
@@ -255,8 +255,8 @@
     try {
       tg.ready();
       tg.expand();
-      if (tg.setHeaderColor) tg.setHeaderColor("#070B14");
-      if (tg.setBackgroundColor) tg.setBackgroundColor("#070B14");
+      if (tg.setHeaderColor) tg.setHeaderColor("#12091F");
+      if (tg.setBackgroundColor) tg.setBackgroundColor("#12091F");
     } catch {
       // browser
     }
@@ -280,7 +280,7 @@
     els.energyValue.textContent = String(state.energy);
     els.gemValue.textContent = String(state.gems);
     els.trophyValue.textContent = String(state.trophies);
-    els.waveTitle.textContent = `Wave ${state.wave}`;
+    els.waveTitle.textContent = `Level ${state.wave}`;
     const power = squadPower();
     els.powerValue.textContent = String(power);
     state.highestPower = Math.max(state.highestPower, power);
@@ -324,7 +324,7 @@
     });
     const entries = Object.entries(counts);
     if (!entries.length) {
-      els.unitStrip.innerHTML = `<div class="strip-card"><strong>Empty</strong><span>Summon to start</span></div>`;
+      els.unitStrip.innerHTML = `<div class="strip-card"><strong>Empty</strong><span>Tap Get Hero</span></div>`;
       return;
     }
     els.unitStrip.innerHTML = entries
@@ -446,7 +446,7 @@
       discover(merged.id);
       saveState();
       renderBoard();
-      showToast(`Merged → ${defById(merged.id).name} L${merged.level}!`);
+      showToast(`Combined → ${defById(merged.id).name} L${merged.level}!`);
       haptic("success");
       return;
     }
@@ -460,12 +460,12 @@
   function summon(forceId, forceLevel) {
     const slots = emptySlots();
     if (!slots.length) {
-      showToast("Board full — merge units first.");
+      showToast("Board full — combine heroes first.");
       return false;
     }
     if (state.energy < 1 && !forceId) {
       openPay("energy_pack");
-      showToast("Out of energy. Top up in Armory.");
+      showToast("No energy left. Open Shop.");
       return false;
     }
 
@@ -482,7 +482,7 @@
     discover(id);
     saveState();
     renderBoard();
-    if (!forceId) showToast(`${defById(id).name} summoned`);
+    if (!forceId) showToast(`${defById(id).name} joined your team`);
     haptic("light");
     return true;
   }
@@ -491,12 +491,12 @@
     if (battleBusy) return;
     const power = squadPower();
     if (power <= 0) {
-      showToast("Summon units before battle.");
+      showToast("Get a hero before fighting.");
       return;
     }
     if (state.energy < 1) {
       openPay("energy_refill");
-      showToast("Need energy to battle.");
+      showToast("Need energy to fight.");
       return;
     }
 
@@ -510,13 +510,13 @@
     const enemy = enemyPower(wave);
     els.battleModal.hidden = false;
     els.fighterYou.textContent = `YOU ${power}`;
-    els.fighterEnemy.textContent = `W${wave} ${enemy}`;
+    els.fighterEnemy.textContent = `L${wave} ${enemy}`;
     els.youBar.style.width = "100%";
     els.enemyBar.style.width = "100%";
-    els.battleLog.textContent = "Clash incoming…";
+    els.battleLog.textContent = "Fight starting…";
 
     await wait(700);
-    els.battleLog.textContent = "Units colliding!";
+    els.battleLog.textContent = "Heroes clash!";
     await wait(700);
 
     // visual HP race based on power ratio
@@ -580,14 +580,14 @@
   function showResult(won, wave, trophies, gems) {
     els.resultModal.hidden = false;
     els.resultEyebrow.textContent = won ? "Victory" : "Defeat";
-    els.resultTitle.textContent = won ? `Wave ${wave} Cleared` : `Wave ${wave} Held`;
+    els.resultTitle.textContent = won ? `Level ${wave} Cleared` : `Level ${wave} Failed`;
     els.resultText.textContent = won
-      ? "Your merges overpowered the arena."
-      : "Upgrade and merge higher — then rematch.";
+      ? "Your team was stronger. Next level unlocked!"
+      : "Combine more heroes, then fight again.";
     els.resultRewards.innerHTML = `
       <span>${trophies >= 0 ? "+" : ""}${trophies} 🏆</span>
-      <span>+${Math.max(0, gems)} ◆</span>
-      ${won ? "<span>Next wave unlocked</span>" : "<span>Board pressure applied</span>"}
+      <span>+${Math.max(0, gems)} 💎</span>
+      ${won ? "<span>Next level unlocked</span>" : "<span>Try again stronger</span>"}
     `;
   }
 
@@ -698,7 +698,7 @@
     renderGlory();
     // soft energy tip
     if (state.energy <= 3) {
-      setTimeout(() => showToast("Low energy — Armory keeps the run going."), 900);
+      setTimeout(() => showToast("Low energy — Shop keeps you playing."), 900);
     }
   }
 
