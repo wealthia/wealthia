@@ -888,7 +888,7 @@ button {
   position: fixed;
   left: 8px;
   right: 8px;
-  bottom: calc(58px + var(--safe-b));
+  bottom: calc(80px + var(--safe-b));
   z-index: 50;
   width: auto;
   max-width: none;

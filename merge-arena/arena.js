@@ -442,7 +442,26 @@
     const wave = document.querySelector(".wave-bar");
     const hint = document.getElementById("boardHint");
     const strip = document.getElementById("unitStrip");
+    const view = document.getElementById("view-play");
     const appH = app ? app.clientHeight : window.innerHeight;
+    const appW = app ? app.clientWidth : window.innerWidth;
+    const styles = window.getComputedStyle(wrap);
+    const padX = (parseFloat(styles.paddingLeft) || 0) + (parseFloat(styles.paddingRight) || 0);
+    const padY = (parseFloat(styles.paddingTop) || 0) + (parseFloat(styles.paddingBottom) || 0);
+    const appStyles = app ? window.getComputedStyle(app) : null;
+    const appGap = appStyles ? parseFloat(appStyles.rowGap || appStyles.gap) || 0 : 0;
+    const appPadY = appStyles
+      ? (parseFloat(appStyles.paddingTop) || 0) + (parseFloat(appStyles.paddingBottom) || 0)
+      : 0;
+    const viewStyles = view ? window.getComputedStyle(view) : null;
+    const viewGap = viewStyles ? parseFloat(viewStyles.rowGap || viewStyles.gap) || 0 : 0;
+    const viewPadY = viewStyles
+      ? (parseFloat(viewStyles.paddingTop) || 0) + (parseFloat(viewStyles.paddingBottom) || 0)
+      : 0;
+    const visibleRows = view
+      ? Array.from(view.children).filter((child) => window.getComputedStyle(child).display !== "none").length
+      : 5;
+    const spacing = appPadY + appGap * 2 + viewPadY + viewGap * Math.max(visibleRows - 1, 0) + padY + 8;
     // Bottom controls get priority; board stays compact
     const reserved =
       (dock ? Math.max(dock.offsetHeight, 64) : 64) +
@@ -451,13 +470,9 @@
       (wave ? wave.offsetHeight : 36) +
       (hint ? Math.max(hint.offsetHeight, 18) : 18) +
       (strip ? Math.max(strip.offsetHeight || 52, 52) : 52) +
-      40;
-    const appW = app ? app.clientWidth : window.innerWidth;
-    const styles = window.getComputedStyle(wrap);
-    const padX = (parseFloat(styles.paddingLeft) || 0) + (parseFloat(styles.paddingRight) || 0);
-    const padY = (parseFloat(styles.paddingTop) || 0) + (parseFloat(styles.paddingBottom) || 0);
+      spacing;
     const availW = Math.max(160, Math.min(appW - 28, (wrap.parentElement ? wrap.parentElement.clientWidth : appW) - 8) - padX);
-    const fromViewport = Math.max(140, appH - reserved);
+    const fromViewport = Math.max(80, appH - reserved);
     if (availW < 40) return;
     // Hard cap ~36% of height so lower UI dominates
     const maxBoard = Math.floor(appH * 0.36);
