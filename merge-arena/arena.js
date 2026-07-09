@@ -5,7 +5,11 @@
   const COLS = 4;
   const ROWS = 4;
   const SIZE = COLS * ROWS;
-  const ENERGY_MAX = 20;
+  // Tight energy economy — slow regen pushes Stars / gems spends.
+  const ENERGY_MAX = 12;
+  const ENERGY_REGEN_MS = 4 * 60 * 1000; // 1⚡ every 4 minutes
+  const AD_ENERGY_GAIN = 2;
+  const AD_ENERGY_COOLDOWN_MS = 3 * 60 * 1000;
 
   // 50 heroes — commons fuel merges; rares/epics/legends carry late gates
   const UNIT_DEFS = [
@@ -80,18 +84,20 @@
   const SHOP = {
     energy_refill: {
       title: "Full Charge",
-      text: "Snap back to 20 energy and keep the streak.",
-      stars: 25,
+      text: `Snap back to ${ENERGY_MAX} energy and keep climbing.`,
+      stars: 35,
       apply(state) {
         state.energy = ENERGY_MAX;
+        state.lastEnergyAt = Date.now();
       }
     },
     energy_pack: {
       title: "Energy Sip",
-      text: "+10 energy for one more merge run.",
-      stars: 15,
+      text: "+6 energy for one more merge run.",
+      stars: 25,
       apply(state) {
-        state.energy = Math.min(ENERGY_MAX, state.energy + 10);
+        state.energy = Math.min(ENERGY_MAX, state.energy + 6);
+        state.lastEnergyAt = Date.now();
       }
     },
     rare_summon: {
@@ -140,10 +146,10 @@
   const GEM_SHOP = {
     gem_energy_sip: {
       title: "Crystal Sip",
-      text: "+5 energy from your gem stash.",
-      gems: 50,
+      text: "+3 energy from your gem stash.",
+      gems: 90,
       apply(st) {
-        st.energy = Math.min(ENERGY_MAX, st.energy + 5);
+        st.energy = Math.min(ENERGY_MAX, st.energy + 3);
         st.lastEnergyAt = Date.now();
         return null;
       }
@@ -239,7 +245,7 @@
   ];
 
   const defaultState = () => ({
-    energy: 12,
+    energy: 8,
     gems: 80,
     trophies: 0,
     wave: 1,
@@ -287,23 +293,23 @@
     { id: "fuse", title: "Double Fuse", text: "Merges grant +1 bonus XP on Glory Pass.", fuseXp: 1 },
     { id: "gems", title: "Gem Rain", text: "+25% gems from wins today.", gemMult: 1.25 },
     { id: "boss", title: "Boss Rush", text: "Boss fights drop +40 extra gems.", bossGems: 40 },
-    { id: "energy", title: "Spark Day", text: "Get Hero refunds 1 energy every 3rd summon.", summonRefund: 3 }
+    { id: "energy", title: "Spark Day", text: "Get Hero refunds 1 energy every 5th summon.", summonRefund: 5 }
   ];
 
   const QUEST_DEFS = [
     { id: "summon3", label: "Summon 3 heroes", target: 3, key: "summons", reward: { gems: 25 } },
     { id: "merge5", label: "Fuse 5 times", target: 5, key: "merges", reward: { gems: 40 } },
-    { id: "win2", label: "Win 2 fights", target: 2, key: "wins", reward: { gems: 50, energy: 2 } },
+    { id: "win2", label: "Win 2 fights", target: 2, key: "wins", reward: { gems: 50, energy: 1 } },
     { id: "ghost1", label: "Beat 1 Ghost Rival", target: 1, key: "ghosts", reward: { gems: 35 } }
   ];
 
   const PASS_TRACK = [
     { xp: 0, label: "Kickoff", reward: { text: "Ready" } },
     { xp: 40, label: "Tier 1", reward: { gems: 40 } },
-    { xp: 90, label: "Tier 2", reward: { energy: 3 } },
+    { xp: 90, label: "Tier 2", reward: { energy: 1 } },
     { xp: 150, label: "Tier 3", reward: { gems: 80 } },
     { xp: 230, label: "Tier 4", reward: { gems: 120 } },
-    { xp: 330, label: "Tier 5", reward: { energy: 5 } },
+    { xp: 330, label: "Tier 5", reward: { energy: 2 } },
     { xp: 450, label: "Tier 6", reward: { gems: 200 } },
     { xp: 600, label: "Panda Cap", reward: { gems: 350 } }
   ];
@@ -512,6 +518,7 @@
         : base.board,
       discovered: Array.isArray(parsed.discovered) ? parsed.discovered : base.discovered
     };
+    next.energy = Math.max(0, Math.min(ENERGY_MAX, Math.floor(Number(next.energy) || 0)));
     // Climb-gate vault without touching the live `state` binding (safe during first load).
     next.discovered = pruneDiscoveredList(next.discovered, next.board, next.bestWave, next.wave);
     return next;
@@ -880,11 +887,11 @@
 
   function dailyRewardForStreak(streak) {
     const s = Math.max(1, streak);
-    // 7-day ladder peaks harder
+    // 7-day ladder peaks harder on gems; energy stays scarce
     const ladder = s >= 7 ? 1.35 : 1;
     return {
       gems: Math.round((30 + s * 18) * ladder),
-      energy: Math.min(10, 2 + Math.floor(s / 2) + (s >= 7 ? 2 : 0))
+      energy: Math.min(3, 1 + Math.floor((s - 1) / 3) + (s >= 7 ? 1 : 0))
     };
   }
 
@@ -958,7 +965,7 @@
     state.referredBy = ref;
     state.referralClaimed = true;
     state.gems += 25;
-    state.energy = ENERGY_MAX;
+    state.energy = Math.min(ENERGY_MAX, Number(state.energy || 0) + 4);
     state.lastEnergyAt = Date.now();
     // Credit inviter locally when this device is the inviter later via invite meta;
     // also stash a one-time inviter bonus marker for cloud-aware clients.
@@ -970,7 +977,7 @@
       // ignore
     }
     saveState();
-    showToast(`Welcome gift: +25 💎 · full ${ENERGY_MAX} ⚡`);
+    showToast("Welcome gift: +25 💎 · +4 ⚡");
   }
 
   function collectPendingInviteBonus() {
@@ -982,10 +989,10 @@
       localStorage.removeItem(key);
       state.referralCount = Number(state.referralCount || 0) + n;
       state.gems += n * 40;
-      state.energy = ENERGY_MAX;
+      state.energy = Math.min(ENERGY_MAX, Number(state.energy || 0) + Math.min(6, n * 2));
       state.lastEnergyAt = Date.now();
       saveState();
-      showToast(`Invite bonus · ${n} friend${n > 1 ? "s" : ""} · +${n * 40} 💎 · full ${ENERGY_MAX} ⚡`);
+      showToast(`Invite bonus · ${n} friend${n > 1 ? "s" : ""} · +${n * 40} 💎 · +${Math.min(6, n * 2)} ⚡`);
     } catch {
       // ignore
     }
@@ -1007,8 +1014,9 @@
 
   async function watchAdForEnergy() {
     const now = Date.now();
-    if (now - Number(state.adLastClaimAt || 0) < 60000) {
-      showToast("Ad cooldown — wait a minute.");
+    if (now - Number(state.adLastClaimAt || 0) < AD_ENERGY_COOLDOWN_MS) {
+      const left = Math.ceil((AD_ENERGY_COOLDOWN_MS - (now - Number(state.adLastClaimAt || 0))) / 60000);
+      showToast(`Ad cooldown — wait ~${Math.max(1, left)} min.`);
       return;
     }
     let watched = false;
@@ -1026,17 +1034,17 @@
       }
     } else {
       // Demo fallback when AdsGram block is missing / not ready
-      watched = window.confirm("Demo ad complete?\n\nOK = grant +4 energy");
+      watched = window.confirm(`Demo ad complete?\n\nOK = grant +${AD_ENERGY_GAIN} energy`);
       if (!watched) return;
     }
     state.adLastClaimAt = now;
-    state.energy = Math.min(ENERGY_MAX, state.energy + 4);
+    state.energy = Math.min(ENERGY_MAX, state.energy + AD_ENERGY_GAIN);
     state.lastEnergyAt = now;
     saveState();
     renderHud();
     playTone("claim");
     haptic("success");
-    showToast("+4 energy from Watch & Charge");
+    showToast(`+${AD_ENERGY_GAIN} energy from Watch & Charge`);
   }
 
   function isBossWave(wave) {
@@ -1280,10 +1288,10 @@
     const now = Date.now();
     const lastEnergyAt = Number(state.lastEnergyAt || now);
     const elapsed = now - lastEnergyAt;
-    const gained = Math.floor(elapsed / 60000);
+    const gained = Math.floor(elapsed / ENERGY_REGEN_MS);
     if (gained > 0 && state.energy < ENERGY_MAX) {
       state.energy = Math.min(ENERGY_MAX, state.energy + gained);
-      state.lastEnergyAt = lastEnergyAt + gained * 60000;
+      state.lastEnergyAt = lastEnergyAt + gained * ENERGY_REGEN_MS;
       saveState();
     }
   }
@@ -1402,7 +1410,10 @@
   function renderHud() {
     regenEnergy();
     els.energyValue.textContent = String(state.energy);
-    if (els.energyChip) els.energyChip.title = `Energy ${state.energy}/${ENERGY_MAX}`;
+    if (els.energyChip) {
+      const mins = Math.round(ENERGY_REGEN_MS / 60000);
+      els.energyChip.title = `Energy ${state.energy}/${ENERGY_MAX} · +1⚡ / ${mins}m · tap to buy`;
+    }
     els.gemValue.textContent = String(state.gems);
     if (els.gemChip) {
       els.gemChip.title = state.charmBattles > 0
@@ -2652,13 +2663,13 @@
     });
     const tag = document.getElementById("buildTag");
     if (tag) {
-      setTimeout(() => showToast(`Build ${tag.textContent} · climb-gated heroes`), 500);
+      setTimeout(() => showToast(`Build ${tag.textContent} · scarce energy`), 500);
     }
     if (state.dailyClaimDate !== todayKey()) {
       setTimeout(() => showToast("Daily Chest ready in Glory"), 1400);
     }
     if (state.energy <= 3) {
-      setTimeout(() => showToast("Energy low — Watch & Charge or Star Market."), 2200);
+      setTimeout(() => showToast("Energy scarce — Star Market or Crystal Sip."), 2200);
     }
   }
 
