@@ -118,6 +118,7 @@
   let sessionToken = "";
   let cloudReady = false;
   let saveTimer = null;
+  let buddyCheerTimer = null;
   let syncing = false;
   let tutorialIndex = 0;
 
@@ -302,6 +303,7 @@
       cloudReady = true;
       const saved = await pushCloudState();
       renderBoard();
+      cheerBuddy("idle");
       renderRoster();
       renderGlory();
       if (saved) {
@@ -546,9 +548,14 @@
     else pick = BUDDY_LINES[Math.floor(Math.random() * BUDDY_LINES.length)];
     if (els.buddyTitle) els.buddyTitle.textContent = pick.title;
     els.buddyLine.textContent = pick.line;
+    clearTimeout(buddyCheerTimer);
     els.arenaBuddy.classList.remove("is-cheer");
     void els.arenaBuddy.offsetWidth;
     els.arenaBuddy.classList.add("is-cheer");
+    buddyCheerTimer = setTimeout(() => {
+      els.arenaBuddy.classList.remove("is-cheer");
+      buddyCheerTimer = null;
+    }, 600);
   }
 
   function renderBoard() {
