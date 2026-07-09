@@ -19,7 +19,7 @@
 | `SUPABASE_SERVICE_KEY` | (service_role secret) |
 | `TELEGRAM_BOT_TOKEN` | (yeni bot token) |
 | `SESSION_SECRET` | istənilən uzun random mətn |
-| `WEBAPP_URL` | `https://wealthia.github.io/wealthia/merge-arena/app/?v=42` |
+| `WEBAPP_URL` | `https://wealthia.github.io/wealthia/merge-arena/app/?v=43` |
 
 ## 3) Deploy
 **Create Web Service** → gözlə → URL belə olacaq:
