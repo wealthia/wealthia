@@ -1,7 +1,7 @@
 (() => {
   const STORAGE_KEY = "merge_arena_v2";
   const API_URL = (window.WEALTHIA_CONFIG && window.WEALTHIA_CONFIG.API_URL) ||
-    "https://wealthia-backend.onrender.com";
+    "https://merge-arena-api.onrender.com";
   const COLS = 4;
   const ROWS = 4;
   const SIZE = COLS * ROWS;

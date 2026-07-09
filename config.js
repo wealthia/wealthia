@@ -1,7 +1,7 @@
 // Wealthia config — edit these values for your project
 // Full monetization guide: MONETIZATION.md
 window.WEALTHIA_CONFIG = {
-  API_URL: "https://wealthia-backend.onrender.com",
+  API_URL: "https://merge-arena-api.onrender.com",
   GAME_URL: "https://wealthia.github.io/wealthia/merge-arena/",
   ADMIN_URL: "https://wealthia.github.io/wealthia/admin.html",
 
