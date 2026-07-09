@@ -22,15 +22,43 @@ https://wealthia.github.io/wealthia/merge-arena/app/
 
 ---
 
-## Step 2 — Copy BotFather values (do not type by hand)
+## Step 2 — Create the Mini App in BotFather (if `/myapps` is empty)
+
+`/myapps` empty = Mini App not created yet. Menu Button alone is **not** enough for AdsGram.
 
 1. Telegram → **@BotFather**
-2. `/myapps` → choose the **Merge Arena** mini app on **@MergeArenaBot**
-3. Copy these three values:
+2. Send: `/newapp`
+3. Choose **@MergeArenaBot**
+4. Answer prompts:
+
+| Prompt | Send this |
+|--------|-----------|
+| Title | `MERGE ARENA` |
+| Description | `Fuse twin heroes, build your squad, climb arenas.` |
+| Photo | upload `merge-arena/assets/merge-arena-app-icon-640.png` (640×640) |
+| Demo GIF | `/empty` (skip) |
+| Web App URL | `https://wealthia.github.io/wealthia/merge-arena/app/` |
+| Short name | `arena` |
+
+5. BotFather gives a **Direct Link** like:
+```
+https://t.me/MergeArenaBot/arena
+```
+Save it.
+
+6. Also set Menu Button (optional but good):
+   - `/mybots` → MergeArenaBot → **Bot Settings** → **Menu Button**
+   - URL: `https://wealthia.github.io/wealthia/merge-arena/app/?v=48`
+   - Text: `Play MERGE ARENA`
+
+### Then copy values for AdsGram
+
+1. `/myapps` → **MERGE ARENA** (now it should appear)
+2. Copy:
 
 | AdsGram field | From BotFather |
 |---------------|----------------|
-| Telegram direct link | Direct Link (`https://t.me/MergeArenaBot/...`) |
+| Telegram direct link | Direct Link (`https://t.me/MergeArenaBot/arena`) |
 | Web app url | Web App URL (must match character-for-character) |
 | Bot ID | `/mybots` → MergeArenaBot → **API Token** → digits **before** `:` |
 
