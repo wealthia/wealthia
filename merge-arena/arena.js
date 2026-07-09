@@ -271,7 +271,9 @@
     quests: {},
     ghostWins: 0,
     lastGhostAt: 0,
-    lastRankId: "recruit"
+    lastRankId: "recruit",
+    wipeId: "",
+    wipeAt: 0
   });
 
   // Rütbə ladder — slower climb; titles feel earned (no prestige/reset)
@@ -577,6 +579,16 @@
     // Keep referral flags if either side earned them
     merged.referralClaimed = Boolean(primary.referralClaimed || secondary.referralClaimed);
     if (!merged.referredBy && secondary.referredBy) merged.referredBy = secondary.referredBy;
+    // Keep the newest admin wipe token so a reset cannot be undone by merge.
+    const wipePrimary = String(primary.wipeId || "");
+    const wipeSecondary = String(secondary.wipeId || "");
+    if (Number(secondary.wipeAt || 0) > Number(primary.wipeAt || 0) && wipeSecondary) {
+      merged.wipeId = wipeSecondary;
+      merged.wipeAt = Number(secondary.wipeAt || 0);
+    } else if (wipePrimary) {
+      merged.wipeId = wipePrimary;
+      merged.wipeAt = Number(primary.wipeAt || 0);
+    }
     return normalizeState(merged);
   }
 
@@ -681,6 +693,22 @@
     if (meta.bestWave != null) cloudRaw.bestWave = Math.max(Number(cloudRaw.bestWave || 1), Number(meta.bestWave || 1));
     if (meta.wins != null) cloudRaw.wins = Math.max(Number(cloudRaw.wins || 0), Number(meta.wins || 0));
     if (meta.merges != null) cloudRaw.merges = Math.max(Number(cloudRaw.merges || 0), Number(meta.merges || 0));
+
+    // Admin wipe token: if cloud has a newer wipeId, force fresh start (don't merge old local).
+    const localWipe = String(localSnapshot.wipeId || "");
+    const cloudWipe = String(cloudRaw.wipeId || "");
+    if (cloudWipe && cloudWipe !== localWipe) {
+      state = normalizeState({
+        ...cloudRaw,
+        wipeId: cloudWipe,
+        wipeAt: Number(cloudRaw.wipeAt || Date.now())
+      });
+      pruneDiscovered();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      showToast("Progress reset · fresh climb");
+      return true;
+    }
+
     // Field-wise merge — never let a day reload / empty cloud wipe rank climb.
     state = pickRicherState(localSnapshot, cloudRaw);
     pruneDiscovered();
@@ -2734,7 +2762,7 @@
     });
     const tag = document.getElementById("buildTag");
     if (tag) {
-      setTimeout(() => showToast(`Build ${tag.textContent} · harder ranks`), 500);
+      setTimeout(() => showToast(`Build ${tag.textContent} · admin reset`), 500);
     }
     if (state.dailyClaimDate !== todayKey()) {
       setTimeout(() => showToast("Daily Chest ready in Glory"), 1400);
