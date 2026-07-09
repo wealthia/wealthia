@@ -219,10 +219,26 @@
     highestPower: 0,
     surgeBattles: 0,
     charmBattles: 0,
+    dailyStreak: 0,
+    dailyClaimDate: "",
+    referralCount: 0,
+    referredBy: "",
+    referralClaimed: false,
+    adLastClaimAt: 0,
+    soundOn: true,
     discovered: ["spark", "blade"],
     board: Array(SIZE).fill(null),
     lastEnergyAt: Date.now()
   });
+
+  const SYNERGIES = [
+    { roles: ["Burner", "Freezer"], bonus: 0.12, label: "Fire & Ice" },
+    { roles: ["Guardian", "Tanklet"], bonus: 0.1, label: "Iron Wall" },
+    { roles: ["Assassin", "Haunt"], bonus: 0.14, label: "Shadow Pair" },
+    { roles: ["Storm", "Burst"], bonus: 0.12, label: "Sky Burst" },
+    { roles: ["Beast", "Duelist"], bonus: 0.1, label: "Blood Duel" },
+    { roles: ["King", "Mascot"], bonus: 0.18, label: "Royal Panda" }
+  ];
 
   let state = loadState();
   let toastTimer = null;
@@ -234,6 +250,9 @@
   let saveTimer = null;
   let syncing = false;
   let tutorialIndex = 0;
+  let adsgramController = null;
+  let playerId = "";
+  let audioCtx = null;
 
   const $ = (id) => document.getElementById(id);
 
@@ -262,6 +281,20 @@
     clashFill: $("clashFill"),
     clashTip: $("clashTip"),
     rosterGrid: $("rosterGrid"),
+    dailyClaim: $("dailyClaim"),
+    dailyStreak: $("dailyStreak"),
+    dailyTip: $("dailyTip"),
+    dailyCard: $("dailyCard"),
+    synergyText: $("synergyText"),
+    inviteShare: $("inviteShare"),
+    inviteCopy: $("inviteCopy"),
+    inviteMeta: $("inviteMeta"),
+    leaderboard: $("leaderboard"),
+    soundToggle: $("soundToggle"),
+    battleStage: $("battleStage"),
+    battleFx: $("battleFx"),
+    payNote: $("payNote"),
+    adEnergyBtn: $("adEnergyBtn"),
     toast: $("toast"),
     battleModal: $("battleModal"),
     fighterYou: $("fighterYou"),
@@ -365,6 +398,7 @@
       return false;
     }
     sessionToken = String(result.token);
+    if (result.user && result.user.id) playerId = String(result.user.id);
     return true;
   }
 
@@ -480,12 +514,191 @@
     return Math.round(def.basePower * Math.pow(1.65, lvl - 1));
   }
 
+  function activeSynergies() {
+    const roles = {};
+    state.board.forEach((u) => {
+      if (!u) return;
+      const role = defById(u.id).role || "";
+      if (!role) return;
+      roles[role] = (roles[role] || 0) + 1;
+    });
+    return SYNERGIES.filter((s) => s.roles.every((role) => (roles[role] || 0) >= 1));
+  }
+
+  function synergyBonus() {
+    return activeSynergies().reduce((sum, s) => sum + s.bonus, 0);
+  }
+
   function squadPower() {
     const raw = state.board.reduce((sum, u) => sum + powerOf(u), 0);
-    let mult = 1;
+    let mult = 1 + synergyBonus();
     if (state.surgeBattles > 0) mult += 0.3;
     if (state.charmBattles > 0) mult += 0.4;
     return Math.round(raw * mult);
+  }
+
+  function todayKey() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function yesterdayKey() {
+    return new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  }
+
+  function dailyRewardForStreak(streak) {
+    const s = Math.max(1, streak);
+    return {
+      gems: 30 + s * 15,
+      energy: Math.min(8, 2 + Math.floor(s / 2))
+    };
+  }
+
+  function playTone(kind) {
+    if (!state.soundOn) return;
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      if (!audioCtx) audioCtx = new AudioContext();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      const now = audioCtx.currentTime;
+      const map = {
+        merge: [520, 740],
+        summon: [360, 480],
+        hit: [180, 120],
+        win: [440, 660, 880],
+        lose: [220, 160],
+        claim: [500, 700],
+        click: [300, 340]
+      };
+      const freqs = map[kind] || map.click;
+      freqs.forEach((freq, i) => {
+        const o = i === 0 ? osc : audioCtx.createOscillator();
+        const g = i === 0 ? gain : audioCtx.createGain();
+        if (i > 0) {
+          o.connect(g);
+          g.connect(audioCtx.destination);
+        }
+        o.type = kind === "hit" ? "square" : "sine";
+        o.frequency.setValueAtTime(freq, now + i * 0.07);
+        g.gain.setValueAtTime(0.0001, now + i * 0.07);
+        g.gain.exponentialRampToValueAtTime(0.05, now + i * 0.07 + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.07 + 0.16);
+        o.start(now + i * 0.07);
+        o.stop(now + i * 0.07 + 0.18);
+      });
+    } catch {
+      // ignore audio failures
+    }
+  }
+
+  function getInviteLink() {
+    const cfg = window.WEALTHIA_CONFIG || {};
+    const bot = String(cfg.BOT_USERNAME || "MergeArenaBot").replace(/^@/, "");
+    const id = playerId || (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user && window.Telegram.WebApp.initDataUnsafe.user.id) || "";
+    if (!id) return `https://t.me/${bot}`;
+    return `https://t.me/${bot}?start=maref_${id}`;
+  }
+
+  function parseStartReferrer() {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    const start = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param
+      ? String(tg.initDataUnsafe.start_param)
+      : "";
+    const match = start.match(/(?:maref_|ref_)?(\d{5,})/);
+    return match ? match[1] : "";
+  }
+
+  function applyReferralIfNeeded() {
+    const ref = parseStartReferrer();
+    if (!ref || state.referralClaimed) return;
+    const me = String(playerId || "");
+    if (!me || ref === me) return;
+    state.referredBy = ref;
+    state.referralClaimed = true;
+    state.gems += 25;
+    state.energy = Math.min(ENERGY_MAX, state.energy + 2);
+    state.lastEnergyAt = Date.now();
+    // Credit inviter locally when this device is the inviter later via invite meta;
+    // also stash a one-time inviter bonus marker for cloud-aware clients.
+    try {
+      const key = `merge_arena_ref_bonus_${ref}`;
+      const n = Number(localStorage.getItem(key) || 0) + 1;
+      localStorage.setItem(key, String(n));
+    } catch {
+      // ignore
+    }
+    saveState();
+    showToast("Welcome gift: +25 💎 +2 ⚡");
+  }
+
+  function collectPendingInviteBonus() {
+    if (!playerId) return;
+    try {
+      const key = `merge_arena_ref_bonus_${playerId}`;
+      const n = Number(localStorage.getItem(key) || 0);
+      if (n <= 0) return;
+      localStorage.removeItem(key);
+      state.referralCount = Number(state.referralCount || 0) + n;
+      state.gems += n * 40;
+      state.energy = Math.min(ENERGY_MAX, state.energy + n * 3);
+      state.lastEnergyAt = Date.now();
+      saveState();
+      showToast(`Invite bonus · ${n} friend${n > 1 ? "s" : ""} · +${n * 40} 💎`);
+    } catch {
+      // ignore
+    }
+  }
+
+  function initAdsGram() {
+    const cfg = window.WEALTHIA_CONFIG || {};
+    const blockId = String(cfg.ADSGRAM_BLOCK_ID || "").trim();
+    if (!blockId || !window.Adsgram) return;
+    try {
+      adsgramController = window.Adsgram.init({
+        blockId,
+        debug: Boolean(cfg.ADSGRAM_DEBUG)
+      });
+    } catch {
+      adsgramController = null;
+    }
+  }
+
+  async function watchAdForEnergy() {
+    const now = Date.now();
+    if (now - Number(state.adLastClaimAt || 0) < 60000) {
+      showToast("Ad cooldown — wait a minute.");
+      return;
+    }
+    let watched = false;
+    if (adsgramController) {
+      try {
+        const result = await adsgramController.show();
+        watched = Boolean(result && result.done);
+        if (!watched) {
+          showToast((result && result.description) || "Watch the full ad to charge.");
+          return;
+        }
+      } catch (error) {
+        showToast((error && error.description) || "Ad unavailable right now.");
+        return;
+      }
+    } else {
+      // Demo fallback when AdsGram block is missing / not ready
+      watched = window.confirm("Demo ad complete?\n\nOK = grant +4 energy");
+      if (!watched) return;
+    }
+    state.adLastClaimAt = now;
+    state.energy = Math.min(ENERGY_MAX, state.energy + 4);
+    state.lastEnergyAt = now;
+    saveState();
+    renderHud();
+    playTone("claim");
+    haptic("success");
+    showToast("+4 energy from Watch & Charge");
   }
 
   function enemyPower(wave) {
@@ -646,7 +859,10 @@
       btn.classList.toggle("is-active", btn.dataset.nav === name);
     });
     if (name === "roster") renderRoster();
-    if (name === "rank") renderGlory();
+    if (name === "rank") {
+      renderGlory();
+      loadLeaderboard();
+    }
     if (name === "play") requestAnimationFrame(fitBoard);
   }
 
@@ -767,6 +983,11 @@
       tone = "warn";
     }
 
+    const syn = activeSynergies();
+    if (syn.length && els.clashTip) {
+      tip = `${syn.map((s) => s.label).join(" + ")} active · ${tip}`;
+    }
+
     if (els.clashStatus) els.clashStatus.textContent = status;
     if (els.clashTip) els.clashTip.textContent = tip;
     els.clashPanel.dataset.tone = tone;
@@ -825,6 +1046,122 @@
     els.gloryWins.textContent = String(state.wins);
     els.gloryMerges.textContent = String(state.merges);
     els.gloryPower.textContent = String(state.highestPower);
+    renderDaily();
+    renderSynergyCard();
+    renderInvite();
+  }
+
+  function renderDaily() {
+    if (!els.dailyClaim) return;
+    const today = todayKey();
+    const claimed = state.dailyClaimDate === today;
+    const streak = Number(state.dailyStreak || 0);
+    const nextStreak = claimed ? streak : (state.dailyClaimDate === yesterdayKey() ? streak + 1 : 1);
+    const reward = dailyRewardForStreak(Math.max(1, nextStreak));
+    if (els.dailyStreak) els.dailyStreak.textContent = `Streak ${streak}`;
+    if (els.dailyTip) {
+      els.dailyTip.textContent = claimed
+        ? "Claimed today. Come back tomorrow for a bigger chest."
+        : `Ready: +${reward.gems} 💎 and +${reward.energy} ⚡`;
+    }
+    els.dailyClaim.disabled = claimed;
+    els.dailyClaim.textContent = claimed ? "Claimed" : "Claim";
+    if (els.dailyCard) els.dailyCard.dataset.ready = claimed ? "0" : "1";
+  }
+
+  function claimDaily() {
+    const today = todayKey();
+    if (state.dailyClaimDate === today) {
+      showToast("Already claimed today.");
+      return;
+    }
+    const streak = state.dailyClaimDate === yesterdayKey()
+      ? Number(state.dailyStreak || 0) + 1
+      : 1;
+    const reward = dailyRewardForStreak(streak);
+    state.dailyStreak = streak;
+    state.dailyClaimDate = today;
+    state.gems += reward.gems;
+    state.energy = Math.min(ENERGY_MAX, state.energy + reward.energy);
+    state.lastEnergyAt = Date.now();
+    saveState();
+    renderHud();
+    renderGlory();
+    playTone("claim");
+    haptic("success");
+    cheerBuddy("win");
+    showToast(`Daily claimed · +${reward.gems} 💎 +${reward.energy} ⚡ · streak ${streak}`);
+  }
+
+  function renderSynergyCard() {
+    if (!els.synergyText) return;
+    const list = activeSynergies();
+    if (!list.length) {
+      els.synergyText.textContent = "No synergy yet — mix roles like Burner+Freezer or King+Panda.";
+      return;
+    }
+    const bonus = Math.round(synergyBonus() * 100);
+    els.synergyText.textContent = list.map((s) => s.label).join(" · ") + ` · +${bonus}% power`;
+  }
+
+  function renderInvite() {
+    if (els.inviteMeta) {
+      els.inviteMeta.textContent = `${state.referralCount || 0} friends joined`;
+    }
+  }
+
+  async function loadLeaderboard() {
+    if (!els.leaderboard) return;
+    els.leaderboard.innerHTML = `<div class="leaderboard__empty">Loading ranks…</div>`;
+    try {
+      const { ok, result } = await api("/api/merge-arena/leaderboard?sort=trophies");
+      const rows = (ok && result && result.rows) || [];
+      if (!rows.length) {
+        els.leaderboard.innerHTML = `<div class="leaderboard__empty">Be first on the board — win a fight!</div>`;
+        return;
+      }
+      els.leaderboard.innerHTML = rows.map((row) => `
+        <div class="leaderboard__row ${String(row.userId) === String(playerId) ? "is-me" : ""}">
+          <span class="leaderboard__rank">#${row.rank}</span>
+          <span class="leaderboard__name">${row.name}</span>
+          <strong class="leaderboard__score">${row.trophies} 🏆</strong>
+          <span class="leaderboard__wave">A${row.bestWave}</span>
+        </div>
+      `).join("");
+    } catch {
+      els.leaderboard.innerHTML = `<div class="leaderboard__empty">Ranks offline — keep climbing locally.</div>`;
+    }
+  }
+
+  async function shareInvite() {
+    const link = getInviteLink();
+    const text = `Merge heroes. Climb arenas. Join my MERGE ARENA squad:\n${link}`;
+    const tg = window.Telegram && window.Telegram.WebApp;
+    playTone("click");
+    if (tg && typeof tg.openTelegramLink === "function") {
+      tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent("Merge heroes with me in MERGE ARENA!")}`);
+      return;
+    }
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "MERGE ARENA", text, url: link });
+        return;
+      } catch {
+        // fall through
+      }
+    }
+    await copyInvite();
+  }
+
+  async function copyInvite() {
+    const link = getInviteLink();
+    try {
+      await navigator.clipboard.writeText(link);
+      showToast("Invite link copied");
+    } catch {
+      window.prompt("Copy invite link", link);
+    }
+    playTone("click");
   }
 
   function bindUnitDrag(node, index) {
@@ -916,6 +1253,7 @@
       renderBoard();
       cheerBuddy("merge");
       showToast(`Fusion! ${defById(merged.id).name} L${merged.level}`);
+      playTone("merge");
       haptic("success");
       return;
     }
@@ -956,6 +1294,7 @@
     if (!forceId) {
       cheerBuddy("summon");
       showToast(`${defById(id).name} enters the arena`);
+      playTone("summon");
     }
     haptic("light");
     return true;
@@ -980,30 +1319,43 @@
     saveState();
     renderHud();
     cheerBuddy("fight");
+    playTone("hit");
 
     const wave = state.wave;
     const enemy = enemyPower(wave);
+    const syn = activeSynergies();
     els.battleModal.hidden = false;
+    if (els.battleStage) els.battleStage.classList.add("is-fighting");
     els.fighterYou.textContent = `YOU ${power}`;
     els.fighterEnemy.textContent = `L${wave} ${enemy}`;
     els.youBar.style.width = "100%";
     els.enemyBar.style.width = "100%";
-    els.battleLog.textContent = "Clash ignites…";
+    els.battleLog.textContent = syn.length
+      ? `${syn[0].label} ignites the clash…`
+      : "Clash ignites…";
+    if (els.battleFx) els.battleFx.textContent = "💥";
 
-    await wait(700);
+    await wait(500);
     els.battleLog.textContent = "Heroes collide!";
-    await wait(700);
+    playTone("hit");
+    await wait(400);
 
-    // visual HP race based on power ratio
     const youRatio = power / (power + enemy);
-    const steps = 8;
+    const steps = 10;
     for (let i = 1; i <= steps; i += 1) {
       const progress = i / steps;
       const youLeft = Math.max(0, 100 - progress * 100 * (1 - youRatio) * 1.35);
       const enemyLeft = Math.max(0, 100 - progress * 100 * youRatio * 1.35);
       els.youBar.style.width = `${youLeft}%`;
       els.enemyBar.style.width = `${enemyLeft}%`;
-      await wait(120);
+      if (els.battleStage) {
+        els.battleStage.classList.toggle("is-shake", i % 2 === 0);
+      }
+      if (els.battleFx) {
+        els.battleFx.textContent = i % 3 === 0 ? "⚡" : i % 2 === 0 ? "💥" : "✦";
+      }
+      if (i % 2 === 0) playTone("hit");
+      await wait(110);
     }
 
     const won = power >= enemy;
@@ -1018,14 +1370,14 @@
       state.gems += gemGain;
       state.wave += 1;
       state.bestWave = Math.max(state.bestWave, state.wave);
-      // consume 1 random weakest unit as battle cost feel
       consumeWeakest();
       saveState();
       els.battleModal.hidden = true;
+      if (els.battleStage) els.battleStage.classList.remove("is-fighting", "is-shake");
       showResult(true, wave, trophyGain, gemGain);
+      playTone("win");
       haptic("success");
     } else {
-      // soft loss: lose some trophies, keep wave
       const loss = Math.min(state.trophies, 4 + Math.floor(wave / 2));
       const gemGain = 5;
       state.trophies = Math.max(0, state.trophies - loss);
@@ -1033,7 +1385,9 @@
       consumeWeakest();
       saveState();
       els.battleModal.hidden = true;
+      if (els.battleStage) els.battleStage.classList.remove("is-fighting", "is-shake");
       showResult(false, wave, -loss, gemGain);
+      playTone("lose");
       haptic("error");
     }
 
@@ -1071,6 +1425,10 @@
   }
 
   function openPay(productId) {
+    if (productId === "ad_energy") {
+      watchAdForEnergy();
+      return;
+    }
     if (GEM_SHOP[productId]) {
       openGemSpend(productId);
       return;
@@ -1081,6 +1439,9 @@
     els.payTitle.textContent = product.title;
     els.payText.textContent = `${product.text} · Exact price: ${product.stars} Stars`;
     if (els.payConfirm) els.payConfirm.textContent = "Pay Stars";
+    if (els.payNote) {
+      els.payNote.textContent = "Opens Telegram Stars invoice when available.";
+    }
     els.payModal.hidden = false;
   }
 
@@ -1100,7 +1461,7 @@
     if (els.payConfirm) els.payConfirm.textContent = "Pay Stars";
   }
 
-  function confirmPay() {
+  async function confirmPay() {
     if (!pendingPurchase) return;
     const productId = pendingPurchase;
 
@@ -1127,6 +1488,7 @@
       renderBoard();
       renderHud();
       cheerBuddy("summon");
+      playTone("claim");
       showToast(loot ? `${product.title}: ${loot}` : `${product.title} unlocked`);
       haptic("success");
       if (
@@ -1142,7 +1504,57 @@
     const product = SHOP[productId];
     if (!product) return;
 
-    // Demo Stars purchase — exact item, no RNG shop packs.
+    const tg = window.Telegram && window.Telegram.WebApp;
+    const canInvoice = Boolean(sessionToken && tg && typeof tg.openInvoice === "function");
+
+    if (canInvoice) {
+      try {
+        if (els.payConfirm) {
+          els.payConfirm.disabled = true;
+          els.payConfirm.textContent = "Opening…";
+        }
+        const { ok, result } = await api("/api/merge-arena/stars/invoice", {
+          method: "POST",
+          body: { productId }
+        });
+        if (!ok || !result?.invoiceLink) {
+          throw new Error((result && result.error) || "Invoice unavailable");
+        }
+        closePay();
+        tg.openInvoice(String(result.invoiceLink), (status) => {
+          if (status === "paid") {
+            const err = product.apply(state);
+            if (typeof err === "string") {
+              showToast(err);
+              return;
+            }
+            saveState();
+            renderBoard();
+            renderHud();
+            playTone("claim");
+            haptic("success");
+            showToast(`${product.title} secured with Stars`);
+            if (productId === "rare_summon" || productId === "epic_summon" || productId === "legend_summon") {
+              switchView("play");
+            }
+          } else if (status === "cancelled") {
+            showToast("Payment cancelled");
+          } else if (status === "failed") {
+            showToast("Payment failed");
+          }
+        });
+        return;
+      } catch (error) {
+        showToast((error && error.message) || "Stars invoice failed — using demo.");
+      } finally {
+        if (els.payConfirm) {
+          els.payConfirm.disabled = false;
+          els.payConfirm.textContent = "Pay Stars";
+        }
+      }
+    }
+
+    // Demo Stars purchase fallback
     const ok = window.confirm(
       `Pay ${product.stars} Stars for ${product.title}?\n\nYou get exactly what is listed.`
     );
@@ -1159,6 +1571,7 @@
     closePay();
     renderBoard();
     renderHud();
+    playTone("claim");
     showToast(`${product.title} secured`);
     haptic("success");
     if (productId === "rare_summon" || productId === "epic_summon" || productId === "legend_summon") {
@@ -1255,6 +1668,24 @@
         showToast(`Gem Vault open · ${state.gems} 💎 ready`);
       });
     }
+    if (els.dailyClaim) els.dailyClaim.addEventListener("click", () => claimDaily());
+    if (els.inviteShare) els.inviteShare.addEventListener("click", () => shareInvite());
+    if (els.inviteCopy) els.inviteCopy.addEventListener("click", () => copyInvite());
+    if (els.adEnergyBtn) {
+      els.adEnergyBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        watchAdForEnergy();
+      });
+    }
+    if (els.soundToggle) {
+      els.soundToggle.addEventListener("click", () => {
+        state.soundOn = !state.soundOn;
+        els.soundToggle.textContent = state.soundOn ? "🔊" : "🔇";
+        saveState();
+        if (state.soundOn) playTone("click");
+        showToast(state.soundOn ? "Sound on" : "Sound muted");
+      });
+    }
     if (els.cloudChip) {
       els.cloudChip.addEventListener("click", () => {
         connectCloud();
@@ -1297,6 +1728,7 @@
 
   function boot() {
     initTelegram();
+    initAdsGram();
     fitViewport();
     window.addEventListener("resize", fitViewport);
     if (window.visualViewport) {
@@ -1304,18 +1736,25 @@
     }
     seedIfEmpty();
     bind();
+    if (els.soundToggle) els.soundToggle.textContent = state.soundOn ? "🔊" : "🔇";
     renderBoard();
     cheerBuddy("idle");
     renderRoster();
     renderGlory();
     openTutorial();
-    connectCloud();
+    connectCloud().then(() => {
+      applyReferralIfNeeded();
+      renderInvite();
+    });
     const tag = document.getElementById("buildTag");
     if (tag) {
-      setTimeout(() => showToast(`Build ${tag.textContent} · ${UNIT_DEFS.length} heroes live`), 500);
+      setTimeout(() => showToast(`Build ${tag.textContent} · full pack live`), 500);
+    }
+    if (state.dailyClaimDate !== todayKey()) {
+      setTimeout(() => showToast("Daily Chest ready in Glory"), 1400);
     }
     if (state.energy <= 3) {
-      setTimeout(() => showToast("Energy low — Star Market keeps you climbing."), 900);
+      setTimeout(() => showToast("Energy low — Watch & Charge or Star Market."), 2200);
     }
   }
 

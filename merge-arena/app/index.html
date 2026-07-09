@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@600;700;800&family=Exo+2:wght@500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="../arena.css?v=26" />
+  <link rel="stylesheet" href="../arena.css?v=27" />
 </head>
 <body>
   <div class="fx" aria-hidden="true">
@@ -39,7 +39,7 @@
     <header class="hud">
       <div class="brand">
         <span class="brand__mark" aria-hidden="true">MA</span>
-        <strong class="brand__name">MERGE ARENA <em class="build-tag" id="buildTag">v26</em></strong>
+        <strong class="brand__name">MERGE ARENA <em class="build-tag" id="buildTag">v27</em></strong>
       </div>
       <div class="hud__stats">
         <button class="chip chip--energy" id="energyChip" type="button" title="Buy energy">
@@ -55,6 +55,7 @@
       <button class="cloud-dot" id="cloudChip" type="button" title="Cloud" aria-label="Cloud status">
         <strong id="cloudValue">·</strong>
       </button>
+      <button class="sound-dot" id="soundToggle" type="button" title="Sound" aria-label="Toggle sound">🔊</button>
     </header>
 
     <main class="stage">
@@ -189,6 +190,16 @@
           <button class="offer__cta" type="button">Spend</button>
         </article>
 
+        <article class="offer offer--ad" id="adEnergyOffer" data-buy="ad_energy">
+          <div class="offer__visual offer__visual--ad">▶</div>
+          <div class="offer__body">
+            <h3>Watch & Charge</h3>
+            <p>Short ad → +4 energy. Free soft refill.</p>
+            <div class="offer__meta"><span>Rewarded</span><strong>FREE</strong></div>
+          </div>
+          <button class="offer__cta" type="button" id="adEnergyBtn">Watch</button>
+        </article>
+
         <p class="shop-lane">★ Stars</p>
 
         <article class="offer offer--hero" data-buy="energy_refill">
@@ -265,8 +276,20 @@
       <section class="view" id="view-rank" data-view="rank" hidden>
         <div class="section-head">
           <h2>Glory Track</h2>
-          <p>Clear arenas. Stack trophies. Flex the climb.</p>
+          <p>Daily loot. Global climb. Invite friends.</p>
         </div>
+
+        <div class="daily-card" id="dailyCard">
+          <div class="daily-card__top">
+            <div>
+              <p class="daily-card__label">Daily Chest</p>
+              <strong id="dailyStreak">Streak 0</strong>
+            </div>
+            <button class="btn btn--battle daily-card__cta" id="dailyClaim" type="button">Claim</button>
+          </div>
+          <p class="daily-card__tip" id="dailyTip">Come back every day for bigger gem + energy loot.</p>
+        </div>
+
         <div class="glory-card">
           <div class="glory-card__ring">
             <strong id="gloryWave">1</strong>
@@ -279,9 +302,35 @@
             <li><span>Peak Power</span><strong id="gloryPower">0</strong></li>
           </ul>
         </div>
+
+        <div class="synergy-card" id="synergyCard">
+          <h3>Active Synergies</h3>
+          <p id="synergyText">Put matching roles together for bonus power.</p>
+        </div>
+
+        <div class="invite-card">
+          <h3>Invite Squad</h3>
+          <p>Friends who join via your link give you +40 💎 and +3 ⚡.</p>
+          <div class="invite-card__row">
+            <button class="btn btn--summon" id="inviteShare" type="button"><span>Share link</span></button>
+            <button class="btn btn--ghost" id="inviteCopy" type="button"><span>Copy</span></button>
+          </div>
+          <p class="invite-card__meta" id="inviteMeta">0 friends joined</p>
+        </div>
+
+        <div class="board-section">
+          <div class="section-head section-head--compact">
+            <h2>Top Arena</h2>
+            <p>Live trophy climb</p>
+          </div>
+          <div class="leaderboard" id="leaderboard" aria-live="polite">
+            <div class="leaderboard__empty">Loading ranks…</div>
+          </div>
+        </div>
+
         <div class="tip-card">
           <h3>Pro rhythm</h3>
-          <p>Get Hero → fuse matches → Enter Fight when power leads → Shop if you stall.</p>
+          <p>Claim daily → Get Hero → fuse matches → Enter Fight when power leads → Shop if you stall.</p>
         </div>
       </section>
     </main>
@@ -302,6 +351,7 @@
         <div class="fighter fighter--you" id="fighterYou">YOU</div>
         <div class="vs">VS</div>
         <div class="fighter fighter--enemy" id="fighterEnemy">LEVEL</div>
+        <div class="battle-fx" id="battleFx" aria-hidden="true"></div>
       </div>
       <div class="battle-bars">
         <div class="bar"><span id="youBar"></span></div>
@@ -330,11 +380,12 @@
         <button class="btn btn--ghost" id="payCancel" type="button">Not now</button>
         <button class="btn btn--battle" id="payConfirm" type="button">Pay Stars</button>
       </div>
-      <p class="pay-note">Demo Stars checkout — live Telegram Stars next.</p>
+      <p class="pay-note" id="payNote">Telegram Stars checkout when available — otherwise demo confirm.</p>
     </div>
   </div>
 
+  <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
   <script src="../../config.js"></script>
-  <script src="../arena.js?v=26"></script>
+  <script src="../arena.js?v=27"></script>
 </body>
 </html>
