@@ -1062,6 +1062,7 @@
         node.dataset.vibe = def.vibe || "zap";
         node.dataset.hero = def.id;
         node.dataset.index = String(i);
+        node.style.animationDelay = `${(i % 4) * 0.08}s, ${(i % 5) * 0.18}s`;
         node.innerHTML = `
           <span class="unit__lvl">L${unit.level}</span>
           <div class="unit__stage">
