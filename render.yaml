@@ -79,8 +79,10 @@ services:
         value: https://merge-arena-api.onrender.com
       - key: STARS_WEBHOOK_SECRET
         sync: false
+      # Keep true unless this worker alone owns MergeArenaBot.
+      # /start welcome is handled by merge-arena-api polling.
       - key: DISABLE_BOT_POLLING
-        value: "false"
+        value: "true"
       - key: OWNER_TELEGRAM_ID
         sync: false
       - key: PLAY_BUTTON_TEXT

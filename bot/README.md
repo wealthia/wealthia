@@ -16,7 +16,7 @@ Environment:
 - `WEBAPP_URL` — `https://wealthia.github.io/wealthia/merge-arena/app/?v=47`
 - `BOT_USERNAME` — `MergeArenaBot`
 - `PLAY_BUTTON_TEXT` — `Play MERGE ARENA`
-- `DISABLE_BOT_POLLING` — `false` (needed for `/start` welcome)
+- `DISABLE_BOT_POLLING` — `true` when merge-arena-api owns `/start` polling (default for this worker)
 
 ### 3. Test
 Send `/start` to `@MergeArenaBot`.
