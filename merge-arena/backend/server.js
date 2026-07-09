@@ -10,14 +10,14 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 // Hard pin so stale Render env cannot keep Telegram on an old cached URL.
-const WEBAPP_URL = "https://wealthia.github.io/wealthia/merge-arena/app/?v=40";
+const WEBAPP_URL = "https://wealthia.github.io/wealthia/merge-arena/app/?v=41";
 const PLAY_BUTTON_TEXT = process.env.PLAY_BUTTON_TEXT || "Play MERGE ARENA";
 const SESSION_SECRET =
   process.env.SESSION_SECRET || TELEGRAM_BOT_TOKEN || "merge-arena-dev-secret";
 
 const STAR_PRODUCTS = {
-  energy_refill: { title: "Full Charge", description: "Snap back to 12 energy.", stars: 35 },
-  energy_pack: { title: "Energy Sip", description: "+6 energy.", stars: 25 },
+  energy_refill: { title: "Full Charge", description: "Snap back to 14 energy.", stars: 30 },
+  energy_pack: { title: "Energy Sip", description: "+6 energy.", stars: 20 },
   rare_summon: { title: "Rare Drop", description: "Guaranteed Rare on your board.", stars: 40 },
   epic_summon: { title: "Epic Strike", description: "Guaranteed Epic on your board.", stars: 90 },
   legend_summon: { title: "Legend Call", description: "Guaranteed Legendary on your board.", stars: 180 },
@@ -186,7 +186,7 @@ function sanitizeState(input) {
     board.push(sanitizeUnit(boardIn[i]));
   }
   return {
-    energy: Math.max(0, Math.min(12, Math.floor(Number(raw.energy) || 0))),
+    energy: Math.max(0, Math.min(14, Math.floor(Number(raw.energy) || 0))),
     gems: Math.max(0, Math.floor(Number(raw.gems) || 0)),
     trophies: Math.max(0, Math.floor(Number(raw.trophies) || 0)),
     wave: Math.max(1, Math.floor(Number(raw.wave) || 1)),
@@ -249,8 +249,8 @@ async function ensureArenaRowIfMissing(userId) {
   if (existing) return { created: false, data: existing };
 
   const fresh = {
-    energy: 8,
-    gems: 80,
+    energy: 10,
+    gems: 45,
     trophies: 0,
     wave: 1,
     bestWave: 1,

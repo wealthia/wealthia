@@ -5,11 +5,11 @@
   const COLS = 4;
   const ROWS = 4;
   const SIZE = COLS * ROWS;
-  // Tight energy economy — slow regen pushes Stars / gems spends.
-  const ENERGY_MAX = 12;
-  const ENERGY_REGEN_MS = 4 * 60 * 1000; // 1⚡ every 4 minutes
-  const AD_ENERGY_GAIN = 2;
-  const AD_ENERGY_COOLDOWN_MS = 3 * 60 * 1000;
+  // Mid energy economy — playable sessions, still need Stars/gems to spam.
+  const ENERGY_MAX = 14;
+  const ENERGY_REGEN_MS = 150000; // 1⚡ every 2.5 minutes
+  const AD_ENERGY_GAIN = 3;
+  const AD_ENERGY_COOLDOWN_MS = 2 * 60 * 1000;
 
   // 50 heroes — commons fuel merges; rares/epics/legends carry late gates
   const UNIT_DEFS = [
@@ -85,7 +85,7 @@
     energy_refill: {
       title: "Full Charge",
       text: `Snap back to ${ENERGY_MAX} energy and keep climbing.`,
-      stars: 35,
+      stars: 30,
       apply(state) {
         state.energy = ENERGY_MAX;
         state.lastEnergyAt = Date.now();
@@ -94,7 +94,7 @@
     energy_pack: {
       title: "Energy Sip",
       text: "+6 energy for one more merge run.",
-      stars: 25,
+      stars: 20,
       apply(state) {
         state.energy = Math.min(ENERGY_MAX, state.energy + 6);
         state.lastEnergyAt = Date.now();
@@ -147,7 +147,7 @@
     gem_energy_sip: {
       title: "Crystal Sip",
       text: "+3 energy from your gem stash.",
-      gems: 90,
+      gems: 75,
       apply(st) {
         st.energy = Math.min(ENERGY_MAX, st.energy + 3);
         st.lastEnergyAt = Date.now();
@@ -183,7 +183,7 @@
             st.board[j] = merged;
             st.board[i] = null;
             st.merges += 1;
-            st.gems += merged.level >= 4 ? 15 : 5;
+            st.gems += merged.level >= 4 ? 6 : 2;
             if (!st.discovered.includes(merged.id)) st.discovered.push(merged.id);
             st._lastGemLoot = `${defById(merged.id).name} L${merged.level}`;
             return null;
@@ -245,8 +245,8 @@
   ];
 
   const defaultState = () => ({
-    energy: 8,
-    gems: 80,
+    energy: 10,
+    gems: 45,
     trophies: 0,
     wave: 1,
     bestWave: 1,
@@ -291,27 +291,27 @@
   const DAILY_EVENTS = [
     { id: "power", title: "Power Hour", text: "+12% squad power all day.", power: 0.12 },
     { id: "fuse", title: "Double Fuse", text: "Merges grant +1 bonus XP on Glory Pass.", fuseXp: 1 },
-    { id: "gems", title: "Gem Rain", text: "+25% gems from wins today.", gemMult: 1.25 },
-    { id: "boss", title: "Boss Rush", text: "Boss fights drop +40 extra gems.", bossGems: 40 },
-    { id: "energy", title: "Spark Day", text: "Get Hero refunds 1 energy every 5th summon.", summonRefund: 5 }
+    { id: "gems", title: "Gem Rain", text: "+15% gems from wins today.", gemMult: 1.15 },
+    { id: "boss", title: "Boss Rush", text: "Boss fights drop +12 extra gems.", bossGems: 12 },
+    { id: "energy", title: "Spark Day", text: "Get Hero refunds 1 energy every 4th summon.", summonRefund: 4 }
   ];
 
   const QUEST_DEFS = [
-    { id: "summon3", label: "Summon 3 heroes", target: 3, key: "summons", reward: { gems: 25 } },
-    { id: "merge5", label: "Fuse 5 times", target: 5, key: "merges", reward: { gems: 40 } },
-    { id: "win2", label: "Win 2 fights", target: 2, key: "wins", reward: { gems: 50, energy: 1 } },
-    { id: "ghost1", label: "Beat 1 Ghost Rival", target: 1, key: "ghosts", reward: { gems: 35 } }
+    { id: "summon3", label: "Summon 3 heroes", target: 3, key: "summons", reward: { gems: 12 } },
+    { id: "merge5", label: "Fuse 5 times", target: 5, key: "merges", reward: { gems: 18 } },
+    { id: "win2", label: "Win 2 fights", target: 2, key: "wins", reward: { gems: 22, energy: 1 } },
+    { id: "ghost1", label: "Beat 1 Ghost Rival", target: 1, key: "ghosts", reward: { gems: 15 } }
   ];
 
   const PASS_TRACK = [
     { xp: 0, label: "Kickoff", reward: { text: "Ready" } },
-    { xp: 40, label: "Tier 1", reward: { gems: 40 } },
+    { xp: 40, label: "Tier 1", reward: { gems: 20 } },
     { xp: 90, label: "Tier 2", reward: { energy: 1 } },
-    { xp: 150, label: "Tier 3", reward: { gems: 80 } },
-    { xp: 230, label: "Tier 4", reward: { gems: 120 } },
+    { xp: 150, label: "Tier 3", reward: { gems: 35 } },
+    { xp: 230, label: "Tier 4", reward: { gems: 50 } },
     { xp: 330, label: "Tier 5", reward: { energy: 2 } },
-    { xp: 450, label: "Tier 6", reward: { gems: 200 } },
-    { xp: 600, label: "Panda Cap", reward: { gems: 350 } }
+    { xp: 450, label: "Tier 6", reward: { gems: 80 } },
+    { xp: 600, label: "Panda Cap", reward: { gems: 140 } }
   ];
 
   const ROLE_ABILITY = {
@@ -867,7 +867,7 @@
       const prevIdx = RANK_TIERS.findIndex((t) => t.id === state.lastRankId);
       const nextIdx = RANK_TIERS.findIndex((t) => t.id === tier.id);
       if (nextIdx > prevIdx) {
-        state.gems += 40 + nextIdx * 20;
+        state.gems += 18 + nextIdx * 8;
         showToast(`${tier.emoji} Rank up · ${tier.name}!`);
         playTone("win");
         haptic("success");
@@ -887,10 +887,10 @@
 
   function dailyRewardForStreak(streak) {
     const s = Math.max(1, streak);
-    // 7-day ladder peaks harder on gems; energy stays scarce
-    const ladder = s >= 7 ? 1.35 : 1;
+    // Lean daily gems — Crystal Sip should still feel costly
+    const ladder = s >= 7 ? 1.25 : 1;
     return {
-      gems: Math.round((30 + s * 18) * ladder),
+      gems: Math.round((14 + s * 8) * ladder),
       energy: Math.min(3, 1 + Math.floor((s - 1) / 3) + (s >= 7 ? 1 : 0))
     };
   }
@@ -964,8 +964,8 @@
     if (!me || ref === me) return;
     state.referredBy = ref;
     state.referralClaimed = true;
-    state.gems += 25;
-    state.energy = Math.min(ENERGY_MAX, Number(state.energy || 0) + 4);
+    state.gems += 18;
+    state.energy = Math.min(ENERGY_MAX, Number(state.energy || 0) + 3);
     state.lastEnergyAt = Date.now();
     // Credit inviter locally when this device is the inviter later via invite meta;
     // also stash a one-time inviter bonus marker for cloud-aware clients.
@@ -977,7 +977,7 @@
       // ignore
     }
     saveState();
-    showToast("Welcome gift: +25 💎 · +4 ⚡");
+    showToast("Welcome gift: +18 💎 · +3 ⚡");
   }
 
   function collectPendingInviteBonus() {
@@ -988,11 +988,11 @@
       if (n <= 0) return;
       localStorage.removeItem(key);
       state.referralCount = Number(state.referralCount || 0) + n;
-      state.gems += n * 40;
-      state.energy = Math.min(ENERGY_MAX, Number(state.energy || 0) + Math.min(6, n * 2));
+      state.gems += n * 25;
+      state.energy = Math.min(ENERGY_MAX, Number(state.energy || 0) + Math.min(4, n * 2));
       state.lastEnergyAt = Date.now();
       saveState();
-      showToast(`Invite bonus · ${n} friend${n > 1 ? "s" : ""} · +${n * 40} 💎 · +${Math.min(6, n * 2)} ⚡`);
+      showToast(`Invite bonus · ${n} friend${n > 1 ? "s" : ""} · +${n * 25} 💎 · +${Math.min(4, n * 2)} ⚡`);
     } catch {
       // ignore
     }
@@ -1411,7 +1411,7 @@
     regenEnergy();
     els.energyValue.textContent = String(state.energy);
     if (els.energyChip) {
-      const mins = Math.round(ENERGY_REGEN_MS / 60000);
+      const mins = (ENERGY_REGEN_MS / 60000).toFixed(1).replace(/\.0$/, "");
       els.energyChip.title = `Energy ${state.energy}/${ENERGY_MAX} · +1⚡ / ${mins}m · tap to buy`;
     }
     els.gemValue.textContent = String(state.gems);
@@ -1969,7 +1969,7 @@
       state.board[to] = merged;
       state.board[from] = null;
       state.merges += 1;
-      state.gems += merged.level >= 4 ? 25 : 10;
+      state.gems += merged.level >= 4 ? 8 : 3;
       discover(merged.id);
       bumpQuest("merges");
       const ev = todayEvent();
@@ -2121,16 +2121,17 @@
 
     if (won) {
       let trophyGain = 8 + wave * 2;
-      let gemGain = 20 + wave * 5;
+      // Lean crystal drip — wins feel good, but Crystal Sip still needs Stars/gems buys
+      let gemGain = 5 + Math.floor(wave * 1.5);
       if (boss) {
         trophyGain += 20;
-        gemGain += 60;
+        gemGain += 14;
         const ev = todayEvent();
         if (ev.bossGems) gemGain += ev.bossGems;
       }
       if (hard) {
         trophyGain += 35;
-        gemGain += 120;
+        gemGain += 28;
       }
       const ev = todayEvent();
       if (ev.gemMult) gemGain = Math.round(gemGain * ev.gemMult);
@@ -2165,7 +2166,7 @@
       }
     } else {
       const loss = Math.min(state.trophies, (hard ? 12 : boss ? 8 : 4) + Math.floor(wave / 2));
-      const gemGain = hard ? 18 : boss ? 12 : 5;
+      const gemGain = hard ? 6 : boss ? 4 : 2;
       state.trophies = Math.max(0, state.trophies - loss);
       state.gems += gemGain;
       checkRankUp();
@@ -2230,7 +2231,7 @@
 
     const won = power >= rival;
     if (won) {
-      const gems = 18 + Math.floor(state.wave * 2);
+      const gems = 8 + Math.floor(state.wave * 0.8);
       const trophies = 4 + Math.floor(state.wave / 3);
       state.ghostWins = Number(state.ghostWins || 0) + 1;
       state.gems += gems;
@@ -2248,7 +2249,7 @@
       playTone("ghost");
       haptic("success");
     } else {
-      const gems = 6;
+      const gems = 2;
       state.gems += gems;
       saveState();
       els.battleModal.hidden = true;
@@ -2663,7 +2664,7 @@
     });
     const tag = document.getElementById("buildTag");
     if (tag) {
-      setTimeout(() => showToast(`Build ${tag.textContent} · scarce energy`), 500);
+      setTimeout(() => showToast(`Build ${tag.textContent} · mid economy`), 500);
     }
     if (state.dailyClaimDate !== todayKey()) {
       setTimeout(() => showToast("Daily Chest ready in Glory"), 1400);
