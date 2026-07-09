@@ -259,9 +259,9 @@
       const authed = await ensureSession();
       if (!authed) return;
       await loadCloudState();
+      seedIfEmpty();
       cloudReady = true;
       const saved = await pushCloudState();
-      seedIfEmpty();
       renderBoard();
       renderRoster();
       renderGlory();

@@ -108,10 +108,23 @@ function requirePlayer(req, res, next) {
   next();
 }
 
+function sanitizeUnit(unit) {
+  if (!unit || typeof unit !== "object") return null;
+  return {
+    uid: String(unit.uid || ""),
+    id: String(unit.id || "spark"),
+    level: Math.max(1, Math.min(8, Math.floor(Number(unit.level) || 1))),
+    rarity: String(unit.rarity || "common")
+  };
+}
+
 function sanitizeState(input) {
   const raw = input && typeof input === "object" ? input : {};
-  const board = Array.isArray(raw.board) ? raw.board.slice(0, 16) : [];
-  while (board.length < 16) board.push(null);
+  const boardIn = Array.isArray(raw.board) ? raw.board.slice(0, 16) : [];
+  const board = [];
+  for (let i = 0; i < 16; i += 1) {
+    board.push(sanitizeUnit(boardIn[i]));
+  }
   return {
     energy: Math.max(0, Math.min(20, Math.floor(Number(raw.energy) || 0))),
     gems: Math.max(0, Math.floor(Number(raw.gems) || 0)),
@@ -126,6 +139,28 @@ function sanitizeState(input) {
     board,
     lastEnergyAt: Math.max(0, Math.floor(Number(raw.lastEnergyAt) || Date.now()))
   };
+}
+
+async function ensureArenaRow(userId, stateInput) {
+  const state = sanitizeState(stateInput || {});
+  const payload = {
+    user_id: String(userId),
+    state,
+    trophies: state.trophies,
+    best_wave: state.bestWave,
+    wins: state.wins,
+    merges: state.merges,
+    updated_at: new Date().toISOString()
+  };
+
+  const { data, error } = await supabase
+    .from("merge_arena_states")
+    .upsert(payload, { onConflict: "user_id" })
+    .select("user_id, updated_at")
+    .maybeSingle();
+
+  if (error) throw error;
+  return { payload, data };
 }
 
 app.get("/ping", (_req, res) => {
@@ -166,7 +201,7 @@ app.get("/health", async (_req, res) => {
     database,
     dbError: dbError || undefined,
     telegram,
-    version: "merge-arena-v2"
+    version: "merge-arena-v3"
   });
 });
 
@@ -193,11 +228,40 @@ app.post("/api/merge-arena/session", async (req, res) => {
     );
     if (userError) console.warn("USER_UPSERT:", userError.message);
 
+    // Always create/update a states row on login so Supabase is never empty after session.
+    let stateMeta = null;
+    try {
+      const ensured = await ensureArenaRow(userId, {
+        energy: 12,
+        gems: 80,
+        trophies: 0,
+        wave: 1,
+        bestWave: 1,
+        wins: 0,
+        merges: 0,
+        highestPower: 0,
+        surgeBattles: 0,
+        discovered: ["spark", "blade"],
+        board: Array(16).fill(null),
+        lastEnergyAt: Date.now()
+      });
+      stateMeta = ensured.data || { user_id: userId };
+    } catch (stateError) {
+      console.error("STATE_ENSURE_ERROR:", stateError);
+      res.status(500).json({
+        error: "STATE_ENSURE_FAILED",
+        message: stateError.message || "Could not create merge_arena_states row"
+      });
+      return;
+    }
+
     const session = createSessionToken(userId);
     res.json({
       ok: true,
       token: session.token,
       expiresAt: session.expiresAt,
+      stateCreated: true,
+      stateMeta,
       user: {
         id: userId,
         username: diagnosis.user.username || "",
@@ -240,28 +304,16 @@ app.get("/api/merge-arena/state", requirePlayer, async (req, res) => {
 
 app.post("/api/merge-arena/state", requirePlayer, async (req, res) => {
   try {
-    const state = sanitizeState(req.body?.state);
-    const payload = {
-      user_id: String(req.playerId),
-      state,
-      trophies: state.trophies,
-      best_wave: state.bestWave,
-      wins: state.wins,
-      merges: state.merges,
-      updated_at: new Date().toISOString()
-    };
-
-    const { data, error } = await supabase
-      .from("merge_arena_states")
-      .upsert(payload, { onConflict: "user_id" })
-      .select("updated_at")
-      .single();
-
-    if (error) throw error;
+    const { data, payload } = await ensureArenaRow(req.playerId, req.body?.state);
     res.json({ ok: true, updatedAt: data?.updated_at || payload.updated_at });
   } catch (error) {
     console.error("SAVE_ERROR:", error);
-    res.status(500).json({ error: error.message || "SAVE_FAILED" });
+    res.status(500).json({
+      error: error.message || "SAVE_FAILED",
+      code: error.code || undefined,
+      details: error.details || undefined,
+      hint: error.hint || undefined
+    });
   }
 });
 
