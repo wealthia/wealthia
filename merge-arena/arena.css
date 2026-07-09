@@ -519,6 +519,70 @@ button {
 
 .view.is-active::-webkit-scrollbar { display: none; }
 
+/* Shop: denser cards so less scrolling */
+#view-shop.is-active {
+  gap: 5px;
+  padding-bottom: 2px;
+}
+
+#view-shop .section-head h2 {
+  font-size: 18px;
+  margin-bottom: 0;
+}
+
+#view-shop .section-head p {
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+#view-shop .shop-lane {
+  margin: 2px 0 0;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+#view-shop .offer {
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 7px;
+  padding: 6px 8px;
+  border-radius: 12px;
+}
+
+#view-shop .offer__visual {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  font-size: 15px;
+}
+
+#view-shop .offer__body h3 {
+  margin: 0 0 1px;
+  font-size: 12px;
+}
+
+#view-shop .offer__body p {
+  font-size: 10px;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+#view-shop .offer__meta {
+  margin-top: 3px;
+  gap: 6px;
+  font-size: 10px;
+}
+
+#view-shop .offer__cta {
+  min-width: 46px;
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 10px;
+  font-size: 11px;
+}
+
 /* Play screen: compact board, roomy bottom controls */
 #view-play.is-active {
   grid-template-rows: auto auto auto auto auto auto auto;
@@ -1550,31 +1614,31 @@ button {
 .dock {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 4px;
-  padding: 8px;
-  border-radius: 18px;
+  gap: 3px;
+  padding: 5px;
+  border-radius: 16px;
   border: 1px solid var(--line);
   background: rgba(8, 12, 22, 0.94);
   backdrop-filter: blur(14px);
   flex: 0 0 auto;
   z-index: 5;
-  min-height: 64px;
+  min-height: 52px;
 }
 
 .dock__item {
   display: grid;
-  gap: 3px;
+  gap: 1px;
   place-items: center;
-  padding: 10px 2px;
-  border-radius: 14px;
+  padding: 6px 2px;
+  border-radius: 12px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 700;
 }
 
 .dock__item i {
   font-style: normal;
-  font-size: 18px;
+  font-size: 15px;
   color: #7ec8ff;
 }
 
@@ -1584,7 +1648,7 @@ button {
   position: fixed;
   left: 8px;
   right: 8px;
-  bottom: calc(58px + var(--safe-b));
+  bottom: calc(50px + var(--safe-b));
   z-index: 50;
   width: auto;
   max-width: none;
@@ -1759,9 +1823,9 @@ button {
   .btn { min-height: 50px; }
   .btn span { font-size: 14px; }
   .btn small { font-size: 10px; }
-  .dock { min-height: 60px; padding: 6px; }
-  .dock__item { padding: 8px 2px; font-size: 10px; }
-  .dock__item i { font-size: 16px; }
+  .dock { min-height: 48px; padding: 4px; }
+  .dock__item { padding: 5px 2px; font-size: 8px; }
+  .dock__item i { font-size: 14px; }
   .brand__mark { width: 24px; height: 24px; }
   .unit__icon { font-size: clamp(13px, 3.6vw, 18px); }
   .unit__lvl,
