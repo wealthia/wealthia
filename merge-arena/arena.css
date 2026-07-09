@@ -266,12 +266,13 @@ button {
 
 .view.is-active::-webkit-scrollbar { display: none; }
 
-/* Play screen: screenshot layout, phone-fit */
+/* Play screen: compact board, roomy bottom controls */
 #view-play.is-active {
-  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
-  align-content: stretch;
+  grid-template-rows: auto auto auto auto auto;
+  align-content: start;
+  justify-items: stretch;
   overflow: hidden;
-  gap: 6px;
+  gap: 8px;
 }
 
 #view-play .board-hint {
@@ -328,11 +329,13 @@ button {
 
 .board-wrap {
   position: relative;
-  width: 100%;
+  width: fit-content;
+  max-width: 100%;
   min-width: 0;
   min-height: 0;
-  height: 100%;
-  padding: 3px;
+  height: auto;
+  margin: 0 auto;
+  padding: 4px;
   border-radius: 14px;
   border: 1px solid rgba(61, 255, 200, 0.22);
   background:
@@ -345,6 +348,7 @@ button {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  flex: 0 0 auto;
 }
 
 .board {
@@ -366,11 +370,12 @@ button {
 .play-actions {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-  gap: 8px;
+  gap: 10px;
   width: 100%;
   min-width: 0;
   flex: 0 0 auto;
-  padding: 2px 0;
+  padding: 4px 0 2px;
+  margin-top: 2px;
 }
 
 .play-bar {
@@ -378,7 +383,7 @@ button {
 }
 
 .btn {
-  min-height: 50px;
+  min-height: 54px;
   border-radius: 16px;
   display: grid;
   place-items: center;
@@ -387,7 +392,7 @@ button {
   transition: transform 140ms ease, opacity 140ms ease, box-shadow 140ms ease;
 }
 
-.btn span { font-size: 14px; letter-spacing: 0.03em; }
+.btn span { font-size: 15px; letter-spacing: 0.03em; }
 .btn small { font-size: 11px; opacity: 0.85; font-weight: 700; }
 
 .strip-card {
@@ -850,30 +855,30 @@ button {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 4px;
-  padding: 6px;
+  padding: 8px;
   border-radius: 18px;
   border: 1px solid var(--line);
   background: rgba(8, 12, 22, 0.94);
   backdrop-filter: blur(14px);
   flex: 0 0 auto;
   z-index: 5;
-  min-height: 58px;
+  min-height: 64px;
 }
 
 .dock__item {
   display: grid;
-  gap: 2px;
+  gap: 3px;
   place-items: center;
-  padding: 8px 2px;
+  padding: 10px 2px;
   border-radius: 14px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
 }
 
 .dock__item i {
   font-style: normal;
-  font-size: 16px;
+  font-size: 18px;
   color: #7ec8ff;
 }
 
@@ -1042,11 +1047,11 @@ button {
 }
 
 @media (max-width: 380px) {
-  .btn { min-height: 48px; }
-  .btn span { font-size: 13px; }
+  .btn { min-height: 50px; }
+  .btn span { font-size: 14px; }
   .section-head h2 { font-size: 17px; }
   .brand__name { font-size: 11px; }
-  .dock__item span { font-size: 9px; }
+  .dock__item span { font-size: 10px; }
 }
 
 @media (max-height: 740px) {
@@ -1055,14 +1060,14 @@ button {
   .wave-bar__power strong { font-size: 15px; }
   .wave-bar__label,
   .wave-bar__power span { font-size: 8px; }
-  .btn { min-height: 48px; }
-  .btn span { font-size: 13px; }
+  .btn { min-height: 50px; }
+  .btn span { font-size: 14px; }
   .btn small { font-size: 10px; }
-  .dock { min-height: 56px; padding: 5px; }
-  .dock__item { padding: 7px 2px; font-size: 9px; }
-  .dock__item i { font-size: 15px; }
+  .dock { min-height: 60px; padding: 6px; }
+  .dock__item { padding: 8px 2px; font-size: 10px; }
+  .dock__item i { font-size: 16px; }
   .brand__mark { width: 24px; height: 24px; }
-  .unit__icon { font-size: clamp(14px, 4vw, 20px); }
+  .unit__icon { font-size: clamp(13px, 3.6vw, 18px); }
   .unit__lvl,
   .unit__pow { font-size: 8px; }
   #view-play .unit-strip { min-height: 48px; max-height: 56px; }
