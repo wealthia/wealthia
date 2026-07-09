@@ -1,19 +1,9 @@
 # MERGE ARENA
 
-Telegram mini-app: combine heroes, grow power, win fights.
+Combine heroes. Fight. Upgrade.
 
-## How to play
-1. Tap **Get Hero**
-2. Drag two same heroes together to combine / upgrade
-3. Tap **Fight!** when your power is higher than the level
+## Play
+https://wealthia.github.io/merge-arena/
 
-## Shop (exact prices)
-- Full Energy — 25★
-- +10 Energy — 15★
-- Rare Hero — 40★
-- Epic Hero — 90★
-- Power Boost — 35★
-- Gem Pack — 50★
-
-## Open
-- `https://wealthia.github.io/wealthia/merge-arena/`
+## GitHub Pages
+Settings → Pages → Deploy from a branch → `main` / `/ (root)`

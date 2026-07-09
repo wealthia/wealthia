@@ -1,35 +1,23 @@
-# MERGE ARENA — new clean repo (2 minutes)
+# MERGE ARENA — wealthia/merge-arena
 
-Wealthia GitHub Pages is broken. Publish this folder as a **new empty repo**.
+Bu qovluqdakı 5 faylı yeni repoya yüklə.
 
-## Create repo
-1. Open https://github.com/new
-2. Owner: your account or `wealthia`
-3. Name: `merge-arena`
-4. Public
-5. **Do not** add README / .gitignore / license
-6. Create repository
+## Upload (30 saniyə)
+1. Aç: https://github.com/wealthia/merge-arena/upload/main
+2. Bu faylları sürüklə:
+   - index.html
+   - arena.css
+   - arena.js
+   - .nojekyll
+   - README.md
+3. Commit changes
 
-## Upload these files
-Upload everything in this folder to the new repo `main` branch:
-- `index.html`
-- `arena.css`
-- `arena.js`
-- `README.md`
-- `.nojekyll`
+## Pages
+Settings → Pages → Deploy from a branch → main / (root) → Save
 
-## Enable Pages
-1. Repo → **Settings** → **Pages**
-2. Source: **Deploy from a branch**
-3. Branch: `main` / folder: `/ (root)`
-4. Save
+## Link
+https://wealthia.github.io/merge-arena/
 
-## Your forever link
-`https://<username>.github.io/merge-arena/`
-
-Example if under wealthia:
-`https://wealthia.github.io/merge-arena/`
-
-## Telegram bot
-BotFather → Menu Button URL:
-`https://wealthia.github.io/merge-arena/`
+## Cursor agent üçün (avtomatik upload)
+Settings → Collaborators → Add people → `cursor` → Write
+Sonra agentə yaz: "yenidən yüklə"
