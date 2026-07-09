@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@600;700;800&family=Exo+2:wght@500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="../arena.css?v=46" />
+  <link rel="stylesheet" href="../arena.css?v=47" />
 </head>
 <body>
   <div class="fx" aria-hidden="true">
@@ -40,7 +40,7 @@
     <header class="hud">
       <div class="brand">
         <span class="brand__mark" aria-hidden="true">MA</span>
-        <strong class="brand__name">MERGE ARENA <em class="build-tag" id="buildTag">v46</em></strong>
+        <strong class="brand__name">MERGE ARENA <em class="build-tag" id="buildTag">v47</em></strong>
       </div>
       <div class="hud__stats">
         <button class="chip chip--energy" id="energyChip" type="button" title="Buy energy">
@@ -205,7 +205,7 @@
           <div class="offer__visual offer__visual--ad">▶</div>
           <div class="offer__body">
             <h3>Watch & Charge</h3>
-            <p>Ad → +4 energy (1m CD).</p>
+            <p id="adMainTip">Telegram ad → +4⚡ (1m CD)</p>
             <div class="offer__meta"><span>Main</span><strong>FREE</strong></div>
           </div>
           <button class="offer__cta" type="button" id="adEnergyBtn">Watch</button>
@@ -215,7 +215,7 @@
           <div class="offer__visual offer__visual--ad">▶</div>
           <div class="offer__body">
             <h3>Quick Charge</h3>
-            <p>2nd ad → +3 energy (1m CD).</p>
+            <p id="adBonusTip">2nd Telegram ad → +3⚡ (1m CD)</p>
             <div class="offer__meta"><span>Bonus</span><strong>FREE</strong></div>
           </div>
           <button class="offer__cta" type="button" id="adBonusBtn">Watch</button>
@@ -481,6 +481,6 @@
   </div>
 
   <script src="../../config.js"></script>
-  <script src="../arena.js?v=46"></script>
+  <script src="../arena.js?v=47"></script>
 </body>
 </html>

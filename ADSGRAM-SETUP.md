@@ -4,10 +4,13 @@ Step-by-step guide to connect rewarded ads and earn money.
 
 **Game URL for AdsGram dashboard:**
 ```
-https://wealthia.github.io/wealthia/merge-arena/
+https://wealthia.github.io/wealthia/merge-arena/app/
 ```
 
-**Bot:** @WealthiaGameBot
+**Bot:** @MergeArenaBot
+
+> AdsGram platform **Bot ID / Direct Link / Web App URL** must match **@MergeArenaBot** exactly.
+> If the platform was created for `@WealthiaGameBot`, ads will not fill inside Merge Arena.
 
 ---
 
