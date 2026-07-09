@@ -1,123 +1,129 @@
 (() => {
-  const STORAGE_KEY = "vitrine_state_v1";
+  const STORAGE_KEY = "vitrine_state_v2";
 
   const MATERIALS = [
-    { id: "silk", name: "Silk", color: "#d9c4a5" },
-    { id: "ink", name: "Ink", color: "#5c6b7a" },
-    { id: "ember", name: "Ember", color: "#c45a3a" },
-    { id: "gilt", name: "Gilt", color: "#e8c484" }
+    { id: "ribbon", name: "Ribbon", color: "#ff6b9d" },
+    { id: "paper", name: "Paper", color: "#5aa8ff" },
+    { id: "charm", name: "Charm", color: "#4dffc3" },
+    { id: "spark", name: "Spark", color: "#ffd166" }
   ];
 
   const GIFTS = [
     {
-      id: "paper_crane",
-      name: "Paper Crane",
+      id: "candy_bow",
+      name: "Candy Bow",
       rarity: "common",
-      blurb: "Folded calm for quiet desks.",
-      recipe: { silk: 1, ink: 1 },
-      stars: 15,
-      gradient: "linear-gradient(160deg, #d7d0c4, #8a8378)"
+      tone: "rose",
+      blurb: "Soft pink wrap for sweet sends.",
+      recipe: { ribbon: 1, paper: 1 },
+      stars: 15
     },
     {
-      id: "aurora_ribbon",
-      name: "Aurora Ribbon",
+      id: "aurora_box",
+      name: "Aurora Box",
       rarity: "rare",
-      blurb: "Soft light wrapped in gilt thread.",
-      recipe: { silk: 1, gilt: 2 },
-      stars: 35,
-      gradient: "linear-gradient(160deg, #f3dfb2, #c9a05a 55%, #7a5224)"
+      tone: "violet",
+      blurb: "Glow wrap with a violet lid.",
+      recipe: { ribbon: 1, spark: 2 },
+      stars: 35
     },
     {
-      id: "ember_lantern",
-      name: "Ember Lantern",
+      id: "mint_parcel",
+      name: "Mint Parcel",
       rarity: "rare",
-      blurb: "Warm glow for late evenings.",
-      recipe: { ember: 2, ink: 1 },
-      stars: 40,
-      gradient: "linear-gradient(160deg, #f0b090, #c45a3a 60%, #5a2a1c)"
+      tone: "mint",
+      blurb: "Fresh mint finish, clean and bright.",
+      recipe: { charm: 2, paper: 1 },
+      stars: 40
     },
     {
-      id: "obsidian_seal",
-      name: "Obsidian Seal",
+      id: "sky_keepsake",
+      name: "Sky Keepsake",
       rarity: "epic",
-      blurb: "A mark that says the piece is yours.",
-      recipe: { ink: 2, gilt: 1, ember: 1 },
-      stars: 75,
-      gradient: "linear-gradient(160deg, #f8e7c2, #8a6a3a 40%, #2a2420 85%)"
+      tone: "sky",
+      blurb: "Blue-box energy for big moments.",
+      recipe: { paper: 2, spark: 1, charm: 1 },
+      stars: 75
     },
     {
-      id: "velvet_case",
-      name: "Velvet Case",
+      id: "sun_crate",
+      name: "Sun Crate",
       rarity: "epic",
-      blurb: "For the gift you refuse to rush.",
-      recipe: { silk: 2, ember: 1, gilt: 1 },
-      stars: 90,
-      gradient: "linear-gradient(160deg, #f8e7c2, #e0a85a 35%, #c45a3a 80%)"
+      tone: "sun",
+      blurb: "Golden crate — the flex piece.",
+      recipe: { spark: 2, ribbon: 1, charm: 1 },
+      stars: 90
     }
   ];
 
   const SHOP_PACKS = [
     {
-      id: "pack_silk",
-      name: "Silk Bundle",
-      blurb: "Exactly 3 Silk",
+      id: "pack_ribbon",
+      name: "Ribbon Pack",
+      blurb: "Exactly 3 Ribbon",
+      tone: "rose",
       stars: 20,
-      materials: { silk: 3 }
+      materials: { ribbon: 3 }
     },
     {
-      id: "pack_gilt",
-      name: "Gilt Filament",
-      blurb: "Exactly 2 Gilt + 1 Ember",
+      id: "pack_spark",
+      name: "Spark Pack",
+      blurb: "Exactly 2 Spark + 1 Charm",
+      tone: "sun",
       stars: 45,
-      materials: { gilt: 2, ember: 1 }
+      materials: { spark: 2, charm: 1 }
     },
     {
-      id: "pack_atelier",
-      name: "Atelier Crate",
+      id: "pack_full",
+      name: "Full Kit",
       blurb: "1 of each material",
+      tone: "violet",
       stars: 60,
-      materials: { silk: 1, ink: 1, ember: 1, gilt: 1 }
+      materials: { ribbon: 1, paper: 1, charm: 1, spark: 1 }
     }
   ];
 
   const defaultState = () => ({
     essence: 0,
-    materials: { silk: 0, ink: 0, ember: 0, gilt: 0 },
+    materials: { ribbon: 0, paper: 0, charm: 0, spark: 0 },
     collection: [],
     lastClaimDate: "",
-    selectedSendId: null,
-    featuredGiftId: "aurora_ribbon"
+    featuredGiftId: "aurora_box"
   });
 
   let state = loadState();
   let toastTimer = null;
   let selectedSendUid = null;
 
+  const $ = (id) => document.getElementById(id);
+
   const els = {
-    essenceValue: document.getElementById("essenceValue"),
-    claimButton: document.getElementById("claimButton"),
-    claimLabel: document.getElementById("claimLabel"),
-    claimHint: document.getElementById("claimHint"),
-    materialStrip: document.getElementById("materialStrip"),
-    recipeList: document.getElementById("recipeList"),
-    craftStage: document.getElementById("craftStage"),
-    craftOrb: document.getElementById("craftOrb"),
-    craftLabel: document.getElementById("craftLabel"),
-    gallery: document.getElementById("gallery"),
-    collectionSummary: document.getElementById("collectionSummary"),
-    shopGrid: document.getElementById("shopGrid"),
-    sendPicker: document.getElementById("sendPicker"),
-    sendButton: document.getElementById("sendButton"),
-    toast: document.getElementById("toast"),
-    revealModal: document.getElementById("revealModal"),
-    revealVisual: document.getElementById("revealVisual"),
-    revealName: document.getElementById("revealName"),
-    revealRarity: document.getElementById("revealRarity"),
-    revealClose: document.getElementById("revealClose"),
-    featuredGift: document.getElementById("featuredGift"),
-    featuredVisual: document.getElementById("featuredVisual"),
-    featuredName: document.getElementById("featuredName"),
-    featuredMeta: document.getElementById("featuredMeta")
+    essenceValue: $("essenceValue"),
+    matsTotal: $("matsTotal"),
+    claimButton: $("claimButton"),
+    claimLabel: $("claimLabel"),
+    goComposeButton: $("goComposeButton"),
+    homeEyebrow: $("homeEyebrow"),
+    homeTitle: $("homeTitle"),
+    homeSub: $("homeSub"),
+    heroBox: $("heroBox"),
+    floatChip: $("floatChip"),
+    materialStrip: $("materialStrip"),
+    recipeList: $("recipeList"),
+    craftStage: $("craftStage"),
+    craftOrb: $("craftOrb"),
+    craftLabel: $("craftLabel"),
+    gallery: $("gallery"),
+    collectionSummary: $("collectionSummary"),
+    shopGrid: $("shopGrid"),
+    sendPicker: $("sendPicker"),
+    sendButton: $("sendButton"),
+    toast: $("toast"),
+    revealModal: $("revealModal"),
+    revealVisual: $("revealVisual"),
+    revealName: $("revealName"),
+    revealRarity: $("revealRarity"),
+    revealClose: $("revealClose")
   };
 
   function todayKey() {
@@ -145,7 +151,6 @@
   }
 
   function showToast(message) {
-    if (!els.toast) return;
     els.toast.hidden = false;
     els.toast.textContent = message;
     clearTimeout(toastTimer);
@@ -158,23 +163,27 @@
     return GIFTS.find((g) => g.id === id) || GIFTS[0];
   }
 
-  function canAffordRecipe(recipe) {
+  function matsCount() {
+    return Object.values(state.materials).reduce((sum, n) => sum + Number(n || 0), 0);
+  }
+
+  function canAfford(recipe) {
     return Object.entries(recipe).every(([key, need]) => Number(state.materials[key] || 0) >= need);
   }
 
-  function spendMaterials(recipe) {
+  function spend(recipe) {
     Object.entries(recipe).forEach(([key, need]) => {
       state.materials[key] = Math.max(0, Number(state.materials[key] || 0) - need);
     });
   }
 
-  function addMaterials(bag) {
+  function addMats(bag) {
     Object.entries(bag).forEach(([key, amount]) => {
       state.materials[key] = Number(state.materials[key] || 0) + Number(amount || 0);
     });
   }
 
-  function recipeLabel(recipe) {
+  function recipeText(recipe) {
     return Object.entries(recipe)
       .map(([key, amount]) => {
         const mat = MATERIALS.find((m) => m.id === key);
@@ -187,16 +196,20 @@
     return state.lastClaimDate === todayKey();
   }
 
+  function wait(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
   function initTelegram() {
     const tg = window.Telegram && window.Telegram.WebApp;
     if (!tg) return;
     try {
       tg.ready();
       tg.expand();
-      if (tg.setHeaderColor) tg.setHeaderColor("#0a0908");
-      if (tg.setBackgroundColor) tg.setBackgroundColor("#070605");
+      if (tg.setHeaderColor) tg.setHeaderColor("#0b1020");
+      if (tg.setBackgroundColor) tg.setBackgroundColor("#0b1020");
     } catch {
-      // Ignore Telegram host quirks in browser preview.
+      // browser preview
     }
   }
 
@@ -206,41 +219,41 @@
       panel.classList.toggle("is-active", active);
       panel.hidden = !active;
     });
-
-    document.querySelectorAll(".dock__item").forEach((btn) => {
+    document.querySelectorAll(".dock__btn").forEach((btn) => {
       btn.classList.toggle("is-active", btn.dataset.nav === name);
     });
-
     if (name === "atelier") renderAtelier();
     if (name === "collection") renderCollection();
     if (name === "shop") renderShop();
     if (name === "send") renderSend();
   }
 
-  function renderHome() {
-    const featured = giftById(state.featuredGiftId);
-    els.featuredGift.dataset.rarity = featured.rarity;
-    els.featuredVisual.style.background = featured.gradient;
-    els.featuredName.textContent = featured.name;
-    els.featuredMeta.textContent = "Today’s showcase · clear craft path";
-
-    const claimed = claimedToday();
-    els.claimButton.classList.toggle("cta--claimed", claimed);
-    els.claimButton.disabled = claimed;
-    els.claimLabel.textContent = claimed ? "Materials claimed today" : "Claim today’s materials";
-    els.claimHint.textContent = claimed
-      ? "Come back tomorrow for a fresh drop"
-      : "+1 Silk · +1 Ink · +1 Gilt";
-  }
-
   function renderWallet() {
     els.essenceValue.textContent = String(state.essence);
+    els.matsTotal.textContent = String(matsCount());
+  }
+
+  function renderHome() {
+    const featured = giftById(state.featuredGiftId);
+    els.heroBox.dataset.tone = featured.tone;
+    els.floatChip.textContent = featured.name;
+
+    const claimed = claimedToday();
+    els.claimButton.classList.toggle("btn--claimed", claimed);
+    els.claimButton.classList.toggle("btn--glow", !claimed);
+    els.claimButton.disabled = claimed;
+    els.claimLabel.textContent = claimed ? "Come back tomorrow" : "Claim today’s kit";
+    els.homeEyebrow.textContent = claimed ? "Kit claimed" : "Today’s drop";
+    els.homeTitle.textContent = claimed ? "Your kit is ready to compose" : "Open your daily gift kit";
+    els.homeSub.textContent = claimed
+      ? "Head to Compose and make a gift with a clear recipe."
+      : "One beautiful drop a day. Craft what you want — no spins, no random wins.";
   }
 
   function renderMaterials() {
     els.materialStrip.innerHTML = MATERIALS.map((mat) => `
-      <article class="material-chip">
-        <div class="material-chip__swatch" style="background:${mat.color}"></div>
+      <article class="mat-chip">
+        <div class="mat-chip__dot" style="background:${mat.color}"></div>
         <strong>${Number(state.materials[mat.id] || 0)}</strong>
         <span>${mat.name}</span>
       </article>
@@ -250,16 +263,16 @@
   function renderAtelier() {
     renderMaterials();
     els.recipeList.innerHTML = GIFTS.map((gift) => {
-      const ready = canAffordRecipe(gift.recipe);
+      const ready = canAfford(gift.recipe);
       return `
-        <button class="recipe-card ${ready ? "" : "is-locked"}" type="button" data-craft="${gift.id}">
-          <div class="recipe-card__preview" data-rarity="${gift.rarity}" style="background:${gift.gradient}"></div>
+        <button class="compose-card ${ready ? "" : "is-locked"}" type="button" data-craft="${gift.id}">
+          <div class="compose-card__box" data-tone="${gift.tone}"></div>
           <div>
             <h3>${gift.name}</h3>
             <p>${gift.blurb}</p>
-            <p>${recipeLabel(gift.recipe)}</p>
+            <p>${recipeText(gift.recipe)}</p>
           </div>
-          <span class="recipe-card__cost">${ready ? "Craft" : "Need more"}</span>
+          <span class="compose-card__cta">${ready ? "Make" : "Need"}</span>
         </button>
       `;
     }).join("");
@@ -274,11 +287,7 @@
     els.collectionSummary.textContent = `${state.collection.length} owned · ${unique.size}/${GIFTS.length} designs`;
 
     if (!state.collection.length) {
-      els.gallery.innerHTML = `
-        <div class="empty-note">
-          Your gallery is empty.<br />Claim materials on Home, then craft in Atelier.
-        </div>
-      `;
+      els.gallery.innerHTML = `<div class="empty-note">No gifts yet.<br/>Claim today’s kit, then Compose one.</div>`;
       return;
     }
 
@@ -288,10 +297,12 @@
       .map((item) => {
         const gift = giftById(item.giftId);
         return `
-          <article class="gift-tile">
-            <div class="gift-tile__visual" style="background:${gift.gradient}"></div>
-            <h3>${gift.name}</h3>
-            <p>${gift.rarity}</p>
+          <article class="gift-card" data-tone="${gift.tone}">
+            <div class="gift-card__box" data-tone="${gift.tone}"></div>
+            <div>
+              <h3>${gift.name}</h3>
+              <p>${gift.rarity}</p>
+            </div>
           </article>
         `;
       })
@@ -300,20 +311,24 @@
 
   function renderShop() {
     const giftCards = GIFTS.map((gift) => `
-      <button class="shop-card" type="button" data-buy-gift="${gift.id}">
-        <div class="shop-card__visual" style="background:${gift.gradient}"></div>
-        <h3>${gift.name}</h3>
-        <p>${gift.rarity} · instant own</p>
-        <span class="shop-card__price">${gift.stars} Stars</span>
+      <button class="offer-card" type="button" data-buy-gift="${gift.id}" data-tone="${gift.tone}">
+        <div class="offer-card__box" data-tone="${gift.tone}"></div>
+        <div>
+          <h3>${gift.name}</h3>
+          <p>${gift.rarity} · exact gift</p>
+        </div>
+        <span class="offer-card__price">${gift.stars} ★</span>
       </button>
     `).join("");
 
     const packCards = SHOP_PACKS.map((pack) => `
-      <button class="shop-card" type="button" data-buy-pack="${pack.id}">
-        <div class="shop-card__visual" style="background:linear-gradient(160deg,#f0d7a8,#6d4a24)"></div>
-        <h3>${pack.name}</h3>
-        <p>${pack.blurb}</p>
-        <span class="shop-card__price">${pack.stars} Stars</span>
+      <button class="offer-card" type="button" data-buy-pack="${pack.id}" data-tone="${pack.tone}">
+        <div class="offer-card__box" data-tone="${pack.tone}"></div>
+        <div>
+          <h3>${pack.name}</h3>
+          <p>${pack.blurb}</p>
+        </div>
+        <span class="offer-card__price">${pack.stars} ★</span>
       </button>
     `).join("");
 
@@ -329,11 +344,7 @@
 
   function renderSend() {
     if (!state.collection.length) {
-      els.sendPicker.innerHTML = `
-        <div class="empty-note">
-          Craft or buy a gift first, then share it with a friend.
-        </div>
-      `;
+      els.sendPicker.innerHTML = `<div class="empty-note">Make a gift first, then share it.</div>`;
       els.sendButton.disabled = true;
       return;
     }
@@ -345,10 +356,12 @@
         const gift = giftById(item.giftId);
         const selected = selectedSendUid === item.uid;
         return `
-          <button class="send-card ${selected ? "is-selected" : ""}" type="button" data-send-uid="${item.uid}">
-            <div class="send-card__visual" style="background:${gift.gradient}"></div>
-            <h3>${gift.name}</h3>
-            <p>${gift.rarity}</p>
+          <button class="gift-card ${selected ? "is-selected" : ""}" type="button" data-send-uid="${item.uid}" data-tone="${gift.tone}">
+            <div class="gift-card__box" data-tone="${gift.tone}"></div>
+            <div>
+              <h3>${gift.name}</h3>
+              <p>${gift.rarity}</p>
+            </div>
           </button>
         `;
       })
@@ -365,7 +378,7 @@
   }
 
   function openReveal(gift) {
-    els.revealVisual.style.background = gift.gradient;
+    els.revealVisual.dataset.tone = gift.tone;
     els.revealName.textContent = gift.name;
     els.revealRarity.textContent = gift.rarity;
     els.revealModal.hidden = false;
@@ -377,24 +390,22 @@
 
   async function craftGift(giftId) {
     const gift = giftById(giftId);
-    if (!canAffordRecipe(gift.recipe)) {
-      showToast("Not enough materials for this recipe.");
+    if (!canAfford(gift.recipe)) {
+      showToast("Need more materials for this gift.");
       return;
     }
 
     els.craftStage.hidden = false;
-    els.craftOrb.style.background = gift.gradient;
-    els.craftLabel.textContent = "Composing…";
-
+    els.craftOrb.dataset.tone = gift.tone;
+    els.craftLabel.textContent = "Wrapping…";
     await wait(1100);
 
-    spendMaterials(gift.recipe);
-    const owned = {
+    spend(gift.recipe);
+    state.collection.push({
       uid: `${gift.id}_${Date.now()}`,
       giftId: gift.id,
       craftedAt: new Date().toISOString()
-    };
-    state.collection.push(owned);
+    });
     state.essence += gift.rarity === "epic" ? 25 : gift.rarity === "rare" ? 12 : 5;
     state.featuredGiftId = gift.id;
     saveState();
@@ -403,34 +414,37 @@
     renderWallet();
     renderAtelier();
     openReveal(gift);
-    showToast(`${gift.name} placed in your gallery.`);
+    showToast(`${gift.name} is yours.`);
   }
 
   function claimDaily() {
     if (claimedToday()) {
-      showToast("Already claimed today. Return tomorrow.");
+      showToast("Already claimed. Come back tomorrow.");
       return;
     }
 
-    addMaterials({ silk: 1, ink: 1, gilt: 1 });
+    addMats({ ribbon: 1, paper: 1, spark: 1 });
     state.lastClaimDate = todayKey();
     state.essence += 3;
     saveState();
     renderWallet();
     renderHome();
-    showToast("Materials claimed · Silk, Ink, Gilt");
+    showToast("Kit claimed · Ribbon, Paper, Spark");
+
+    // playful lid pop
+    els.heroBox.style.animation = "none";
+    void els.heroBox.offsetWidth;
+    els.heroBox.style.animation = "bob 0.6s ease 2";
+
     switchPanel("atelier");
   }
 
   function buyGift(giftId) {
     const gift = giftById(giftId);
-    const tg = window.Telegram && window.Telegram.WebApp;
-
-    // MVP: clear-price purchase simulation until Stars invoice is wired.
-    const confirmBuy = window.confirm(
-      `Buy ${gift.name} for ${gift.stars} Stars?\n\nYou get exactly this gift — no random roll.`
+    const ok = window.confirm(
+      `Get ${gift.name} for ${gift.stars} Stars?\n\nExact gift. No random roll.`
     );
-    if (!confirmBuy) return;
+    if (!ok) return;
 
     state.collection.push({
       uid: `${gift.id}_shop_${Date.now()}`,
@@ -443,86 +457,68 @@
     saveState();
     renderWallet();
     openReveal(gift);
-    showToast(`${gift.name} added · ${gift.stars} Stars (demo purchase)`);
-
-    if (tg && typeof tg.HapticFeedback?.notificationOccurred === "function") {
-      tg.HapticFeedback.notificationOccurred("success");
-    }
+    showToast(`${gift.name} added · ${gift.stars} Stars (demo)`);
   }
 
   function buyPack(packId) {
     const pack = SHOP_PACKS.find((p) => p.id === packId);
     if (!pack) return;
+    const ok = window.confirm(`Get ${pack.name} for ${pack.stars} Stars?\n\n${pack.blurb}`);
+    if (!ok) return;
 
-    const confirmBuy = window.confirm(
-      `Buy ${pack.name} for ${pack.stars} Stars?\n\n${pack.blurb}`
-    );
-    if (!confirmBuy) return;
-
-    addMaterials(pack.materials);
+    addMats(pack.materials);
     state.essence += 5;
     saveState();
     renderWallet();
     renderAtelier();
-    showToast(`${pack.name} delivered · contents as listed`);
+    showToast(`${pack.name} delivered`);
     switchPanel("atelier");
   }
 
-  function shareSelectedGift() {
+  function shareSelected() {
     if (!selectedSendUid) return;
     const item = state.collection.find((entry) => entry.uid === selectedSendUid);
     if (!item) return;
-
     const gift = giftById(item.giftId);
     const text =
-      `I crafted ${gift.name} in VITRINE — a premium gift atelier.\n` +
-      `No spins. Clear recipes. Real collection energy.\n` +
+      `I made ${gift.name} in VITRINE 🎁\n` +
+      `Clear recipes. Exact gifts. No spins.\n` +
       `https://wealthia.github.io/wealthia/vitrine/`;
-
     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent("https://wealthia.github.io/wealthia/vitrine/")}&text=${encodeURIComponent(text)}`;
     const tg = window.Telegram && window.Telegram.WebApp;
 
     try {
       if (tg && typeof tg.openTelegramLink === "function") {
         tg.openTelegramLink(shareUrl);
-        showToast("Pick a friend to share your gift.");
+        showToast("Pick a friend to send it.");
         return;
       }
     } catch {
-      // Fall through.
+      // fall through
     }
 
     if (navigator.share) {
-      navigator.share({ title: "VITRINE", text }).catch(() => {
-        copyFallback(text);
-      });
+      navigator.share({ title: "VITRINE", text }).catch(() => copyText(text));
       return;
     }
-
-    copyFallback(text);
+    copyText(text);
   }
 
-  function copyFallback(text) {
+  function copyText(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(() => showToast("Share text copied."));
       return;
     }
-    showToast("Open Telegram and share your gift card.");
+    showToast("Open Telegram and share your gift.");
   }
 
-  function wait(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  function bindNav() {
-    document.querySelectorAll(".dock__item").forEach((btn) => {
+  function bind() {
+    document.querySelectorAll(".dock__btn").forEach((btn) => {
       btn.addEventListener("click", () => switchPanel(btn.dataset.nav));
     });
-  }
-
-  function bindActions() {
     els.claimButton.addEventListener("click", claimDaily);
-    els.sendButton.addEventListener("click", shareSelectedGift);
+    els.goComposeButton.addEventListener("click", () => switchPanel("atelier"));
+    els.sendButton.addEventListener("click", shareSelected);
     els.revealClose.addEventListener("click", () => {
       closeReveal();
       switchPanel("collection");
@@ -531,8 +527,7 @@
 
   function boot() {
     initTelegram();
-    bindNav();
-    bindActions();
+    bind();
     renderWallet();
     renderHome();
     renderAtelier();
