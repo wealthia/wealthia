@@ -19,54 +19,73 @@
 
   const SHOP = {
     energy_refill: {
-      title: "Full Energy",
-      text: "Fill energy to 20 ⚡ instantly.",
+      title: "Full Charge",
+      text: "Snap back to 20 energy and keep the streak.",
       stars: 25,
       apply(state) {
         state.energy = ENERGY_MAX;
       }
     },
     energy_pack: {
-      title: "+10 Energy",
-      text: "Add 10 energy right now.",
+      title: "Energy Sip",
+      text: "+10 energy for one more merge run.",
       stars: 15,
       apply(state) {
         state.energy = Math.min(ENERGY_MAX, state.energy + 10);
       }
     },
     rare_summon: {
-      title: "Rare Hero",
-      text: "Put a guaranteed Rare hero on your board.",
+      title: "Rare Drop",
+      text: "A guaranteed Rare lands on your board now.",
       stars: 40,
       apply(state) {
         return placeGuaranteed(state, "rare");
       }
     },
     epic_summon: {
-      title: "Epic Hero",
-      text: "Put a guaranteed Epic hero on your board.",
+      title: "Epic Strike",
+      text: "Drop a heavy Epic and swing the fight.",
       stars: 90,
       apply(state) {
         return placeGuaranteed(state, "epic");
       }
     },
     power_surge: {
-      title: "Power Boost",
-      text: "+30% power for your next 3 fights.",
+      title: "Power Surge",
+      text: "+30% squad power for your next 3 fights.",
       stars: 35,
       apply(state) {
         state.surgeBattles = Math.max(0, Number(state.surgeBattles || 0)) + 3;
       }
     },
     gem_starter: {
-      title: "Gem Pack",
-      text: "Receive exactly +500 gems.",
+      title: "Gem Cache",
+      text: "+500 gems. Pure progress fuel.",
       stars: 50,
       apply(state) {
         state.gems += 500;
       }
     }
   };
+
+  const TUTORIAL_KEY = "merge_arena_tutorial_v1";
+  const TUTORIAL_STEPS = [
+    {
+      art: "⚡",
+      title: "Build your squad",
+      text: "Tap Get Hero. Fresh fighters drop onto the arena floor."
+    },
+    {
+      art: "◈",
+      title: "Fuse the twins",
+      text: "Drag two matching heroes together. They merge and level up."
+    },
+    {
+      art: "⚔",
+      title: "Win the clash",
+      text: "When your Squad Power leads, hit Enter Fight and climb."
+    }
+  ];
 
   const defaultState = () => ({
     energy: 12,
@@ -92,6 +111,7 @@
   let cloudReady = false;
   let saveTimer = null;
   let syncing = false;
+  let tutorialIndex = 0;
 
   const $ = (id) => document.getElementById(id);
 
@@ -132,7 +152,15 @@
     gloryTrophies: $("gloryTrophies"),
     gloryWins: $("gloryWins"),
     gloryMerges: $("gloryMerges"),
-    gloryPower: $("gloryPower")
+    gloryPower: $("gloryPower"),
+    tutorial: $("tutorial"),
+    tutorialArt: $("tutorialArt"),
+    tutorialStep: $("tutorialStep"),
+    tutorialTitle: $("tutorialTitle"),
+    tutorialText: $("tutorialText"),
+    tutorialDots: $("tutorialDots"),
+    tutorialNext: $("tutorialNext"),
+    tutorialSkip: $("tutorialSkip")
   };
 
   function loadState() {
@@ -415,7 +443,7 @@
     els.energyValue.textContent = String(state.energy);
     els.gemValue.textContent = String(state.gems);
     els.trophyValue.textContent = String(state.trophies);
-    els.waveTitle.textContent = `Level ${state.wave}`;
+    els.waveTitle.textContent = `Arena ${state.wave}`;
     const power = squadPower();
     els.powerValue.textContent = String(power);
     state.highestPower = Math.max(state.highestPower, power);
@@ -459,7 +487,7 @@
     });
     const entries = Object.entries(counts);
     if (!entries.length) {
-      els.unitStrip.innerHTML = `<div class="strip-card"><strong>Empty</strong><span>Tap Get Hero</span></div>`;
+      els.unitStrip.innerHTML = `<div class="strip-card"><strong>Empty floor</strong><span>Tap Get Hero</span></div>`;
       return;
     }
     els.unitStrip.innerHTML = entries
@@ -581,7 +609,7 @@
       discover(merged.id);
       saveState();
       renderBoard();
-      showToast(`Combined → ${defById(merged.id).name} L${merged.level}!`);
+      showToast(`Fusion! ${defById(merged.id).name} L${merged.level}`);
       haptic("success");
       return;
     }
@@ -595,12 +623,12 @@
   function summon(forceId, forceLevel) {
     const slots = emptySlots();
     if (!slots.length) {
-      showToast("Board full — combine heroes first.");
+      showToast("Board packed — fuse heroes first.");
       return false;
     }
     if (state.energy < 1 && !forceId) {
       openPay("energy_pack");
-      showToast("No energy left. Open Shop.");
+      showToast("Out of energy. Hit the Star Market.");
       return false;
     }
 
@@ -617,7 +645,7 @@
     discover(id);
     saveState();
     renderBoard();
-    if (!forceId) showToast(`${defById(id).name} joined your team`);
+    if (!forceId) showToast(`${defById(id).name} enters the arena`);
     haptic("light");
     return true;
   }
@@ -626,7 +654,7 @@
     if (battleBusy) return;
     const power = squadPower();
     if (power <= 0) {
-      showToast("Get a hero before fighting.");
+      showToast("Recruit a hero before the clash.");
       return;
     }
     if (state.energy < 1) {
@@ -648,10 +676,10 @@
     els.fighterEnemy.textContent = `L${wave} ${enemy}`;
     els.youBar.style.width = "100%";
     els.enemyBar.style.width = "100%";
-    els.battleLog.textContent = "Fight starting…";
+    els.battleLog.textContent = "Clash ignites…";
 
     await wait(700);
-    els.battleLog.textContent = "Heroes clash!";
+    els.battleLog.textContent = "Heroes collide!";
     await wait(700);
 
     // visual HP race based on power ratio
@@ -717,14 +745,14 @@
   function showResult(won, wave, trophies, gems) {
     els.resultModal.hidden = false;
     els.resultEyebrow.textContent = won ? "Victory" : "Defeat";
-    els.resultTitle.textContent = won ? `Level ${wave} Cleared` : `Level ${wave} Failed`;
+    els.resultTitle.textContent = won ? `Arena ${wave} Cleared` : `Arena ${wave} Hold`;
     els.resultText.textContent = won
-      ? "Your team was stronger. Next level unlocked!"
-      : "Combine more heroes, then fight again.";
+      ? "Your squad dominated. Next arena unlocked!"
+      : "Fuse higher and come back swinging.";
     els.resultRewards.innerHTML = `
       <span>${trophies >= 0 ? "+" : ""}${trophies} 🏆</span>
       <span>+${Math.max(0, gems)} 💎</span>
-      ${won ? "<span>Next level unlocked</span>" : "<span>Try again stronger</span>"}
+      ${won ? "<span>Next arena unlocked</span>" : "<span>Forge stronger</span>"}
     `;
   }
 
@@ -765,11 +793,66 @@
     closePay();
     renderBoard();
     renderHud();
-    showToast(`${product.title} unlocked`);
+    showToast(`${product.title} secured`);
     haptic("success");
     if (productId === "rare_summon" || productId === "epic_summon") {
       switchView("play");
     }
+  }
+
+  function tutorialDone() {
+    try {
+      return localStorage.getItem(TUTORIAL_KEY) === "1";
+    } catch {
+      return false;
+    }
+  }
+
+  function markTutorialDone() {
+    try {
+      localStorage.setItem(TUTORIAL_KEY, "1");
+    } catch {
+      // ignore
+    }
+  }
+
+  function renderTutorialStep() {
+    const step = TUTORIAL_STEPS[tutorialIndex];
+    if (!step || !els.tutorial) return;
+    els.tutorialArt.textContent = step.art;
+    els.tutorialStep.textContent = `${tutorialIndex + 1} / ${TUTORIAL_STEPS.length}`;
+    els.tutorialTitle.textContent = step.title;
+    els.tutorialText.textContent = step.text;
+    els.tutorialNext.textContent =
+      tutorialIndex >= TUTORIAL_STEPS.length - 1 ? "Enter Arena" : "Next";
+    if (els.tutorialDots) {
+      [...els.tutorialDots.children].forEach((dot, i) => {
+        dot.classList.toggle("is-on", i === tutorialIndex);
+      });
+    }
+  }
+
+  function openTutorial() {
+    if (!els.tutorial || tutorialDone()) return;
+    tutorialIndex = 0;
+    els.tutorial.hidden = false;
+    renderTutorialStep();
+  }
+
+  function closeTutorial() {
+    if (!els.tutorial) return;
+    els.tutorial.hidden = true;
+    markTutorialDone();
+    showToast("Arena unlocked — fuse and climb");
+  }
+
+  function advanceTutorial() {
+    if (tutorialIndex >= TUTORIAL_STEPS.length - 1) {
+      closeTutorial();
+      return;
+    }
+    tutorialIndex += 1;
+    renderTutorialStep();
   }
 
   function haptic(type) {
@@ -819,6 +902,12 @@
     });
     els.payCancel.addEventListener("click", closePay);
     els.payConfirm.addEventListener("click", confirmPay);
+    if (els.tutorialNext) {
+      els.tutorialNext.addEventListener("click", () => advanceTutorial());
+    }
+    if (els.tutorialSkip) {
+      els.tutorialSkip.addEventListener("click", () => closeTutorial());
+    }
   }
 
   function seedIfEmpty() {
@@ -839,10 +928,10 @@
     renderBoard();
     renderRoster();
     renderGlory();
+    openTutorial();
     connectCloud();
-    // soft energy tip
     if (state.energy <= 3) {
-      setTimeout(() => showToast("Low energy — Shop keeps you playing."), 900);
+      setTimeout(() => showToast("Energy low — Star Market keeps you climbing."), 900);
     }
   }
 
