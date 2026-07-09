@@ -1,43 +1,20 @@
 name: Deploy GitHub Pages
 
+# Site build_type is "legacy" (branch publish). The previous Actions
+# deploy-pages job conflicted with legacy builds and left Pages errored.
+# Keep this workflow manual-only until Pages is switched to "GitHub Actions".
+
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - "server/**"
-      - "bot/**"
-      - "supabase/**"
-      - "render.yaml"
-      - ".github/workflows/deploy-backend.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  noop:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload static site
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: .
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Legacy Pages mode
+        run: |
+          echo "This repo uses legacy GitHub Pages (branch publish)."
+          echo "Push to main publishes automatically. No Actions deploy needed."
