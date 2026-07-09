@@ -1358,6 +1358,21 @@ p {
   font-size: 15px;
 }
 
+.friends-copy-secondary {
+  min-height: 42px;
+  border-radius: 14px;
+  border: 1px solid rgba(245, 196, 81, 0.35);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--gold-light);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.friends-copy-secondary:active {
+  transform: scale(0.98);
+}
+
 .friends-link-box {
   padding: 12px;
   border-radius: 12px;

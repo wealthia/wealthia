@@ -2,7 +2,7 @@
 // Full monetization guide: MONETIZATION.md
 window.WEALTHIA_CONFIG = {
   API_URL: "https://wealthia-backend.onrender.com",
-  GAME_URL: "https://wealthia.github.io/wealthia/v5.html?v=2114",
+  GAME_URL: "https://wealthia.github.io/wealthia/v5.html?v=2115",
   ADMIN_URL: "https://wealthia.github.io/wealthia/admin.html",
 
   // Your bot username without @ — used for invite links
@@ -64,7 +64,7 @@ window.WEALTHIA_CONFIG = {
   SUPPORT_TELEGRAM_URL: "https://t.me/WealthiaGameBot",
 
   // Onboarding version — change to show tutorial again
-  ONBOARDING_VERSION: "v1",
+  ONBOARDING_VERSION: "v2",
 
   // Monthly Grand Prize campaign (config-only — no fake bots)
   // Highest City Value when endDate passes wins prizePool (paid manually via admin)

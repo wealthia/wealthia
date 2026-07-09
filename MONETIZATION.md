@@ -112,7 +112,7 @@ Text: `Play Wealthia`
 💰 Tap to earn coins
 🏪 Upgrade your city
 📋 Daily missions every 12 hours
-👥 Invite friends → +500 coins
+👥 Invite friends → +2,000 coins
 
 🎮 Play now: https://t.me/YOUR_BOT_USERNAME
 ```

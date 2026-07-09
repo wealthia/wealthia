@@ -1,4 +1,4 @@
-const WEBAPP_URL = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2108";
+const WEBAPP_URL = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2115";
 const BOT_USERNAME = process.env.BOT_USERNAME || "WealthiaGameBot";
 const CHANNEL_URL =
   String(process.env.CHANNEL_URL || "").trim() ||
@@ -22,7 +22,7 @@ const BOT_DESCRIPTION = process.env.BOT_DESCRIPTION || [
   "🏙️ Wealthia — Build your wealth empire in Telegram!",
   "",
   "Tap for coins, upgrade your city, complete daily missions and climb the leaderboard.",
-  "Invite friends for +500 bonus coins.",
+  "Invite friends for +2,000 bonus coins (they get +1,000 too).",
   "",
   "Press Start to play free."
 ].join("\n");
@@ -92,7 +92,7 @@ function startKeyboard(userId, startParam) {
     [
       {
         text: "Invite Friends",
-        url: `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${BOT_USERNAME}?start=${ref}`)}&text=${encodeURIComponent("Join my Wealthia empire!")}`
+        url: `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${BOT_USERNAME}?start=${ref}`)}&text=${encodeURIComponent("Play Wealthia with me — free Telegram game. Tap Play and we both get bonus coins!")}`
       }
     ]
   ];

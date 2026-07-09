@@ -812,6 +812,20 @@ function bindChannelGateModal() {
   }
 }
 
+function getInviteShareText(link = getInviteLink()) {
+  return (
+    "🏙️ Play Wealthia with me — free Telegram city builder!\n\n" +
+    "Tap, upgrade your empire, and climb the Daily $10 Race.\n" +
+    "We both get bonus coins when you join via my link:\n" +
+    link
+  );
+}
+
+function getTelegramShareUrl(link = getInviteLink()) {
+  const text = getInviteShareText(link);
+  return `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
+}
+
 function updateFriendsInvitePanel(link = getInviteLink()) {
   const box = document.getElementById("friendsInviteLinkBox");
   const text = document.getElementById("friendsInviteLinkText");
@@ -822,18 +836,53 @@ function updateFriendsInvitePanel(link = getInviteLink()) {
 
 async function shareInviteLink() {
   const link = getInviteLink();
+  const shareUrl = getTelegramShareUrl(link);
+  updateFriendsInvitePanel(link);
+
+  const tg = window.Telegram && window.Telegram.WebApp;
+  try {
+    if (tg && typeof tg.openTelegramLink === "function") {
+      tg.openTelegramLink(shareUrl);
+      showToast("Pick a friend in Telegram to invite.");
+      return;
+    }
+  } catch {
+    // Fall through to clipboard / browser share.
+  }
+
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: "Wealthia",
+        text: getInviteShareText(link),
+        url: link
+      });
+      showToast("Invite shared!");
+      return;
+    } catch {
+      // User cancelled or share failed — copy instead.
+    }
+  }
 
   try {
     const copied = await copyTextToClipboard(link);
-    updateFriendsInvitePanel(link);
     if (copied) {
-      showToast("Invite link copied to clipboard! 📋");
+      showToast("Invite link copied! Paste it to a friend in Telegram.");
     } else {
-      updateFriendsInvitePanel(link);
       showToast("Copy the invite link below.");
     }
   } catch {
-    updateFriendsInvitePanel(link);
+    showToast("Copy the invite link below.");
+  }
+}
+
+async function copyInviteLinkOnly() {
+  const link = getInviteLink();
+  updateFriendsInvitePanel(link);
+  try {
+    const copied = await copyTextToClipboard(link);
+    showToast(copied ? "Invite link copied! 📋" : "Copy the invite link below.");
+  } catch {
     showToast("Copy the invite link below.");
   }
 }
@@ -2262,14 +2311,22 @@ function renderFriendsPanel() {
   const referrals = dailyReferralCount || Number(state.referrals?.count || 0);
   const required = prize?.minReferrals || dailyReferralsRequired || 1;
   const eligible = isDailyPrizeEligible();
-  const referralCoins = referrals * 500;
+  const perInvite = 2000;
+  const referralCoins = referrals * perInvite;
   const link = getInviteLink();
   const progressPct = Math.min(100, Math.round((referrals / required) * 100));
   const timeLeft = dailyPrizeTimeLeft(dailyContestResetsAt || state.dailyContest?.resetsAt);
+  const nextMilestone = [1, 3, 5, 10].find((n) => referrals < n) || null;
+  const milestoneHint = nextMilestone
+    ? `Next milestone: ${nextMilestone} friend${nextMilestone === 1 ? "" : "s"} → bonus coins`
+    : "All invite milestones unlocked — keep sharing!";
 
   panel.innerHTML = `
-    <button class="wide-button friends-copy-hero" id="inviteButton" type="button">
-      Copy invite link &amp; share
+    <button class="wide-button friends-copy-hero" id="inviteShareButton" type="button">
+      Share invite in Telegram
+    </button>
+    <button class="friends-copy-secondary" id="inviteButton" type="button">
+      Copy invite link
     </button>
 
     <div class="friends-link-box" id="friendsInviteLinkBox">
@@ -2291,7 +2348,7 @@ function renderFriendsPanel() {
       </div>
       <div class="friends-stat friends-stat--info">
         <span>Each</span>
-        <strong>+500</strong>
+        <strong>+${format(perInvite)}</strong>
       </div>
     </article>
 
@@ -2306,18 +2363,25 @@ function renderFriendsPanel() {
       ${eligible
     ? `<p class="friends-progress-card__qualified">&#127881; Congratulations! You have qualified for the Daily Race. Keep earning tickets to boost your chances!</p>`
     : `<p class="friends-progress-card__hint">Invite ${Math.max(0, required - referrals)} more friend(s) to unlock the $10 contest.</p>`}
+      <p class="friends-progress-card__hint">${milestoneHint}</p>
     </article>
 
     <article class="friends-tips">
-      <p><strong>1.</strong> Friend opens your invite link in Telegram</p>
-      <p><strong>2.</strong> They tap <strong>Play Wealthia</strong> in the bot</p>
-      <p><strong>3.</strong> You instantly get <strong>+500 coins</strong> — no channel required</p>
+      <p><strong>1.</strong> Tap <strong>Share invite in Telegram</strong> and pick a friend</p>
+      <p><strong>2.</strong> They open the link and tap <strong>Play Wealthia</strong></p>
+      <p><strong>3.</strong> You get <strong>+${format(perInvite)}</strong> · they get <strong>+1,000</strong></p>
+      <p><strong>4.</strong> Milestones: 1 / 3 / 5 / 10 friends = extra coin bonuses</p>
     </article>
   `;
 
+  const shareButton = document.getElementById("inviteShareButton");
+  if (shareButton) {
+    shareButton.addEventListener("click", () => shareInviteLink());
+  }
+
   const inviteButton = document.getElementById("inviteButton");
   if (inviteButton) {
-    inviteButton.addEventListener("click", () => shareInviteLink());
+    inviteButton.addEventListener("click", () => copyInviteLinkOnly());
   }
 }
 
@@ -2889,7 +2953,7 @@ function updateOnboardingStep(step) {
   const targets = {
     1: els.tapButton,
     2: document.querySelector('[data-tab="cityPanel"]'),
-    3: document.querySelector('[data-tab="tasksPanel"]')
+    3: document.querySelector('[data-tab="friendsPanel"]')
   };
 
   const target = targets[step];
@@ -3473,7 +3537,7 @@ async function syncReferralProgress(options = {}) {
     saveState();
     render();
     if (result.referralQualified && !options.silent) {
-      showReferralQualifiedToast("Referral linked! Your inviter earned +500 coins.");
+      showReferralQualifiedToast("Referral linked! Your inviter earned +2,000 coins.");
     }
     return true;
   }
@@ -5118,9 +5182,14 @@ if (els.earnPanel) {
   });
 }
 
+const inviteShareButton = document.getElementById("inviteShareButton");
+if (inviteShareButton) {
+  inviteShareButton.addEventListener("click", () => shareInviteLink());
+}
+
 const inviteButton = document.getElementById("inviteButton");
 if (inviteButton) {
-  inviteButton.addEventListener("click", () => shareInviteLink());
+  inviteButton.addEventListener("click", () => copyInviteLinkOnly());
 }
 
 const resetButton = document.getElementById("resetButton");

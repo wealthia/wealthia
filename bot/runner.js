@@ -1,5 +1,5 @@
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
-const WEBAPP_URL = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2102";
+const WEBAPP_URL = process.env.WEBAPP_URL || "https://wealthia.github.io/wealthia/v5.html?v=2115";
 const BACKEND_URL = process.env.BACKEND_URL || "https://wealthia-backend.onrender.com";
 const STARS_WEBHOOK_SECRET = process.env.STARS_WEBHOOK_SECRET || process.env.ADMIN_SECRET || "";
 const CRON_SECRET = process.env.CRON_SECRET || STARS_WEBHOOK_SECRET || "";
