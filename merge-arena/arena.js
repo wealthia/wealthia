@@ -106,6 +106,89 @@
     }
   };
 
+  // Soft currency spends — gems actually do something fun
+  const GEM_SHOP = {
+    gem_energy_sip: {
+      title: "Crystal Sip",
+      text: "+5 energy from your gem stash.",
+      gems: 50,
+      apply(st) {
+        st.energy = Math.min(ENERGY_MAX, st.energy + 5);
+        st.lastEnergyAt = Date.now();
+        return null;
+      }
+    },
+    gem_lucky_drop: {
+      title: "Lucky Drop",
+      text: "Spin a gem chest — Rare often, Epic sometimes.",
+      gems: 100,
+      apply(st) {
+        const roll = Math.random();
+        const rarity = roll < 0.72 ? "rare" : roll < 0.97 ? "epic" : "legendary";
+        const err = placeGuaranteed(st, rarity);
+        if (err) return err;
+        st._lastGemLoot = rarity;
+        return null;
+      }
+    },
+    gem_auto_fuse: {
+      title: "Instant Fuse",
+      text: "Auto-merge one matching pair on the board.",
+      gems: 80,
+      apply(st) {
+        for (let i = 0; i < SIZE; i += 1) {
+          const a = st.board[i];
+          if (!a || a.level >= 5) continue;
+          for (let j = i + 1; j < SIZE; j += 1) {
+            const b = st.board[j];
+            if (!b || b.id !== a.id || b.level !== a.level) continue;
+            const merged = makeUnit(a.id, a.level + 1);
+            merged.rarity = rarityForLevel(merged.level);
+            st.board[j] = merged;
+            st.board[i] = null;
+            st.merges += 1;
+            st.gems += merged.level >= 4 ? 15 : 5;
+            if (!st.discovered.includes(merged.id)) st.discovered.push(merged.id);
+            st._lastGemLoot = `${defById(merged.id).name} L${merged.level}`;
+            return null;
+          }
+        }
+        return "No matching pair to fuse yet.";
+      }
+    },
+    gem_power_charm: {
+      title: "Power Charm",
+      text: "+40% squad power for your next fight only.",
+      gems: 120,
+      apply(st) {
+        st.charmBattles = Math.max(0, Number(st.charmBattles || 0)) + 1;
+        return null;
+      }
+    },
+    gem_board_breeze: {
+      title: "Board Breeze",
+      text: "Clear your weakest hero and free a slot.",
+      gems: 70,
+      apply(st) {
+        let weakestIdx = -1;
+        let weakestPow = Infinity;
+        st.board.forEach((u, i) => {
+          if (!u) return;
+          const p = powerOf(u);
+          if (p < weakestPow) {
+            weakestPow = p;
+            weakestIdx = i;
+          }
+        });
+        if (weakestIdx < 0) return "Board is empty — nothing to clear.";
+        const gone = st.board[weakestIdx];
+        st.board[weakestIdx] = null;
+        st._lastGemLoot = defById(gone.id).name;
+        return null;
+      }
+    }
+  };
+
   const TUTORIAL_KEY = "merge_arena_tutorial_v1";
   const TUTORIAL_STEPS = [
     {
@@ -135,6 +218,7 @@
     merges: 0,
     highestPower: 0,
     surgeBattles: 0,
+    charmBattles: 0,
     discovered: ["spark", "blade"],
     board: Array(SIZE).fill(null),
     lastEnergyAt: Date.now()
@@ -156,6 +240,7 @@
   const els = {
     energyValue: $("energyValue"),
     gemValue: $("gemValue"),
+    gemChip: $("gemChip"),
     trophyValue: $("trophyValue"),
     cloudChip: $("cloudChip"),
     cloudValue: $("cloudValue"),
@@ -397,8 +482,10 @@
 
   function squadPower() {
     const raw = state.board.reduce((sum, u) => sum + powerOf(u), 0);
-    if (state.surgeBattles > 0) return Math.round(raw * 1.3);
-    return raw;
+    let mult = 1;
+    if (state.surgeBattles > 0) mult += 0.3;
+    if (state.charmBattles > 0) mult += 0.4;
+    return Math.round(raw * mult);
   }
 
   function enemyPower(wave) {
@@ -568,6 +655,11 @@
     els.energyValue.textContent = String(state.energy);
     if (els.energyChip) els.energyChip.title = `Energy ${state.energy}/${ENERGY_MAX}`;
     els.gemValue.textContent = String(state.gems);
+    if (els.gemChip) {
+      els.gemChip.title = state.charmBattles > 0
+        ? `Gems ${state.gems} · Power Charm ready`
+        : `Gems ${state.gems} · Tap to open Gem Vault`;
+    }
     els.trophyValue.textContent = String(state.trophies);
     els.waveTitle.textContent = `Arena ${state.wave}`;
     const power = squadPower();
@@ -916,6 +1008,7 @@
 
     const won = power >= enemy;
     if (state.surgeBattles > 0) state.surgeBattles -= 1;
+    if (state.charmBattles > 0) state.charmBattles -= 1;
 
     if (won) {
       const trophyGain = 8 + wave * 2;
@@ -978,22 +1071,74 @@
   }
 
   function openPay(productId) {
+    if (GEM_SHOP[productId]) {
+      openGemSpend(productId);
+      return;
+    }
     const product = SHOP[productId];
     if (!product) return;
     pendingPurchase = productId;
     els.payTitle.textContent = product.title;
     els.payText.textContent = `${product.text} · Exact price: ${product.stars} Stars`;
+    if (els.payConfirm) els.payConfirm.textContent = "Pay Stars";
+    els.payModal.hidden = false;
+  }
+
+  function openGemSpend(productId) {
+    const product = GEM_SHOP[productId];
+    if (!product) return;
+    pendingPurchase = productId;
+    els.payTitle.textContent = product.title;
+    els.payText.textContent = `${product.text} · Costs ${product.gems} 💎 (you have ${state.gems})`;
+    if (els.payConfirm) els.payConfirm.textContent = `Spend ${product.gems} 💎`;
     els.payModal.hidden = false;
   }
 
   function closePay() {
     pendingPurchase = null;
     els.payModal.hidden = true;
+    if (els.payConfirm) els.payConfirm.textContent = "Pay Stars";
   }
 
   function confirmPay() {
     if (!pendingPurchase) return;
     const productId = pendingPurchase;
+
+    if (GEM_SHOP[productId]) {
+      const product = GEM_SHOP[productId];
+      if (state.gems < product.gems) {
+        closePay();
+        showToast(`Need ${product.gems} 💎 — fuse & fight to earn more.`);
+        return;
+      }
+      state.gems -= product.gems;
+      delete state._lastGemLoot;
+      const err = product.apply(state);
+      if (typeof err === "string") {
+        state.gems += product.gems;
+        closePay();
+        showToast(err);
+        return;
+      }
+      const loot = state._lastGemLoot;
+      delete state._lastGemLoot;
+      saveState();
+      closePay();
+      renderBoard();
+      renderHud();
+      cheerBuddy("summon");
+      showToast(loot ? `${product.title}: ${loot}` : `${product.title} unlocked`);
+      haptic("success");
+      if (
+        productId === "gem_lucky_drop" ||
+        productId === "gem_auto_fuse" ||
+        productId === "gem_board_breeze"
+      ) {
+        switchView("play");
+      }
+      return;
+    }
+
     const product = SHOP[productId];
     if (!product) return;
 
@@ -1102,6 +1247,14 @@
       switchView("shop");
       openPay("energy_refill");
     });
+    if (els.gemChip) {
+      els.gemChip.addEventListener("click", () => {
+        switchView("shop");
+        const vault = document.querySelector(".shop-lane");
+        if (vault && vault.scrollIntoView) vault.scrollIntoView({ behavior: "smooth", block: "start" });
+        showToast(`Gem Vault open · ${state.gems} 💎 ready`);
+      });
+    }
     if (els.cloudChip) {
       els.cloudChip.addEventListener("click", () => {
         connectCloud();
