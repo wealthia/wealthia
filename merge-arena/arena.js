@@ -240,11 +240,14 @@
 
   function regenEnergy() {
     const now = Date.now();
-    const elapsed = now - Number(state.lastEnergyAt || now);
+    const last = Number(state.lastEnergyAt || now);
+    const elapsed = now - last;
     const gained = Math.floor(elapsed / 60000);
-    if (gained > 0 && state.energy < ENERGY_MAX) {
-      state.energy = Math.min(ENERGY_MAX, state.energy + gained);
-      state.lastEnergyAt = now;
+    if (gained > 0) {
+      if (state.energy < ENERGY_MAX) {
+        state.energy = Math.min(ENERGY_MAX, state.energy + gained);
+      }
+      state.lastEnergyAt = last + gained * 60000;
       saveState();
     }
   }
@@ -283,7 +286,10 @@
     els.waveTitle.textContent = `Wave ${state.wave}`;
     const power = squadPower();
     els.powerValue.textContent = String(power);
-    state.highestPower = Math.max(state.highestPower, power);
+    if (power > state.highestPower) {
+      state.highestPower = power;
+      saveState();
+    }
     els.summonButton.disabled = state.energy < 1 || emptySlots().length === 0;
     els.battleButton.disabled = battleBusy || state.energy < 1 || power <= 0;
   }
@@ -458,6 +464,7 @@
   }
 
   function summon(forceId, forceLevel) {
+    regenEnergy();
     const slots = emptySlots();
     if (!slots.length) {
       showToast("Board full — merge units first.");
@@ -471,7 +478,6 @@
 
     if (!forceId) {
       state.energy -= 1;
-      state.lastEnergyAt = Date.now();
     }
 
     const id = forceId || randomCommonId();
@@ -489,6 +495,7 @@
 
   async function startBattle() {
     if (battleBusy) return;
+    regenEnergy();
     const power = squadPower();
     if (power <= 0) {
       showToast("Summon units before battle.");
@@ -501,9 +508,6 @@
     }
 
     battleBusy = true;
-    state.energy -= 1;
-    state.lastEnergyAt = Date.now();
-    saveState();
     renderHud();
 
     const wave = state.wave;
@@ -532,6 +536,7 @@
     }
 
     const won = power >= enemy;
+    state.energy -= 1;
     if (state.surgeBattles > 0) state.surgeBattles -= 1;
 
     if (won) {
@@ -551,11 +556,13 @@
     } else {
       // soft loss: lose some trophies, keep wave
       const loss = Math.min(state.trophies, 4 + Math.floor(wave / 2));
+      const gemGain = 5;
       state.trophies = Math.max(0, state.trophies - loss);
+      state.gems += gemGain;
       consumeWeakest();
       saveState();
       els.battleModal.hidden = true;
-      showResult(false, wave, -loss, 5);
+      showResult(false, wave, -loss, gemGain);
       haptic("error");
     }
 
