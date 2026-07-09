@@ -472,8 +472,8 @@
     const availW = Math.max(160, Math.min(appW - 28, (wrap.parentElement ? wrap.parentElement.clientWidth : appW) - 8) - padX);
     const fromViewport = Math.max(140, appH - reserved);
     if (availW < 40) return;
-    // Hard cap ~34% of height so buddy + lower UI dominate
-    const maxBoard = Math.floor(appH * 0.34);
+    // Hard cap ~32% of height so buddy stays on-screen
+    const maxBoard = Math.floor(appH * 0.32);
     const size = Math.floor(Math.min(availW, fromViewport, maxBoard));
     els.board.style.width = `${size}px`;
     els.board.style.height = `${size}px`;
