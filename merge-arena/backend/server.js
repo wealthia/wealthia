@@ -10,7 +10,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 // Hard pin so stale Render env cannot keep Telegram on an old cached URL.
-const WEBAPP_URL = "https://wealthia.github.io/wealthia/merge-arena/app/?v=31";
+const WEBAPP_URL = "https://wealthia.github.io/wealthia/merge-arena/app/?v=32";
 const PLAY_BUTTON_TEXT = process.env.PLAY_BUTTON_TEXT || "Play MERGE ARENA";
 const SESSION_SECRET =
   process.env.SESSION_SECRET || TELEGRAM_BOT_TOKEN || "merge-arena-dev-secret";
@@ -226,6 +226,42 @@ async function ensureArenaRow(userId, stateInput) {
   return { payload, data };
 }
 
+async function ensureArenaRowIfMissing(userId) {
+  const { data: existing, error: readError } = await supabase
+    .from("merge_arena_states")
+    .select("user_id, updated_at")
+    .eq("user_id", String(userId))
+    .maybeSingle();
+
+  if (readError) throw readError;
+  if (existing) return { created: false, data: existing };
+
+  const fresh = {
+    energy: 12,
+    gems: 80,
+    trophies: 0,
+    wave: 1,
+    bestWave: 1,
+    wins: 0,
+    merges: 0,
+    highestPower: 0,
+    surgeBattles: 0,
+    charmBattles: 0,
+    dailyStreak: 0,
+    dailyClaimDate: "",
+    referralCount: 0,
+    referredBy: "",
+    referralClaimed: false,
+    adLastClaimAt: 0,
+    soundOn: true,
+    discovered: ["spark", "blade"],
+    board: Array(16).fill(null),
+    lastEnergyAt: Date.now()
+  };
+  const ensured = await ensureArenaRow(userId, fresh);
+  return { created: true, data: ensured.data || { user_id: String(userId) } };
+}
+
 app.get("/ping", (_req, res) => {
   res.json({ ok: true, app: "MERGE ARENA", ts: Date.now() });
 });
@@ -380,24 +416,11 @@ app.post("/api/merge-arena/session", async (req, res) => {
     );
     if (userError) console.warn("USER_UPSERT:", userError.message);
 
-    // Always create/update a states row on login so Supabase is never empty after session.
+    // Create a states row only for brand-new players — never wipe existing progress on login.
     let stateMeta = null;
     try {
-      const ensured = await ensureArenaRow(userId, {
-        energy: 12,
-        gems: 80,
-        trophies: 0,
-        wave: 1,
-        bestWave: 1,
-        wins: 0,
-        merges: 0,
-        highestPower: 0,
-        surgeBattles: 0,
-        discovered: ["spark", "blade"],
-        board: Array(16).fill(null),
-        lastEnergyAt: Date.now()
-      });
-      stateMeta = ensured.data || { user_id: userId };
+      const ensured = await ensureArenaRowIfMissing(userId);
+      stateMeta = { ...(ensured.data || { user_id: userId }), created: ensured.created };
     } catch (stateError) {
       console.error("STATE_ENSURE_ERROR:", stateError);
       res.status(500).json({
@@ -412,7 +435,7 @@ app.post("/api/merge-arena/session", async (req, res) => {
       ok: true,
       token: session.token,
       expiresAt: session.expiresAt,
-      stateCreated: true,
+      stateCreated: Boolean(stateMeta?.created),
       stateMeta,
       user: {
         id: userId,
