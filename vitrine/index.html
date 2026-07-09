@@ -3,145 +3,145 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0a0908" />
-  <title>VITRINE — Gift Atelier</title>
+  <meta name="theme-color" content="#0b1020" />
+  <title>VITRINE</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./vitrine.css?v=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./vitrine.css?v=2" />
 </head>
 <body>
-  <div class="atmosphere" aria-hidden="true">
-    <div class="atmosphere__glow atmosphere__glow--a"></div>
-    <div class="atmosphere__glow atmosphere__glow--b"></div>
-    <div class="atmosphere__vignette"></div>
+  <div class="sky" aria-hidden="true">
+    <span class="blob blob--rose"></span>
+    <span class="blob blob--mint"></span>
+    <span class="blob blob--sky"></span>
+    <span class="spark spark--1"></span>
+    <span class="spark spark--2"></span>
+    <span class="spark spark--3"></span>
   </div>
 
-  <div class="app" id="app">
-    <header class="topbar">
-      <div class="brand-lockup">
-        <span class="brand-mark" aria-hidden="true"></span>
+  <div class="app">
+    <header class="top">
+      <div class="logo">
+        <span class="logo__badge" aria-hidden="true">🎁</span>
         <div>
-          <p class="brand-kicker">Gift Atelier</p>
-          <h1 class="brand-name">VITRINE</h1>
+          <strong>VITRINE</strong>
+          <small>Gift studio</small>
         </div>
       </div>
-      <div class="wallet" aria-label="Balance">
-        <span class="wallet__label">Essence</span>
-        <strong id="essenceValue">0</strong>
+      <div class="pills">
+        <div class="pill" title="Materials today">
+          <span>Mats</span>
+          <strong id="matsTotal">0</strong>
+        </div>
+        <div class="pill pill--accent">
+          <span>Essence</span>
+          <strong id="essenceValue">0</strong>
+        </div>
       </div>
     </header>
 
     <main class="stage">
-      <!-- HOME -->
+      <!-- HOME: one big gift moment -->
       <section class="panel is-active" id="panel-home" data-panel="home">
-        <div class="hero-gift" id="heroGift">
-          <div class="hero-gift__halo"></div>
-          <div class="hero-gift__pedestal"></div>
-          <article class="gift-orb" id="featuredGift" data-rarity="rare">
-            <div class="gift-orb__shine"></div>
-            <div class="gift-orb__body" id="featuredVisual"></div>
-            <p class="gift-orb__name" id="featuredName">Aurora Ribbon</p>
-            <p class="gift-orb__meta" id="featuredMeta">Today’s showcase</p>
-          </article>
+        <div class="stage-card">
+          <p class="eyebrow" id="homeEyebrow">Today’s drop</p>
+          <div class="box-stage" id="boxStage">
+            <div class="box" id="heroBox" data-tone="rose">
+              <div class="box__lid">
+                <div class="box__bow">
+                  <span></span><span></span>
+                </div>
+              </div>
+              <div class="box__body">
+                <div class="box__shine"></div>
+              </div>
+              <div class="box__shadow"></div>
+            </div>
+            <div class="float-chip" id="floatChip">Aurora Ribbon</div>
+          </div>
+          <h2 id="homeTitle">Open your daily gift kit</h2>
+          <p id="homeSub">One beautiful drop a day. Craft what you want — no spins, no random wins.</p>
+          <button class="btn btn--glow" id="claimButton" type="button">
+            <span id="claimLabel">Claim today’s kit</span>
+          </button>
+          <button class="btn btn--ghost" id="goComposeButton" type="button">Compose a gift</button>
         </div>
-
-        <div class="home-copy">
-          <h2>Compose what you keep.</h2>
-          <p>No spins. No prizes. Claim today’s materials, craft a gift with a clear recipe, and place it in your gallery.</p>
-        </div>
-
-        <button class="cta cta--primary" id="claimButton" type="button">
-          <span id="claimLabel">Claim today’s materials</span>
-          <small id="claimHint">+3 materials · once per day</small>
-        </button>
       </section>
 
-      <!-- ATELIER -->
+      <!-- COMPOSE -->
       <section class="panel" id="panel-atelier" data-panel="atelier" hidden>
-        <div class="section-head">
-          <h2>Atelier</h2>
-          <p>Choose a recipe. Materials are spent only when you craft.</p>
+        <div class="section-title">
+          <h2>Compose</h2>
+          <p>Pick a gift. See the recipe. Make it.</p>
         </div>
-
-        <div class="material-strip" id="materialStrip" aria-label="Your materials"></div>
-
-        <div class="recipe-list" id="recipeList"></div>
-
-        <div class="craft-stage" id="craftStage" hidden>
-          <div class="craft-stage__orb" id="craftOrb"></div>
-          <p class="craft-stage__label" id="craftLabel">Composing…</p>
-        </div>
+        <div class="mat-row" id="materialStrip"></div>
+        <div class="compose-track" id="recipeList"></div>
       </section>
 
-      <!-- COLLECTION -->
+      <!-- GALLERY -->
       <section class="panel" id="panel-collection" data-panel="collection" hidden>
-        <div class="section-head">
-          <h2>Collection</h2>
-          <p id="collectionSummary">0 gifts · complete the gallery</p>
+        <div class="section-title">
+          <h2>My gifts</h2>
+          <p id="collectionSummary">0 gifts</p>
         </div>
-        <div class="gallery" id="gallery"></div>
+        <div class="gift-rail" id="gallery"></div>
       </section>
 
-      <!-- SHOP -->
+      <!-- GET -->
       <section class="panel" id="panel-shop" data-panel="shop" hidden>
-        <div class="section-head">
-          <h2>Vitrine Shop</h2>
-          <p>Clear prices. You see exactly what you buy — no mystery boxes.</p>
+        <div class="section-title">
+          <h2>Get more</h2>
+          <p>Exact contents. Exact Stars price. Nothing random.</p>
         </div>
-        <div class="shop-grid" id="shopGrid"></div>
+        <div class="offer-rail" id="shopGrid"></div>
       </section>
 
       <!-- SEND -->
       <section class="panel" id="panel-send" data-panel="send" hidden>
-        <div class="section-head">
-          <h2>Send a gift</h2>
-          <p>Share a piece from your collection. They see what you made.</p>
+        <div class="section-title">
+          <h2>Send</h2>
+          <p>Share a gift you made.</p>
         </div>
-        <div class="send-picker" id="sendPicker"></div>
-        <button class="cta cta--primary" id="sendButton" type="button" disabled>
-          Share selected gift
-        </button>
-    </section>
+        <div class="gift-rail" id="sendPicker"></div>
+        <button class="btn btn--glow" id="sendButton" type="button" disabled>Share in Telegram</button>
+      </section>
     </main>
 
-    <nav class="dock" aria-label="Main">
-      <button class="dock__item is-active" type="button" data-nav="home">
-        <span class="dock__icon" aria-hidden="true">◆</span>
-        <span>Home</span>
-      </button>
-      <button class="dock__item" type="button" data-nav="atelier">
-        <span class="dock__icon" aria-hidden="true">✦</span>
-        <span>Atelier</span>
-      </button>
-      <button class="dock__item" type="button" data-nav="collection">
-        <span class="dock__icon" aria-hidden="true">▣</span>
-        <span>Gallery</span>
-      </button>
-      <button class="dock__item" type="button" data-nav="shop">
-        <span class="dock__icon" aria-hidden="true">◇</span>
-        <span>Shop</span>
-      </button>
-      <button class="dock__item" type="button" data-nav="send">
-        <span class="dock__icon" aria-hidden="true">↗</span>
-        <span>Send</span>
-      </button>
+    <nav class="dock">
+      <button class="dock__btn is-active" type="button" data-nav="home"><i>⌂</i><span>Home</span></button>
+      <button class="dock__btn" type="button" data-nav="atelier"><i>✦</i><span>Compose</span></button>
+      <button class="dock__btn" type="button" data-nav="collection"><i>♡</i><span>Gifts</span></button>
+      <button class="dock__btn" type="button" data-nav="shop"><i>+</i><span>Get</span></button>
+      <button class="dock__btn" type="button" data-nav="send"><i>↗</i><span>Send</span></button>
     </nav>
   </div>
 
   <div class="toast" id="toast" hidden></div>
 
-  <div class="reveal-modal" id="revealModal" hidden>
-    <div class="reveal-modal__card">
-      <p class="reveal-modal__kicker">Crafted</p>
-      <div class="reveal-modal__visual" id="revealVisual"></div>
+  <div class="reveal" id="revealModal" hidden>
+    <div class="reveal__burst" aria-hidden="true"></div>
+    <div class="reveal__card">
+      <p class="eyebrow">You made</p>
+      <div class="mini-box" id="revealVisual" data-tone="rose">
+        <div class="mini-box__lid"><div class="mini-box__bow"><span></span><span></span></div></div>
+        <div class="mini-box__body"></div>
+      </div>
       <h3 id="revealName">Gift</h3>
       <p id="revealRarity">Rare</p>
-      <button class="cta cta--primary" id="revealClose" type="button">Place in gallery</button>
+      <button class="btn btn--glow" id="revealClose" type="button">Keep it</button>
     </div>
   </div>
 
-  <script src="./vitrine.js?v=1"></script>
+  <div class="forge" id="craftStage" hidden>
+    <div class="forge__box" id="craftOrb" data-tone="mint">
+      <div class="forge__lid"></div>
+      <div class="forge__body"></div>
+    </div>
+    <p id="craftLabel">Wrapping…</p>
+  </div>
+
+  <script src="./vitrine.js?v=2"></script>
 </body>
 </html>
