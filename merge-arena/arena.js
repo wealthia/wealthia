@@ -443,28 +443,30 @@
     const hint = document.getElementById("boardHint");
     const strip = document.getElementById("unitStrip");
     const appH = app ? app.clientHeight : window.innerHeight;
+    // Bottom controls get priority; board stays compact
     const reserved =
-      (dock ? dock.offsetHeight : 48) +
-      (actions ? actions.offsetHeight : 44) +
+      (dock ? Math.max(dock.offsetHeight, 64) : 64) +
+      (actions ? Math.max(actions.offsetHeight, 56) : 56) +
       (hud ? hud.offsetHeight : 30) +
       (wave ? wave.offsetHeight : 36) +
-      (hint ? hint.offsetHeight : 16) +
-      (strip ? Math.min(strip.offsetHeight || 42, 42) : 42) +
-      20;
+      (hint ? Math.max(hint.offsetHeight, 18) : 18) +
+      (strip ? Math.max(strip.offsetHeight || 52, 52) : 52) +
+      40;
+    const appW = app ? app.clientWidth : window.innerWidth;
     const styles = window.getComputedStyle(wrap);
     const padX = (parseFloat(styles.paddingLeft) || 0) + (parseFloat(styles.paddingRight) || 0);
     const padY = (parseFloat(styles.paddingTop) || 0) + (parseFloat(styles.paddingBottom) || 0);
-    const availW = Math.max(0, wrap.clientWidth - padX);
-    const fromWrap = Math.max(0, wrap.clientHeight - padY);
-    const fromViewport = Math.max(120, appH - reserved);
-    const availH = Math.max(120, Math.min(fromWrap || fromViewport, fromViewport));
+    const availW = Math.max(160, Math.min(appW - 28, (wrap.parentElement ? wrap.parentElement.clientWidth : appW) - 8) - padX);
+    const fromViewport = Math.max(140, appH - reserved);
     if (availW < 40) return;
-    // Square board that leaves room for buttons + strip + dock
-    const size = Math.floor(Math.min(availW, availH));
+    // Hard cap ~36% of height so lower UI dominates
+    const maxBoard = Math.floor(appH * 0.36);
+    const size = Math.floor(Math.min(availW, fromViewport, maxBoard));
     els.board.style.width = `${size}px`;
     els.board.style.height = `${size}px`;
     els.board.style.maxWidth = "100%";
     els.board.style.maxHeight = "100%";
+    wrap.style.width = `${size + padX}px`;
   }
 
   function initTelegram() {
